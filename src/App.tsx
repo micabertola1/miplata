@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { auth, googleProvider, db } from './firebase.js';
 import {

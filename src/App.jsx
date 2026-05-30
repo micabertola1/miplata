@@ -3,7 +3,6 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { auth, googleProvider, db } from './firebase.js';
 import {
   signInWithPopup,
-  signInWithRedirect,
   onAuthStateChanged,
   signOut,
 } from 'firebase/auth';
@@ -283,9 +282,10 @@ export default function App() {
 
   const login = async () => {
     try {
-      await signInWithRedirect(auth, googleProvider);
+      await signInWithPopup(auth, googleProvider);
     } catch (e) {
       console.error('Login error:', e);
+      alert('No se pudo iniciar sesión: ' + (e?.code || e?.message || e));
     }
   };
 

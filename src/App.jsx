@@ -561,21 +561,26 @@ function MainApp({ user, onLogout }) {
 
   // ── Transaction CRUD ──
   const addTx = async (t) => {
-    if (t.scope === 'grupo' && t.groupId) {
-      await addDoc(collection(db, 'groups', t.groupId, 'transactions'), {
-        ...t,
-        createdBy: user.uid,
-        createdByName: user.displayName,
-        createdAt: new Date().toISOString(),
-      });
-    } else {
-      await addDoc(collection(db, 'users', user.uid, 'transactions'), {
-        ...t,
-        createdAt: new Date().toISOString(),
-      });
+    try {
+      if (t.scope === 'grupo' && t.groupId) {
+        await addDoc(collection(db, 'groups', t.groupId, 'transactions'), {
+          ...t,
+          createdBy: user.uid,
+          createdByName: user.displayName,
+          createdAt: new Date().toISOString(),
+        });
+      } else {
+        await addDoc(collection(db, 'users', user.uid, 'transactions'), {
+          ...t,
+          createdAt: new Date().toISOString(),
+        });
+      }
+      setModal(null);
+      setFabOpen(false);
+    } catch (e) {
+      console.error('addTx error:', e);
+      alert('No se pudo guardar: ' + (e?.code || e?.message || e));
     }
-    setModal(null);
-    setFabOpen(false);
   };
 
   const updateTxFn = async (t) => {

@@ -2735,14 +2735,18 @@ function TxModal({
             {!confirmDel && (
               <button
                 onClick={() => {
-                  if (!amt || Number(amt) <= 0) return;
+                  const amtNum = Number(String(amt).replace(',', '.'));
+                  if (!amtNum || amtNum <= 0) {
+                    alert('Ingresá un monto mayor a 0.');
+                    return;
+                  }
                   const isGroupScope = scope !== 'personal';
                   const txData = {
                     ...(mode === 'edit' ? initial : {}),
                     type,
                     cat,
                     sub,
-                    amt: Number(amt),
+                    amt: amtNum,
                     desc,
                     date,
                     cur,

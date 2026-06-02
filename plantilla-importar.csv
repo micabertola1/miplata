@@ -1,0 +1,7 @@
+tipo,fecha,monto,categoria,subcategoria,descripcion,moneda,medio_pago
+gasto,2026-06-01,15000,Alimentación,Supermercado,Compra semanal Coto,ARS,debito
+gasto,2026-06-02,3500,Transporte,Combustible,Carga nafta,ARS,credito
+gasto,2026-06-03,8000,Vivienda,Servicios,Luz y gas,ARS,debito
+gasto,2026-06-04,2500,Entretenimiento,Streaming,Netflix,ARS,credito
+ingreso,2026-06-05,250000,Trabajo,Sueldo,Sueldo junio,ARS,
+ingreso,2026-06-06,40000,Trabajo,Clientes,Proyecto cliente X,ARS,

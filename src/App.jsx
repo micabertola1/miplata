@@ -20,6 +20,7 @@ import {
   getDocs,
   arrayUnion,
   arrayRemove,
+  writeBatch,
 } from 'firebase/firestore';
 
 /* ── Data ── */
@@ -147,6 +148,140 @@ function fmtS(a, c) {
 }
 function td() {
   return new Date().toISOString().slice(0, 10);
+}
+
+/* ── CSV import helpers ── */
+const COL_ALIASES = {
+  tipo: ['tipo', 'type', 'movimiento'],
+  fecha: ['fecha', 'date', 'dia', 'día', 'fecha operacion', 'fecha operación'],
+  monto: ['monto', 'importe', 'amount', 'valor', 'total', 'precio', 'debito', 'débito'],
+  categoria: ['categoria', 'categoría', 'rubro', 'category'],
+  subcategoria: ['subcategoria', 'subcategoría', 'subrubro'],
+  descripcion: [
+    'descripcion', 'descripción', 'concepto', 'detalle', 'nota',
+    'observacion', 'observación', 'desc',
+  ],
+  moneda: ['moneda', 'currency', 'divisa'],
+  medio_pago: [
+    'medio_pago', 'medio de pago', 'pago', 'metodo', 'método',
+    'forma de pago', 'medio',
+  ],
+};
+
+function pad2(n) {
+  return String(n).padStart(2, '0');
+}
+
+function parseAmount(s) {
+  if (s == null) return NaN;
+  let v = String(s).replace(/[^\d.,-]/g, '');
+  if (!v) return NaN;
+  if (v.includes('.') && v.includes(',')) {
+    // El último separador es el decimal
+    if (v.lastIndexOf(',') > v.lastIndexOf('.'))
+      v = v.replace(/\./g, '').replace(',', '.');
+    else v = v.replace(/,/g, '');
+  } else if (v.includes(',')) {
+    v = v.replace(',', '.');
+  } else if ((v.match(/\./g) || []).length > 1) {
+    v = v.replace(/\./g, '');
+  }
+  const n = parseFloat(v);
+  return isNaN(n) ? NaN : Math.round(Math.abs(n) * 100) / 100;
+}
+
+function parseDateStr(s) {
+  if (!s) return null;
+  const t = String(s).trim();
+  let m;
+  if ((m = t.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/)))
+    return `${m[1]}-${pad2(m[2])}-${pad2(m[3])}`;
+  if ((m = t.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})/))) {
+    let y = m[3];
+    if (y.length === 2) y = '20' + y;
+    const day = +m[1], mon = +m[2];
+    if (day > 31 || mon > 12) return null;
+    return `${y}-${pad2(mon)}-${pad2(day)}`;
+  }
+  return null;
+}
+
+function parseCSV(text) {
+  const clean = String(text).replace(/^﻿/, '');
+  const lines = clean.split(/\r\n|\n|\r/).filter((l) => l.trim() !== '');
+  if (lines.length < 2) return { headers: [], rows: [] };
+  const head = lines[0];
+  const delim =
+    (head.split(';').length || 0) > (head.split(',').length || 0) ? ';' : ',';
+  const parseLine = (line) => {
+    const out = [];
+    let cur = '', inQ = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (inQ) {
+        if (ch === '"') {
+          if (line[i + 1] === '"') { cur += '"'; i++; }
+          else inQ = false;
+        } else cur += ch;
+      } else if (ch === '"') inQ = true;
+      else if (ch === delim) { out.push(cur); cur = ''; }
+      else cur += ch;
+    }
+    out.push(cur);
+    return out.map((x) => x.trim());
+  };
+  const headers = parseLine(head).map((h) => h.toLowerCase().trim());
+  const rows = lines.slice(1).map(parseLine);
+  return { headers, rows };
+}
+
+function mapImportRows(text) {
+  const { headers, rows } = parseCSV(text);
+  if (!headers.length)
+    throw new Error('El archivo está vacío o no tiene filas de datos.');
+  const idx = {};
+  for (const [field, aliases] of Object.entries(COL_ALIASES))
+    idx[field] = headers.findIndex((h) => aliases.includes(h));
+  if (idx.fecha === -1 || idx.monto === -1)
+    throw new Error(
+      'Faltan columnas obligatorias. Necesito al menos "fecha" y "monto" en los encabezados.'
+    );
+  const valid = [], invalid = [];
+  rows.forEach((cols, i) => {
+    const rowNum = i + 2;
+    const get = (f) => (idx[f] >= 0 ? (cols[idx[f]] || '').trim() : '');
+    const amt = parseAmount(get('monto'));
+    const date = parseDateStr(get('fecha'));
+    if (!amt || amt <= 0) {
+      invalid.push({ rowNum, reason: 'monto inválido o vacío' });
+      return;
+    }
+    if (!date) {
+      invalid.push({ rowNum, reason: 'fecha inválida (usá AAAA-MM-DD o DD/MM/AAAA)' });
+      return;
+    }
+    const type = get('tipo').toLowerCase().startsWith('ing') ? 'ingreso' : 'gasto';
+    const tx = {
+      type,
+      cat: get('categoria') || (type === 'gasto' ? 'Compras' : 'Otros'),
+      sub: get('subcategoria'),
+      amt,
+      desc: get('descripcion'),
+      date,
+      cur: get('moneda').toUpperCase() === 'USD' ? 'USD' : 'ARS',
+      recurring: false,
+    };
+    if (type === 'gasto') {
+      const p = get('medio_pago').toLowerCase();
+      tx.pay = p.includes('cred')
+        ? 'credito'
+        : p.includes('efe')
+        ? 'efectivo'
+        : 'debito';
+    }
+    valid.push(tx);
+  });
+  return { valid, invalid };
 }
 
 /* ── Palette ── */
@@ -470,6 +605,7 @@ function MainApp({ user, onLogout }) {
   const [month, setMonth] = useState(mk(new Date()));
   const [cur, setCur] = useState('ARS');
   const [fabOpen, setFabOpen] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [viewScope, setViewScope] = useState('personal');
   const [mob, setMob] = useState(window.innerWidth < 680);
   const [joinCode, setJoinCode] = useState('');
@@ -601,6 +737,29 @@ function MainApp({ user, onLogout }) {
     }
     setModal(null);
     setEditItem(null);
+  };
+
+  // ── Bulk import (CSV) → siempre al espacio personal ──
+  const importTx = async (rows) => {
+    const col = collection(db, 'users', user.uid, 'transactions');
+    const stamp = new Date().toISOString();
+    let batch = writeBatch(db);
+    let n = 0;
+    for (const t of rows) {
+      batch.set(doc(col), {
+        ...t,
+        scope: 'personal',
+        imported: true,
+        createdAt: stamp,
+      });
+      n++;
+      if (n % 450 === 0) {
+        await batch.commit();
+        batch = writeBatch(db);
+      }
+    }
+    if (n % 450 !== 0) await batch.commit();
+    return rows.length;
   };
 
   // ── Goals CRUD ──
@@ -1115,6 +1274,42 @@ function MainApp({ user, onLogout }) {
                 {b.l}
               </button>
             ))}
+            <button
+              onClick={() => {
+                setFabOpen(false);
+                setShowImport(true);
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                background: P.cd,
+                border: `1px solid ${P.bd}`,
+                borderRadius: 12,
+                padding: '9px 14px',
+                cursor: 'pointer',
+                boxShadow: '0 8px 24px rgba(0,0,0,0.1)',
+                fontSize: 13,
+                fontWeight: 500,
+                color: P.tx,
+              }}
+            >
+              <span
+                style={{
+                  width: 26,
+                  height: 26,
+                  borderRadius: 7,
+                  background: P.ac + '12',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 13,
+                }}
+              >
+                📥
+              </span>
+              Importar CSV
+            </button>
           </div>
         )}
         <button
@@ -1209,6 +1404,235 @@ function MainApp({ user, onLogout }) {
           viewScope={viewScope}
         />
       )}
+
+      {showImport && (
+        <ImportModal
+          mob={mob}
+          onImport={importTx}
+          onClose={() => setShowImport(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ── IMPORT MODAL ── */
+function ImportModal({ mob, onImport, onClose }) {
+  const [parsed, setParsed] = useState(null);
+  const [error, setError] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(null);
+  const [fileName, setFileName] = useState('');
+
+  const handleFile = (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    setFileName(file.name);
+    setError(null);
+    setParsed(null);
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const res = mapImportRows(reader.result);
+        if (!res.valid.length && !res.invalid.length)
+          setError('No se encontraron filas de datos en el archivo.');
+        else setParsed(res);
+      } catch (err) {
+        setError(err.message || 'No se pudo leer el archivo.');
+      }
+    };
+    reader.onerror = () => setError('No se pudo abrir el archivo.');
+    reader.readAsText(file, 'UTF-8');
+  };
+
+  const confirm = async () => {
+    if (!parsed || !parsed.valid.length) return;
+    setBusy(true);
+    try {
+      const n = await onImport(parsed.valid);
+      setDone(n);
+    } catch (err) {
+      setError('Error al importar: ' + (err && (err.code || err.message)));
+    }
+    setBusy(false);
+  };
+
+  const box = {
+    background: P.cd,
+    borderRadius: mob ? '22px 22px 0 0' : 22,
+    padding: mob ? '18px 16px 28px' : 26,
+    width: '100%',
+    maxWidth: mob ? '100%' : 480,
+    maxHeight: mob ? '92vh' : '88vh',
+    overflowY: 'auto',
+  };
+  const btn = (bg, color) => ({
+    flex: 1,
+    background: bg,
+    border: bg === P.c2 ? `1px solid ${P.bd}` : 'none',
+    color,
+    padding: '12px',
+    borderRadius: 14,
+    cursor: 'pointer',
+    fontSize: 13,
+    fontWeight: 600,
+  });
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(42,38,33,0.25)',
+        display: 'flex',
+        alignItems: mob ? 'flex-end' : 'center',
+        justifyContent: 'center',
+        zIndex: 200,
+        backdropFilter: 'blur(6px)',
+      }}
+      onClick={onClose}
+    >
+      <div style={box} onClick={(e) => e.stopPropagation()}>
+        <div style={{ fontSize: 17, fontWeight: 700, marginBottom: 4 }}>
+          📥 Importar movimientos
+        </div>
+
+        {done !== null ? (
+          <div style={{ textAlign: 'center', padding: '24px 0' }}>
+            <div style={{ fontSize: 40 }}>✅</div>
+            <div style={{ fontSize: 16, fontWeight: 600, margin: '10px 0' }}>
+              {done} movimiento{done === 1 ? '' : 's'} importado
+              {done === 1 ? '' : 's'}
+            </div>
+            <button onClick={onClose} style={btn(P.ac, '#fff')}>
+              Listo
+            </button>
+          </div>
+        ) : (
+          <>
+            <p style={{ fontSize: 12, color: P.sb, margin: '6px 0 14px' }}>
+              Subí un archivo CSV con columnas <b>fecha</b> y <b>monto</b> (más
+              tipo, categoría, descripción, moneda y medio de pago si tenés).
+              Acepta separador coma o punto y coma.
+            </p>
+
+            <label
+              style={{
+                display: 'block',
+                border: `1.5px dashed ${P.bd}`,
+                borderRadius: 12,
+                padding: '18px',
+                textAlign: 'center',
+                cursor: 'pointer',
+                background: P.c2,
+                fontSize: 13,
+                color: P.tx,
+                marginBottom: 14,
+              }}
+            >
+              {fileName ? `📄 ${fileName}` : '📂 Elegí un archivo .csv'}
+              <input
+                type="file"
+                accept=".csv,.txt,text/csv"
+                onChange={handleFile}
+                style={{ display: 'none' }}
+              />
+            </label>
+
+            {error && (
+              <div
+                style={{
+                  background: P.rd + '14',
+                  color: P.rd,
+                  borderRadius: 10,
+                  padding: '10px 12px',
+                  fontSize: 12,
+                  marginBottom: 12,
+                }}
+              >
+                ⚠️ {error}
+              </div>
+            )}
+
+            {parsed && (
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 13, marginBottom: 8 }}>
+                  <b style={{ color: P.gn }}>{parsed.valid.length}</b> listos
+                  para importar
+                  {parsed.invalid.length > 0 && (
+                    <>
+                      {' · '}
+                      <b style={{ color: P.rd }}>{parsed.invalid.length}</b> con
+                      error
+                    </>
+                  )}
+                </div>
+
+                {parsed.valid.slice(0, 6).map((t, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      fontSize: 12,
+                      padding: '5px 0',
+                      borderBottom: `1px solid ${P.bd}`,
+                      color: P.tx,
+                    }}
+                  >
+                    <span>
+                      {t.type === 'gasto' ? '📉' : '📈'} {t.date} · {t.cat}
+                    </span>
+                    <span style={{ fontWeight: 600 }}>
+                      {fmt(t.amt, t.cur)}
+                    </span>
+                  </div>
+                ))}
+                {parsed.valid.length > 6 && (
+                  <div style={{ fontSize: 11, color: P.sb, paddingTop: 6 }}>
+                    …y {parsed.valid.length - 6} más
+                  </div>
+                )}
+
+                {parsed.invalid.length > 0 && (
+                  <div style={{ fontSize: 11, color: P.sb, marginTop: 10 }}>
+                    Filas omitidas:{' '}
+                    {parsed.invalid
+                      .slice(0, 5)
+                      .map((r) => `#${r.rowNum} (${r.reason})`)
+                      .join(', ')}
+                    {parsed.invalid.length > 5 ? '…' : ''}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={onClose} style={btn(P.c2, P.tx)}>
+                Cancelar
+              </button>
+              <button
+                onClick={confirm}
+                disabled={busy || !parsed || !parsed.valid.length}
+                style={{
+                  ...btn(P.ac, '#fff'),
+                  opacity: busy || !parsed || !parsed.valid.length ? 0.5 : 1,
+                  cursor:
+                    busy || !parsed || !parsed.valid.length
+                      ? 'default'
+                      : 'pointer',
+                }}
+              >
+                {busy
+                  ? 'Importando…'
+                  : parsed
+                  ? `Importar ${parsed.valid.length}`
+                  : 'Importar'}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }

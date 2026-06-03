@@ -1917,6 +1917,11 @@ function MainApp({ user, onLogout }) {
           customCats={settings.customCats}
           userName={user.displayName || user.email}
           onSaveFav={saveFavorite}
+          knownCards={[
+            ...new Set(
+              [...tx, ...allGroupTx].map((t) => t.card).filter(Boolean)
+            ),
+          ]}
         />
       )}
 
@@ -2980,6 +2985,15 @@ function HomeTab({
     })
     .filter((r) => r.lim > 0)
     .sort((a, b) => b.pct - a.pct);
+
+  // Tarjetas: cuánto pagás de cada una este mes (suma de cuotas/consumos)
+  const byCard = {};
+  mtx
+    .filter((t) => t.pay === 'credito' && t.card && !t.pending)
+    .forEach((t) => {
+      byCard[t.card] = (byCard[t.card] || 0) + t.amt;
+    });
+  const cardRows = Object.entries(byCard).sort((a, b) => b[1] - a[1]);
   // Pagos recurrentes: una "plantilla" por serie (el movimiento más reciente)
   const recSeries = {};
   activeTx.forEach((t) => {
@@ -3570,6 +3584,32 @@ function HomeTab({
               </div>
             );
           })}
+        </Box>
+      )}
+      {cardRows.length > 0 && (
+        <Box>
+          <Lbl>💳 Tarjetas · a pagar este mes</Lbl>
+          {cardRows.map(([name, total]) => (
+            <div
+              key={name}
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '7px 0',
+                borderBottom: `1px solid ${P.bd}`,
+              }}
+            >
+              <span style={{ fontSize: 13, fontWeight: 600 }}>💳 {name}</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: P.rd }}>
+                {fmtS(total, cur)}
+              </span>
+            </div>
+          ))}
+          <div style={{ fontSize: 10, color: P.sb, marginTop: 6 }}>
+            Suma de consumos y cuotas del mes. No cargues aparte el pago del
+            resumen (sería duplicar).
+          </div>
         </Box>
       )}
       {isGroup && memberRows.length > 0 && (
@@ -4577,6 +4617,7 @@ function TxModal({
   customCats,
   userName,
   onSaveFav,
+  knownCards = [],
 }) {
   const [type, setType] = useState(initial?.type || 'gasto');
   const cats = getCats(type, customCats);
@@ -4591,6 +4632,7 @@ function TxModal({
   const [showMore, setShowMore] = useState(mode === 'edit');
   const [pay, setPay] = useState(initial?.pay || 'debito');
   const [cuotas, setCuotas] = useState(initial?.cuotas || 1);
+  const [card, setCard] = useState(initial?.card || '');
   const isG = type === 'gasto';
 
   // Scope: personal or a group.
@@ -4959,6 +5001,47 @@ function TxModal({
             </div>
           )}
 
+          {isG && pay === 'credito' && (
+            <div>
+              <Lbl>Tarjeta</Lbl>
+              <div
+                style={{
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: 4,
+                  marginBottom: 6,
+                }}
+              >
+                {Array.from(
+                  new Set([...knownCards, 'Visa', 'Mastercard'].filter(Boolean))
+                ).map((nm) => (
+                  <button
+                    key={nm}
+                    onClick={() => setCard(nm)}
+                    style={{
+                      background: card === nm ? P.ac : P.c2,
+                      border: `1px solid ${card === nm ? P.ac : P.bd}`,
+                      color: card === nm ? '#fff' : P.tx,
+                      padding: '6px 12px',
+                      borderRadius: 10,
+                      cursor: 'pointer',
+                      fontSize: 12,
+                      fontWeight: 500,
+                    }}
+                  >
+                    💳 {nm}
+                  </button>
+                ))}
+              </div>
+              <input
+                placeholder="Otra tarjeta…"
+                value={card}
+                onChange={(e) => setCard(e.target.value)}
+                style={iS}
+              />
+            </div>
+          )}
+
           {/* 5. Date */}
           <div style={{ display: 'flex', gap: 8 }}>
             <div style={{ flex: 1 }}>
@@ -5184,6 +5267,7 @@ function TxModal({
                       : undefined,
                     pay: isG ? pay : undefined,
                     cuotas: isG && pay === 'credito' ? cuotas : undefined,
+                    card: isG && pay === 'credito' ? card || undefined : undefined,
                     scope: isGroupScope ? 'grupo' : 'personal',
                     groupId: isGroupScope ? scope : undefined,
                     member: isGroupScope ? member || userName : undefined,

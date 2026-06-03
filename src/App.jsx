@@ -746,34 +746,56 @@ function MainApp({ user, onLogout }) {
     }
   };
 
+  // Ubicaciones posibles del documento, ordenadas por probabilidad.
+  // Tolera datos viejos inconsistentes (scope/groupId pegados).
+  const txRefs = (t) => {
+    const personalRef = doc(db, 'users', user.uid, 'transactions', t.id);
+    const groupRef = t.groupId
+      ? doc(db, 'groups', t.groupId, 'transactions', t.id)
+      : null;
+    const order =
+      t.scope === 'grupo' && groupRef
+        ? [groupRef, personalRef]
+        : [personalRef, groupRef];
+    return order.filter(Boolean);
+  };
+
   const updateTxFn = async (t) => {
-    try {
-      if (t.scope === 'grupo' && t.groupId) {
-        await updateDoc(doc(db, 'groups', t.groupId, 'transactions', t.id), t);
-      } else {
-        await updateDoc(doc(db, 'users', user.uid, 'transactions', t.id), t);
+    let lastErr;
+    for (const ref of txRefs(t)) {
+      try {
+        await updateDoc(ref, t);
+        setModal(null);
+        setEditItem(null);
+        return;
+      } catch (e) {
+        lastErr = e;
+        if (e?.code !== 'not-found') break;
       }
-      setModal(null);
-      setEditItem(null);
-    } catch (e) {
-      console.error('updateTx error:', e);
-      alert('No se pudo actualizar: ' + (e?.code || e?.message || e));
     }
+    console.error('updateTx error:', lastErr, t);
+    alert(
+      'No se pudo actualizar: ' +
+        (lastErr?.code || lastErr?.message || lastErr) +
+        `\n[diag] id=${t.id} scope=${t.scope || '-'} grupo=${t.groupId || '-'}`
+    );
   };
 
   const delTxFn = async (t) => {
-    try {
-      if (t.scope === 'grupo' && t.groupId) {
-        await deleteDoc(doc(db, 'groups', t.groupId, 'transactions', t.id));
-      } else {
-        await deleteDoc(doc(db, 'users', user.uid, 'transactions', t.id));
+    let lastErr;
+    for (const ref of txRefs(t)) {
+      try {
+        await deleteDoc(ref);
+        setModal(null);
+        setEditItem(null);
+        return;
+      } catch (e) {
+        lastErr = e;
+        if (e?.code !== 'not-found') break;
       }
-      setModal(null);
-      setEditItem(null);
-    } catch (e) {
-      console.error('delTx error:', e);
-      alert('No se pudo borrar: ' + (e?.code || e?.message || e));
     }
+    console.error('delTx error:', lastErr);
+    alert('No se pudo borrar: ' + (lastErr?.code || lastErr?.message || lastErr));
   };
 
   // ── Bulk import (CSV) → siempre al espacio personal ──

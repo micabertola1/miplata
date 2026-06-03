@@ -798,19 +798,25 @@ function MainApp({ user, onLogout }) {
     alert('No se pudo borrar: ' + (lastErr?.code || lastErr?.message || lastErr));
   };
 
-  // ── Bulk import (CSV) → siempre al espacio personal ──
-  const importTx = async (rows) => {
-    const col = collection(db, 'users', user.uid, 'transactions');
+  // ── Bulk import → a Personal o a un Grupo ──
+  const importTx = async (rows, dest) => {
+    const isGroup = dest && dest !== 'personal';
+    const col = isGroup
+      ? collection(db, 'groups', dest, 'transactions')
+      : collection(db, 'users', user.uid, 'transactions');
+    const extra = isGroup
+      ? {
+          scope: 'grupo',
+          groupId: dest,
+          createdBy: user.uid,
+          createdByName: user.displayName || user.email,
+        }
+      : { scope: 'personal' };
     const stamp = new Date().toISOString();
     let batch = writeBatch(db);
     let n = 0;
     for (const t of rows) {
-      batch.set(doc(col), {
-        ...t,
-        scope: 'personal',
-        imported: true,
-        createdAt: stamp,
-      });
+      batch.set(doc(col), { ...t, ...extra, imported: true, createdAt: stamp });
       n++;
       if (n % 450 === 0) {
         await batch.commit();
@@ -819,6 +825,46 @@ function MainApp({ user, onLogout }) {
     }
     if (n % 450 !== 0) await batch.commit();
     return rows.length;
+  };
+
+  // ── Vaciar mes: borra todos los movimientos del mes + espacio activos ──
+  const clearMonth = async () => {
+    const items = activeTx.filter((t) => mk(t.date) === month);
+    const scopeName =
+      viewScope === 'personal'
+        ? 'Personal'
+        : myGroups.find((g) => g.id === viewScope)?.name || 'Grupo';
+    if (!items.length) {
+      alert(`No hay movimientos en ${MOF[mi - 1]} ${yi} (${scopeName}).`);
+      return;
+    }
+    if (
+      !window.confirm(
+        `¿Borrar ${items.length} movimiento(s) de ${MOF[mi - 1]} ${yi} en "${scopeName}"?\n\nEsta acción NO se puede deshacer.`
+      )
+    )
+      return;
+    try {
+      let batch = writeBatch(db);
+      let n = 0;
+      for (const t of items) {
+        const ref =
+          viewScope === 'personal'
+            ? doc(db, 'users', user.uid, 'transactions', t.id)
+            : doc(db, 'groups', viewScope, 'transactions', t.id);
+        batch.delete(ref);
+        n++;
+        if (n % 450 === 0) {
+          await batch.commit();
+          batch = writeBatch(db);
+        }
+      }
+      if (n % 450 !== 0) await batch.commit();
+      alert(`✅ ${items.length} movimiento(s) borrados.`);
+    } catch (e) {
+      console.error('clearMonth error:', e);
+      alert('No se pudo vaciar el mes: ' + (e?.code || e?.message || e));
+    }
   };
 
   // ── Goals CRUD ──
@@ -1227,6 +1273,22 @@ function MainApp({ user, onLogout }) {
               </span>
               <NavB onClick={nextM}>›</NavB>
             </div>
+            <button
+              onClick={clearMonth}
+              title="Borrar todos los movimientos de este mes"
+              style={{
+                background: 'transparent',
+                border: `1px solid ${P.bd}`,
+                color: P.sb,
+                borderRadius: 8,
+                padding: mob ? '5px 9px' : '6px 11px',
+                fontSize: mob ? 11 : 12,
+                cursor: 'pointer',
+                fontWeight: 500,
+              }}
+            >
+              🗑️ Vaciar mes
+            </button>
           </div>
         )}
         {tab === 'home' && (
@@ -1468,6 +1530,8 @@ function MainApp({ user, onLogout }) {
         <ImportModal
           mob={mob}
           onImport={importTx}
+          groups={myGroups}
+          defaultDest={viewScope}
           onClose={() => setShowImport(false)}
         />
       )}
@@ -1476,12 +1540,13 @@ function MainApp({ user, onLogout }) {
 }
 
 /* ── IMPORT MODAL ── */
-function ImportModal({ mob, onImport, onClose }) {
+function ImportModal({ mob, onImport, onClose, groups = [], defaultDest }) {
   const [parsed, setParsed] = useState(null);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(null);
   const [fileName, setFileName] = useState('');
+  const [dest, setDest] = useState(defaultDest || 'personal');
 
   const handleFile = (e) => {
     const file = e.target.files && e.target.files[0];
@@ -1535,7 +1600,7 @@ function ImportModal({ mob, onImport, onClose }) {
     if (!parsed || !parsed.valid.length) return;
     setBusy(true);
     try {
-      const n = await onImport(parsed.valid);
+      const n = await onImport(parsed.valid, dest);
       setDone(n);
     } catch (err) {
       setError('Error al importar: ' + (err && (err.code || err.message)));
@@ -1624,6 +1689,34 @@ function ImportModal({ mob, onImport, onClose }) {
                 style={{ display: 'none' }}
               />
             </label>
+
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 12, color: P.sb, marginBottom: 6 }}>
+                Importar a:
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {[{ id: 'personal', name: '👤 Personal' }].concat(
+                  groups.map((g) => ({ id: g.id, name: '👥 ' + g.name }))
+                ).map((d) => (
+                  <button
+                    key={d.id}
+                    onClick={() => setDest(d.id)}
+                    style={{
+                      background: dest === d.id ? P.ac : P.c2,
+                      color: dest === d.id ? '#fff' : P.tx,
+                      border: `1px solid ${dest === d.id ? P.ac : P.bd}`,
+                      borderRadius: 10,
+                      padding: '7px 12px',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {d.name}
+                  </button>
+                ))}
+              </div>
+            </div>
 
             {error && (
               <div

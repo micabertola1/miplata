@@ -841,6 +841,7 @@ function MainApp({ user, onLogout }) {
   const [fabOpen, setFabOpen] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [showCats, setShowCats] = useState(false);
+  const [showExchange, setShowExchange] = useState(false);
   const [viewScope, setViewScope] = useState('personal');
   const [mob, setMob] = useState(window.innerWidth < 680);
   const [joinCode, setJoinCode] = useState('');
@@ -1811,6 +1812,42 @@ function MainApp({ user, onLogout }) {
             <button
               onClick={() => {
                 setFabOpen(false);
+                setShowExchange(true);
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                background: P.cd,
+                border: `1px solid ${P.bd}`,
+                borderRadius: 12,
+                padding: '9px 14px',
+                cursor: 'pointer',
+                boxShadow: '0 8px 24px rgba(0,0,0,0.1)',
+                fontSize: 13,
+                fontWeight: 500,
+                color: P.tx,
+              }}
+            >
+              <span
+                style={{
+                  width: 26,
+                  height: 26,
+                  borderRadius: 7,
+                  background: P.ac + '12',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 13,
+                }}
+              >
+                💱
+              </span>
+              Comprar dólares
+            </button>
+            <button
+              onClick={() => {
+                setFabOpen(false);
                 setShowImport(true);
               }}
               style={{
@@ -1969,6 +2006,173 @@ function MainApp({ user, onLogout }) {
           onClose={() => setShowCats(false)}
         />
       )}
+
+      {showExchange && (
+        <ExchangeModal
+          mob={mob}
+          onSave={(t) => {
+            addTx(t);
+            setShowExchange(false);
+          }}
+          onClose={() => setShowExchange(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ── COMPRAR DÓLARES (cambio de moneda) ── */
+function ExchangeModal({ mob, onSave, onClose }) {
+  const [usd, setUsd] = useState('');
+  const [rate, setRate] = useState('');
+  const [date, setDate] = useState(td());
+  const usdN = Number(String(usd).replace(',', '.'));
+  const rateN = Number(String(rate).replace(',', '.'));
+  const pesos = usdN > 0 && rateN > 0 ? Math.round(usdN * rateN) : 0;
+
+  const iS = {
+    background: P.c2,
+    border: `1px solid ${P.bd}`,
+    color: P.tx,
+    padding: '12px 14px',
+    borderRadius: 12,
+    fontSize: 16,
+    width: '100%',
+    boxSizing: 'border-box',
+  };
+
+  const save = () => {
+    if (!usdN || usdN <= 0 || !rateN || rateN <= 0) {
+      notify('Completá los dólares y la cotización.', 'error');
+      return;
+    }
+    onSave({
+      type: 'ahorro',
+      cat: 'Dólares',
+      sub: 'Compra USD',
+      amt: pesos,
+      usd: usdN,
+      rate: rateN,
+      desc: `Compré US$ ${usdN} a $${rateN}`,
+      date,
+      cur: 'ARS',
+      scope: 'personal',
+    });
+  };
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(42,38,33,0.25)',
+        display: 'flex',
+        alignItems: mob ? 'flex-end' : 'center',
+        justifyContent: 'center',
+        zIndex: 200,
+        backdropFilter: 'blur(6px)',
+      }}
+      onClick={onClose}
+    >
+      <div
+        style={{
+          background: P.cd,
+          borderRadius: mob ? '22px 22px 0 0' : 22,
+          padding: mob ? '18px 16px 28px' : 26,
+          width: '100%',
+          maxWidth: mob ? '100%' : 420,
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div style={{ fontSize: 17, fontWeight: 700, marginBottom: 4 }}>
+          💱 Comprar dólares
+        </div>
+        <p style={{ fontSize: 12, color: P.sb, margin: '4px 0 16px' }}>
+          Se registra como ahorro: resta de tus pesos y suma a tus dólares. No
+          cuenta como gasto.
+        </p>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div>
+            <Lbl>Dólares (US$)</Lbl>
+            <input
+              type="number"
+              placeholder="0"
+              value={usd}
+              onChange={(e) => setUsd(e.target.value)}
+              autoFocus
+              style={iS}
+            />
+          </div>
+          <div>
+            <Lbl>Cotización ($ por dólar)</Lbl>
+            <input
+              type="number"
+              placeholder="0"
+              value={rate}
+              onChange={(e) => setRate(e.target.value)}
+              style={iS}
+            />
+          </div>
+          <div
+            style={{
+              background: P.bg,
+              borderRadius: 12,
+              padding: '12px 14px',
+              textAlign: 'center',
+            }}
+          >
+            <div style={{ fontSize: 10, color: P.sb }}>TE SALE</div>
+            <div style={{ fontSize: 24, fontWeight: 700, color: P.ac }}>
+              {fmt(pesos, 'ARS')}
+            </div>
+          </div>
+          <div>
+            <Lbl>Fecha</Lbl>
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              style={iS}
+            />
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, marginTop: 18 }}>
+          <button
+            onClick={onClose}
+            style={{
+              flex: 1,
+              background: P.c2,
+              border: `1px solid ${P.bd}`,
+              color: P.tx,
+              padding: '12px',
+              borderRadius: 14,
+              cursor: 'pointer',
+              fontSize: 13,
+              fontWeight: 600,
+            }}
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={save}
+            style={{
+              flex: 2,
+              background: P.ac,
+              border: 'none',
+              color: '#fff',
+              padding: '12px',
+              borderRadius: 14,
+              cursor: 'pointer',
+              fontSize: 13,
+              fontWeight: 600,
+            }}
+          >
+            Guardar compra
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -3027,6 +3231,12 @@ function HomeTab({
       byCard[t.card] = (byCard[t.card] || 0) + t.amt;
     });
   const cardRows = Object.entries(byCard).sort((a, b) => b[1] - a[1]);
+
+  // Dólares comprados (acumulado, de todos los meses del espacio)
+  const usdBuys = activeTx.filter((t) => t.usd > 0);
+  const usdHeld = usdBuys.reduce((s, t) => s + t.usd, 0);
+  const usdInvested = usdBuys.reduce((s, t) => s + (t.amt || 0), 0);
+  const usdAvgRate = usdHeld > 0 ? usdInvested / usdHeld : 0;
   // Pagos recurrentes: una "plantilla" por serie (el movimiento más reciente)
   const recSeries = {};
   activeTx.forEach((t) => {
@@ -3648,6 +3858,35 @@ function HomeTab({
           <div style={{ fontSize: 10, color: P.sb, marginTop: 6 }}>
             Suma de consumos y cuotas del mes. No cargues aparte el pago del
             resumen (sería duplicar).
+          </div>
+        </Box>
+      )}
+      {usdHeld > 0 && (
+        <Box>
+          <Lbl>💵 Dólares</Lbl>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'baseline',
+            }}
+          >
+            <div>
+              <div
+                style={{ fontSize: 24, fontWeight: 700, color: P.ac }}
+              >
+                US$ {usdHeld.toLocaleString('es-AR')}
+              </div>
+              <div style={{ fontSize: 11, color: P.sb, marginTop: 2 }}>
+                comprados con {fmtS(usdInvested, 'ARS')}
+              </div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: 10, color: P.sb }}>COTIZ. PROMEDIO</div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: P.tx }}>
+                ${Math.round(usdAvgRate).toLocaleString('es-AR')}
+              </div>
+            </div>
           </div>
         </Box>
       )}

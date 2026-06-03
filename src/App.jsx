@@ -569,18 +569,39 @@ function Donut({ segments, size = 130, stroke = 16 }) {
     </svg>
   );
 }
-function Nil({ t, icon }) {
+function Nil({ t, icon, action, onAction, sub }) {
   return (
     <div
       style={{
         color: P.sb,
         fontSize: 13,
         textAlign: 'center',
-        padding: '30px 16px',
+        padding: '28px 16px',
       }}
     >
-      {icon && <div style={{ fontSize: 24, marginBottom: 6 }}>{icon}</div>}
-      {t}
+      {icon && <div style={{ fontSize: 30, marginBottom: 8 }}>{icon}</div>}
+      <div style={{ fontWeight: 600, color: P.tx, fontSize: 14 }}>{t}</div>
+      {sub && (
+        <div style={{ marginTop: 4, fontSize: 12, color: P.sb }}>{sub}</div>
+      )}
+      {action && onAction && (
+        <button
+          onClick={onAction}
+          style={{
+            marginTop: 14,
+            background: P.ac,
+            color: '#fff',
+            border: 'none',
+            borderRadius: 12,
+            padding: '10px 18px',
+            fontSize: 13,
+            fontWeight: 600,
+            cursor: 'pointer',
+          }}
+        >
+          {action}
+        </button>
+      )}
     </div>
   );
 }
@@ -1648,6 +1669,7 @@ function MainApp({ user, onLogout }) {
             onRemoveFav={removeFavorite}
             pendingTx={pendingTx}
             onMarkPaid={markPaid}
+            onAdd={openAdd}
           />
         )}
         {tab === 'movs' && (
@@ -1657,6 +1679,7 @@ function MainApp({ user, onLogout }) {
             activeTx={activeTx}
             onEdit={openEdit}
             customCats={settings.customCats}
+            onAdd={openAdd}
           />
         )}
         {tab === 'insights' && (
@@ -2565,7 +2588,7 @@ function ImportModal({ mob, onImport, onClose, groups = [], defaultDest }) {
 }
 
 /* ── LISTA DE MOVIMIENTOS + FILTROS ── */
-function TxListTab({ mob, cur, activeTx, onEdit, customCats }) {
+function TxListTab({ mob, cur, activeTx, onEdit, customCats, onAdd }) {
   const [filter, setFilter] = useState('todos');
   const [quick, setQuick] = useState('todo');
   const [from, setFrom] = useState('');
@@ -2822,7 +2845,13 @@ function TxListTab({ mob, cur, activeTx, onEdit, customCats }) {
         para editar
       </div>
       {months.length === 0 ? (
-        <Nil t="No hay movimientos acá" icon="📭" />
+        <Nil
+          icon="🔍"
+          t="No hay movimientos para mostrar"
+          sub="Probá ajustar los filtros, o cargá uno nuevo."
+          action="➕ Agregar movimiento"
+          onAction={() => onAdd && onAdd('gasto')}
+        />
       ) : (
         months.map((m) => {
           const list = groups[m];
@@ -2900,6 +2929,7 @@ function HomeTab({
   onRemoveFav,
   pendingTx = [],
   onMarkPaid,
+  onAdd,
 }) {
   const maxC = byCat.length ? byCat[0][1] : 1;
   const todayStr = (() => {
@@ -3433,7 +3463,13 @@ function HomeTab({
       <Box>
         <Lbl>Gastos por categoría</Lbl>
         {byCat.length === 0 ? (
-          <Nil t="No hay gastos este mes" icon="📭" />
+          <Nil
+            icon="📭"
+            t="Sin gastos este mes"
+            sub="Cuando cargues gastos, vas a ver acá la dona por categoría."
+            action="➕ Agregar gasto"
+            onAction={() => onAdd && onAdd('gasto')}
+          />
         ) : (
           <>
             <div
@@ -3648,7 +3684,13 @@ function HomeTab({
       <Box>
         <Lbl>Últimos movimientos</Lbl>
         {mtx.length === 0 ? (
-          <Nil t="Agregá tu primer movimiento con el botón +" icon="✨" />
+          <Nil
+            icon="✨"
+            t="Todavía no cargaste movimientos"
+            sub="Empezá registrando tu primer gasto o ingreso."
+            action="➕ Agregar movimiento"
+            onAction={() => onAdd && onAdd('gasto')}
+          />
         ) : (
           [...mtx]
             .sort((a, b) => new Date(b.date) - new Date(a.date))
@@ -3881,7 +3923,11 @@ function InsightsTab({
       <Box>
         <Lbl>Distribución</Lbl>
         {byCat.length === 0 ? (
-          <Nil t="Sin datos" icon="📊" />
+          <Nil
+            icon="📊"
+            t="Todavía no hay datos para analizar"
+            sub="Cargá algunos gastos y acá vas a ver tus análisis."
+          />
         ) : (
           <div
             style={{
@@ -4486,7 +4532,11 @@ function GoalsTab({
           </div>
         )}
         {goals.length === 0 ? (
-          <Nil t="Creá tu primera meta" icon="🎯" />
+          <Nil
+            icon="🎯"
+            t="Todavía no tenés metas de ahorro"
+            sub="Poné un nombre y un monto objetivo arriba para crear tu primera meta."
+          />
         ) : (
           <div
             style={{

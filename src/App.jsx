@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { auth, googleProvider, db } from './firebase.js';
 import {
   signInWithPopup,
@@ -966,6 +966,21 @@ function MainApp({ user, onLogout }) {
   };
   const [yi, mi] = month.split('-').map(Number);
 
+  // Aplicar el espacio predeterminado al cargar (una sola vez)
+  const defaultApplied = useRef(false);
+  useEffect(() => {
+    if (defaultApplied.current) return;
+    const d = settings.defScope;
+    if (!d) return;
+    if (d === 'personal') {
+      setViewScope('personal');
+      defaultApplied.current = true;
+    } else if (myGroups.some((g) => g.id === d)) {
+      setViewScope(d);
+      defaultApplied.current = true;
+    }
+  }, [settings.defScope, myGroups]);
+
   const openEdit = (t) => {
     setEditItem(t);
     setModal('edit');
@@ -1170,6 +1185,26 @@ function MainApp({ user, onLogout }) {
           >
             + Crear grupo
           </button>
+          <button
+            onClick={() => saveSettings({ defScope: viewScope })}
+            title="Abrir siempre en este espacio"
+            style={{
+              background: settings.defScope === viewScope ? P.ac + '18' : 'transparent',
+              border: `1px solid ${settings.defScope === viewScope ? P.ac : P.bd}`,
+              color: settings.defScope === viewScope ? P.ac : P.sb,
+              padding: '6px 12px',
+              borderRadius: 10,
+              cursor: 'pointer',
+              fontSize: 12,
+              fontWeight: 500,
+              whiteSpace: 'nowrap',
+              flexShrink: 0,
+            }}
+          >
+            {settings.defScope === viewScope
+              ? '⭐ Predeterminado'
+              : '☆ Predeterminar'}
+          </button>
         </div>
         {/* Join group + share code */}
         {viewScope !== 'personal' && (
@@ -1306,6 +1341,14 @@ function MainApp({ user, onLogout }) {
             byCat={byCat}
             mtx={mtx}
             budgets={settings.budgets || {}}
+            onEdit={openEdit}
+          />
+        )}
+        {tab === 'movs' && (
+          <TxListTab
+            mob={mob}
+            cur={cur}
+            activeTx={activeTx}
             onEdit={openEdit}
           />
         )}
@@ -1485,6 +1528,7 @@ function MainApp({ user, onLogout }) {
       >
         {[
           { id: 'home', l: 'Inicio', e: '🏠' },
+          { id: 'movs', l: 'Movim.', e: '📋' },
           { id: 'insights', l: 'Análisis', e: '📊' },
           { id: 'goals', l: 'Metas', e: '🎯' },
         ].map((t) => (
@@ -1817,6 +1861,100 @@ function ImportModal({ mob, onImport, onClose, groups = [], defaultDest }) {
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+/* ── LISTA DE MOVIMIENTOS ── */
+function TxListTab({ mob, cur, activeTx, onEdit }) {
+  const [filter, setFilter] = useState('todos');
+  const items = activeTx
+    .filter((t) => t.cur === cur)
+    .filter((t) => (filter === 'todos' ? true : t.type === filter))
+    .sort((a, b) => (String(a.date) < String(b.date) ? 1 : -1));
+
+  const groups = {};
+  items.forEach((t) => {
+    const m = mk(t.date);
+    if (!groups[m]) groups[m] = [];
+    groups[m].push(t);
+  });
+  const months = Object.keys(groups).sort((a, b) => (a < b ? 1 : -1));
+
+  const pill = (id, l) => (
+    <button
+      key={id}
+      onClick={() => setFilter(id)}
+      style={{
+        flex: 1,
+        background: filter === id ? P.ac : P.c2,
+        color: filter === id ? '#fff' : P.tx,
+        border: `1px solid ${filter === id ? P.ac : P.bd}`,
+        borderRadius: 10,
+        padding: '8px',
+        fontSize: 12,
+        fontWeight: 600,
+        cursor: 'pointer',
+      }}
+    >
+      {l}
+    </button>
+  );
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ display: 'flex', gap: 6 }}>
+        {pill('todos', 'Todos')}
+        {pill('ingreso', '📈 Ingresos')}
+        {pill('gasto', '📉 Gastos')}
+      </div>
+      <div style={{ fontSize: 11, color: P.sb, textAlign: 'center' }}>
+        {items.length} movimiento{items.length === 1 ? '' : 's'} · tocá cualquiera
+        para editar
+      </div>
+      {months.length === 0 ? (
+        <Nil t="No hay movimientos acá" icon="📭" />
+      ) : (
+        months.map((m) => {
+          const list = groups[m];
+          const inSum = list
+            .filter((t) => t.type === 'ingreso')
+            .reduce((s, t) => s + t.amt, 0);
+          const outSum = list
+            .filter((t) => t.type === 'gasto')
+            .reduce((s, t) => s + t.amt, 0);
+          return (
+            <Box key={m}>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: 8,
+                }}
+              >
+                <span style={{ fontWeight: 600, fontSize: 13 }}>
+                  {MOF[+m.slice(5) - 1]} {m.slice(0, 4)}
+                </span>
+                <span style={{ fontSize: 11 }}>
+                  <span style={{ color: P.gn }}>+{fmt(inSum, cur)}</span>
+                  {'   '}
+                  <span style={{ color: P.rd }}>-{fmt(outSum, cur)}</span>
+                </span>
+              </div>
+              {list.map((t) => (
+                <TxRow
+                  key={t.id}
+                  t={t}
+                  cur={cur}
+                  mob={mob}
+                  onClick={() => onEdit(t)}
+                />
+              ))}
+            </Box>
+          );
+        })
+      )}
     </div>
   );
 }

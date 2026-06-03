@@ -2803,6 +2803,18 @@ function HomeTab({
     const p = (n) => String(n).padStart(2, '0');
     return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
   })();
+  // Proyección "te queda este mes" (solo si estás viendo el mes actual)
+  const isCurrentMonth = month === todayStr.slice(0, 7);
+  const daysInMonth = new Date(
+    Number((month || todayStr).slice(0, 4)),
+    Number((month || todayStr).slice(5, 7)),
+    0
+  ).getDate();
+  const daysLeft = isCurrentMonth
+    ? daysInMonth - Number(todayStr.slice(8, 10)) + 1
+    : 0;
+  const perDay = daysLeft > 0 && bal > 0 ? bal / daysLeft : 0;
+  const hasBudgets = Object.keys(budgets || {}).length > 0;
   // Pagos recurrentes: una "plantilla" por serie (el movimiento más reciente)
   const recSeries = {};
   activeTx.forEach((t) => {
@@ -2980,65 +2992,100 @@ function HomeTab({
             : `al ${Math.round((a.amt / a.lim) * 100)}%`}
         </div>
       ))}
-      <div
+      {/* ── HÉROE: balance del mes (order:-1 = primero) ── */}
+      <Box
         style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
-          gap: mob ? 8 : 10,
+          background: `linear-gradient(135deg,${P.ac}0E,${P.gn}0A)`,
+          padding: mob ? 18 : 22,
+          order: -1,
         }}
       >
-        <Box style={{ padding: mob ? 12 : 16 }}>
-          <Lbl>Ingresos</Lbl>
-          <div
-            style={{ fontSize: mob ? 17 : 22, fontWeight: 700, color: P.gn }}
-          >
-            {mob ? fmtS(totIn, cur) : fmt(totIn, cur)}
-          </div>
-        </Box>
-        <Box style={{ padding: mob ? 12 : 16 }}>
-          <Lbl>Gastos</Lbl>
-          <div
-            style={{ fontSize: mob ? 17 : 22, fontWeight: 700, color: P.rd }}
-          >
-            {mob ? fmtS(totOut, cur) : fmt(totOut, cur)}
-          </div>
-        </Box>
-      </div>
-      <Box style={{ padding: mob ? 12 : 16 }}>
-        <Lbl>Ahorro</Lbl>
-        <div style={{ fontSize: mob ? 17 : 22, fontWeight: 700, color: P.ac }}>
-          {mob ? fmtS(totSav, cur) : fmt(totSav, cur)}
+        <Lbl>Balance de {MOF[Number(month.slice(5, 7)) - 1]}</Lbl>
+        <div
+          style={{
+            fontSize: mob ? 34 : 42,
+            fontWeight: 700,
+            color: bal >= 0 ? P.gn : P.rd,
+            lineHeight: 1.05,
+            fontVariantNumeric: 'tabular-nums',
+          }}
+        >
+          {fmt(bal, cur)}
         </div>
-      </Box>
-      <Box
-        style={{ background: `linear-gradient(135deg,${P.ac}06,${P.gn}06)` }}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-          <div>
-            <Lbl>Balance</Lbl>
-            <div
-              style={{
-                fontSize: mob ? 22 : 28,
-                fontWeight: 700,
-                color: bal >= 0 ? P.gn : P.rd,
-              }}
-            >
-              {mob ? fmtS(bal, cur) : fmt(bal, cur)}
+        <div style={{ fontSize: 12, color: P.sb, marginTop: 3 }}>
+          {bal >= 0
+            ? 'Disponible este mes'
+            : 'Este mes gastaste más de lo que ingresó'}
+        </div>
+
+        <div
+          style={{
+            display: 'flex',
+            gap: 8,
+            marginTop: 14,
+            borderTop: `1px solid ${P.bd}`,
+            paddingTop: 12,
+          }}
+        >
+          {[
+            ['Ingresos', totIn, P.gn],
+            ['Gastos', totOut, P.rd],
+            ['Ahorro', totSav, P.ac],
+          ].map(([l, v, c]) => (
+            <div key={l} style={{ flex: 1, minWidth: 0 }}>
+              <div
+                style={{
+                  fontSize: 10,
+                  color: P.sb,
+                  textTransform: 'uppercase',
+                  letterSpacing: 0.4,
+                  fontWeight: 600,
+                }}
+              >
+                {l}
+              </div>
+              <div
+                style={{
+                  fontSize: mob ? 16 : 19,
+                  fontWeight: 700,
+                  color: c,
+                  fontVariantNumeric: 'tabular-nums',
+                }}
+              >
+                {fmtS(v, cur)}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {isCurrentMonth && bal > 0 && daysLeft > 0 && (
+          <div
+            style={{
+              marginTop: 12,
+              background: P.cd,
+              borderRadius: 12,
+              padding: '10px 12px',
+              fontSize: 12,
+              color: P.tx,
+            }}
+          >
+            🔔 Te quedan <b>{fmtS(bal, cur)}</b> para {daysLeft} día
+            {daysLeft === 1 ? '' : 's'} · ~{fmtS(perDay, cur)}/día
+          </div>
+        )}
+
+        {hasBudgets && (
+          <div style={{ marginTop: 12 }}>
+            <Bar
+              pct={totIn > 0 ? (totOut / totIn) * 100 : 0}
+              color={totOut / totIn > 0.8 ? P.rd : P.ac}
+            />
+            <div style={{ fontSize: 11, color: P.sb, marginTop: 5 }}>
+              Gastaste el {totIn > 0 ? Math.round((totOut / totIn) * 100) : 0}%
+              de lo que ingresó
             </div>
           </div>
-          <div style={{ textAlign: 'right' }}>
-            <Lbl>Gastado</Lbl>
-            <div style={{ fontSize: 14, fontWeight: 600, color: P.sb }}>
-              {totIn > 0 ? Math.round((totOut / totIn) * 100) : 0}%
-            </div>
-          </div>
-        </div>
-        <div style={{ marginTop: 10 }}>
-          <Bar
-            pct={totIn > 0 ? (totOut / totIn) * 100 : 0}
-            color={totOut / totIn > 0.8 ? P.rd : P.ac}
-          />
-        </div>
+        )}
       </Box>
       {recList.length > 0 && (
         <Box>

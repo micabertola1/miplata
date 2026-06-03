@@ -410,6 +410,71 @@ function Box({ children, style }) {
     </div>
   );
 }
+
+// ── Toasts (reemplazan a alert) ──
+function notify(message, type = 'info') {
+  window.dispatchEvent(
+    new CustomEvent('app-toast', { detail: { message, type } })
+  );
+}
+function Toaster() {
+  const [toasts, setToasts] = useState([]);
+  const counter = useRef(0);
+  useEffect(() => {
+    const handler = (e) => {
+      const id = ++counter.current;
+      setToasts((ts) => [...ts, { id, ...e.detail }]);
+      setTimeout(
+        () => setToasts((ts) => ts.filter((t) => t.id !== id)),
+        3500
+      );
+    };
+    window.addEventListener('app-toast', handler);
+    return () => window.removeEventListener('app-toast', handler);
+  }, []);
+  if (!toasts.length) return null;
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        bottom: 84,
+        left: 0,
+        right: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: 8,
+        zIndex: 500,
+        pointerEvents: 'none',
+        padding: '0 16px',
+      }}
+    >
+      {toasts.map((t) => (
+        <div
+          key={t.id}
+          style={{
+            background:
+              t.type === 'error'
+                ? P.rd
+                : t.type === 'success'
+                ? P.gn
+                : P.tx,
+            color: '#fff',
+            padding: '11px 18px',
+            borderRadius: 12,
+            fontSize: 13,
+            fontWeight: 600,
+            boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
+            maxWidth: 420,
+            textAlign: 'center',
+          }}
+        >
+          {t.message}
+        </div>
+      ))}
+    </div>
+  );
+}
 function Lbl({ children }) {
   return (
     <div
@@ -499,7 +564,7 @@ export default function App() {
       await signInWithPopup(auth, googleProvider);
     } catch (e) {
       console.error('Login error:', e);
-      alert('No se pudo iniciar sesión: ' + (e?.code || e?.message || e));
+      notify('No pudimos iniciar sesión. Probá de nuevo.', 'error');
     }
   };
 
@@ -546,9 +611,16 @@ export default function App() {
       </div>
     );
 
-  if (!user) return <LoginScreen onLogin={login} />;
-
-  return <MainApp user={user} onLogout={logout} />;
+  return (
+    <>
+      {!user ? (
+        <LoginScreen onLogin={login} />
+      ) : (
+        <MainApp user={user} onLogout={logout} />
+      )}
+      <Toaster />
+    </>
+  );
 }
 
 /* ══════════════════════════════════════════
@@ -795,9 +867,10 @@ function MainApp({ user, onLogout }) {
       }
       setModal(null);
       setFabOpen(false);
+      notify('Movimiento guardado', 'success');
     } catch (e) {
       console.error('addTx error:', e);
-      alert('No se pudo guardar: ' + (e?.code || e?.message || e));
+      notify('No pudimos guardar el movimiento. Probá de nuevo.', 'error');
     }
   };
 
@@ -830,6 +903,7 @@ function MainApp({ user, onLogout }) {
         await updateDoc(ref, t);
         setModal(null);
         setEditItem(null);
+        notify('Cambios guardados', 'success');
         return;
       } catch (e) {
         lastErr = e;
@@ -837,11 +911,7 @@ function MainApp({ user, onLogout }) {
       }
     }
     console.error('updateTx error:', lastErr, t);
-    alert(
-      'No se pudo actualizar: ' +
-        (lastErr?.code || lastErr?.message || lastErr) +
-        `\n[diag] id=${t.id} scope=${t.scope || '-'} grupo=${t.groupId || '-'}`
-    );
+    notify('No pudimos actualizar el movimiento. Probá de nuevo.', 'error');
   };
 
   const delTxFn = async (t) => {
@@ -851,6 +921,7 @@ function MainApp({ user, onLogout }) {
         await deleteDoc(ref);
         setModal(null);
         setEditItem(null);
+        notify('Movimiento borrado', 'success');
         return;
       } catch (e) {
         lastErr = e;
@@ -858,7 +929,7 @@ function MainApp({ user, onLogout }) {
       }
     }
     console.error('delTx error:', lastErr);
-    alert('No se pudo borrar: ' + (lastErr?.code || lastErr?.message || lastErr));
+    notify('No pudimos borrar el movimiento. Probá de nuevo.', 'error');
   };
 
   // ── Bulk import → a Personal o a un Grupo ──
@@ -898,7 +969,7 @@ function MainApp({ user, onLogout }) {
         ? 'Personal'
         : myGroups.find((g) => g.id === viewScope)?.name || 'Grupo';
     if (!items.length) {
-      alert(`No hay movimientos en ${MOF[mi - 1]} ${yi} (${scopeName}).`);
+      notify(`No hay movimientos en ${MOF[mi - 1]} ${yi} (${scopeName}).`, 'info');
       return;
     }
     if (
@@ -923,10 +994,10 @@ function MainApp({ user, onLogout }) {
         }
       }
       if (n % 450 !== 0) await batch.commit();
-      alert(`✅ ${items.length} movimiento(s) borrados.`);
+      notify(`Listo, borramos ${items.length} movimiento(s).`, 'success');
     } catch (e) {
       console.error('clearMonth error:', e);
-      alert('No se pudo vaciar el mes: ' + (e?.code || e?.message || e));
+      notify('No pudimos vaciar el mes. Probá de nuevo.', 'error');
     }
   };
 
@@ -962,16 +1033,16 @@ function MainApp({ user, onLogout }) {
       const ref = doc(db, 'groups', groupId.trim());
       const snap = await getDoc(ref);
       if (!snap.exists()) {
-        alert('Grupo no encontrado. Verificá el código.');
+        notify('No encontramos ese grupo. Revisá el código.', 'error');
         return;
       }
       await updateDoc(ref, {
         memberIds: arrayUnion(user.uid),
         memberNames: arrayUnion(user.displayName || user.email),
       });
-      alert(`✅ Te uniste al grupo "${snap.data().name}"`);
+      notify(`Te uniste al grupo "${snap.data().name}".`, 'success');
     } catch {
-      alert('Error al unirse al grupo.');
+      notify('No pudimos unirte al grupo. Probá de nuevo.', 'error');
     }
   };
 
@@ -1337,7 +1408,7 @@ function MainApp({ user, onLogout }) {
               }}
               onClick={() => {
                 navigator.clipboard?.writeText(viewScope);
-                alert('Código copiado!');
+                notify('Código copiado.', 'success');
               }}
             >
               {viewScope}
@@ -1771,7 +1842,7 @@ function CategoryManager({ mob, customCats, onSave, onClose }) {
     const n = newCat.trim();
     if (!n) return;
     if (cats.some((c) => c.n.toLowerCase() === n.toLowerCase())) {
-      alert('Ya existe una categoría con ese nombre.');
+      notify('Ya tenés una categoría con ese nombre.', 'error');
       return;
     }
     const d = { ...draft };
@@ -4497,7 +4568,7 @@ function TxModal({
                 onClick={() => {
                   const amtNum = Number(String(amt).replace(',', '.'));
                   if (!amtNum || amtNum <= 0) {
-                    alert('Ingresá un monto mayor a 0.');
+                    notify('Ingresá un monto mayor a 0.', 'error');
                     return;
                   }
                   const isGroupScope = scope !== 'personal';
@@ -4555,7 +4626,7 @@ function TxModal({
                   cur,
                   pay: isG ? pay : undefined,
                 });
-                alert('⭐ Guardado en favoritos');
+                notify('Guardado en favoritos ⭐', 'success');
               }}
               style={{
                 width: '100%',

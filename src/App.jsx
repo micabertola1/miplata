@@ -191,6 +191,29 @@ function td() {
   return new Date().toISOString().slice(0, 10);
 }
 
+// Cargos de un mes: las compras en cuotas se reparten (una cuota por mes)
+function chargesForMonth(txs, monthKey) {
+  const [my, mm] = monthKey.split('-').map(Number);
+  const out = [];
+  for (const t of txs) {
+    const n = t.pay === 'credito' && t.cuotas > 1 ? t.cuotas : 1;
+    if (n > 1) {
+      const [sy, sm] = mk(t.date).split('-').map(Number);
+      const idx = (my - sy) * 12 + (mm - sm);
+      if (idx >= 0 && idx < n) {
+        out.push({
+          ...t,
+          amt: Math.round((t.amt / n) * 100) / 100,
+          cuotaInfo: `${idx + 1}/${n}`,
+        });
+      }
+    } else if (mk(t.date) === monthKey) {
+      out.push(t);
+    }
+  }
+  return out;
+}
+
 /* ── CSV import helpers ── */
 const COL_ALIASES = {
   tipo: ['tipo', 'type', 'movimiento'],
@@ -1153,7 +1176,7 @@ function MainApp({ user, onLogout }) {
     return [];
   }, [viewScope, tx, myGroups, groupTx]);
 
-  const mtx = activeTx.filter((t) => mk(t.date) === month && t.cur === cur);
+  const mtx = chargesForMonth(activeTx, month).filter((t) => t.cur === cur);
   // Los gastos PROGRAMADOS (pendientes de pago) no cuentan hasta marcarse pagados
   const paid = (t) => !t.pending;
   const totIn = mtx
@@ -2907,8 +2930,8 @@ function HomeTab({
     return arr;
   })();
   const monthly = months6.map((mkey) => {
-    const items = activeTx.filter(
-      (t) => mk(t.date) === mkey && t.cur === cur && !t.pending
+    const items = chargesForMonth(activeTx, mkey).filter(
+      (t) => t.cur === cur && !t.pending
     );
     return {
       key: mkey,
@@ -3664,6 +3687,21 @@ function TxRow({ t, cur, mob, onClick, customCats }) {
             {t.pending && (
               <span title="Programado · pendiente de pago" style={{ color: P.am }}>
                 📅{' '}
+              </span>
+            )}
+            {(t.cuotaInfo || t.cuotas > 1) && (
+              <span
+                title="Compra en cuotas"
+                style={{
+                  fontSize: 9,
+                  color: P.sb,
+                  background: P.c2,
+                  borderRadius: 4,
+                  padding: '1px 4px',
+                  marginRight: 3,
+                }}
+              >
+                💳 {t.cuotaInfo || `${t.cuotas} cuotas`}
               </span>
             )}
             {t.desc || t.sub || t.cat}

@@ -1922,6 +1922,9 @@ function MainApp({ user, onLogout }) {
               [...tx, ...allGroupTx].map((t) => t.card).filter(Boolean)
             ),
           ]}
+          knownMembers={[
+            ...new Set(allGroupTx.map((t) => t.member).filter(Boolean)),
+          ]}
         />
       )}
 
@@ -4618,6 +4621,7 @@ function TxModal({
   userName,
   onSaveFav,
   knownCards = [],
+  knownMembers = [],
 }) {
   const [type, setType] = useState(initial?.type || 'gasto');
   const cats = getCats(type, customCats);
@@ -4816,6 +4820,7 @@ function TxModal({
                       userName,
                       ...((myGroups.find((g) => g.id === scope) || {})
                         .memberNames || []),
+                      ...knownMembers,
                     ].filter(Boolean)
                   )
                 ).map((nm) => (
@@ -4837,12 +4842,6 @@ function TxModal({
                   </button>
                 ))}
               </div>
-              <input
-                placeholder="Otra persona…"
-                value={member}
-                onChange={(e) => setMember(e.target.value)}
-                style={iS}
-              />
             </div>
           )}
             </>
@@ -5003,17 +5002,27 @@ function TxModal({
 
           {isG && pay === 'credito' && (
             <div>
-              <Lbl>Tarjeta</Lbl>
+              <Lbl>¿Con qué pagás?</Lbl>
               <div
                 style={{
                   display: 'flex',
                   flexWrap: 'wrap',
                   gap: 4,
-                  marginBottom: 6,
                 }}
               >
                 {Array.from(
-                  new Set([...knownCards, 'Visa', 'Mastercard'].filter(Boolean))
+                  new Set(
+                    [
+                      ...knownCards,
+                      'Visa',
+                      'Mastercard',
+                      'Tarjeta Mercado Pago',
+                      'Naranja',
+                      'Amex',
+                      'Cabal',
+                      'Otra tarjeta',
+                    ].filter(Boolean)
+                  )
                 ).map((nm) => (
                   <button
                     key={nm}
@@ -5033,12 +5042,6 @@ function TxModal({
                   </button>
                 ))}
               </div>
-              <input
-                placeholder="Otra tarjeta…"
-                value={card}
-                onChange={(e) => setCard(e.target.value)}
-                style={iS}
-              />
             </div>
           )}
 

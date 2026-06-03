@@ -506,6 +506,46 @@ function Bar({ pct, color, h }) {
     </div>
   );
 }
+
+// Paleta para gráficos de categorías
+const CHART_COLORS = [
+  '#E15B4C', '#3A7BD5', '#1F9D57', '#E0A22E', '#7A5AF0',
+  '#1FA6A0', '#D6608A', '#C98A2B', '#5B8DEF', '#9A8C6A',
+];
+
+// Dona SVG (segments: [{value, color}])
+function Donut({ segments, size = 130, stroke = 16 }) {
+  const total = segments.reduce((s, x) => s + x.value, 0) || 1;
+  const r = size / 2 - stroke / 2 - 1;
+  const c = 2 * Math.PI * r;
+  const cx = size / 2;
+  let offset = 0;
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+      <circle cx={cx} cy={cx} r={r} fill="none" stroke={P.c2} strokeWidth={stroke} />
+      {segments.map((s, i) => {
+        const len = (s.value / total) * c;
+        const seg = (
+          <circle
+            key={i}
+            cx={cx}
+            cy={cx}
+            r={r}
+            fill="none"
+            stroke={s.color}
+            strokeWidth={stroke}
+            strokeDasharray={`${len} ${c - len}`}
+            strokeDashoffset={-offset}
+            transform={`rotate(-90 ${cx} ${cx})`}
+            strokeLinecap="butt"
+          />
+        );
+        offset += len;
+        return seg;
+      })}
+    </svg>
+  );
+}
 function Nil({ t, icon }) {
   return (
     <div
@@ -2848,6 +2888,69 @@ function HomeTab({
     : 0;
   const perDay = daysLeft > 0 && bal > 0 ? bal / daysLeft : 0;
   const hasBudgets = Object.keys(budgets || {}).length > 0;
+
+  const [expandedCat, setExpandedCat] = useState(null);
+
+  // Serie mensual (6 meses terminando en el mes visto)
+  const months6 = (() => {
+    const [y, m] = month.split('-').map(Number);
+    const arr = [];
+    for (let i = 5; i >= 0; i--) {
+      let yy = y;
+      let mm = m - i;
+      while (mm <= 0) {
+        mm += 12;
+        yy -= 1;
+      }
+      arr.push(`${yy}-${String(mm).padStart(2, '0')}`);
+    }
+    return arr;
+  })();
+  const monthly = months6.map((mkey) => {
+    const items = activeTx.filter(
+      (t) => mk(t.date) === mkey && t.cur === cur && !t.pending
+    );
+    return {
+      key: mkey,
+      label: MOF[Number(mkey.slice(5, 7)) - 1].slice(0, 3),
+      cur: mkey === month,
+      in: items
+        .filter((t) => t.type === 'ingreso')
+        .reduce((s, t) => s + t.amt, 0),
+      out: items
+        .filter((t) => t.type === 'gasto')
+        .reduce((s, t) => s + t.amt, 0),
+    };
+  });
+  const maxMonthly = Math.max(1, ...monthly.map((m) => Math.max(m.in, m.out)));
+
+  // Segmentos de categoría (gastos del mes)
+  const catSegments = byCat.map(([cat, amt], i) => ({
+    cat,
+    value: amt,
+    color: CHART_COLORS[i % CHART_COLORS.length],
+  }));
+  const totCat = catSegments.reduce((s, x) => s + x.value, 0) || 1;
+  const subsOf = (cat) => {
+    const m = {};
+    mtx
+      .filter((t) => t.type === 'gasto' && !t.pending && t.cat === cat)
+      .forEach((t) => {
+        const k = t.sub || 'Sin subcategoría';
+        m[k] = (m[k] || 0) + t.amt;
+      });
+    return Object.entries(m).sort((a, b) => b[1] - a[1]);
+  };
+
+  // Presupuestos (gastado vs límite)
+  const budgetRows = Object.entries(budgets || {})
+    .map(([cat, pct]) => {
+      const spent = (byCat.find(([c]) => c === cat) || [null, 0])[1];
+      const lim = totIn * (pct / 100);
+      return { cat, spent, lim, pct: lim > 0 ? (spent / lim) * 100 : 0 };
+    })
+    .filter((r) => r.lim > 0)
+    .sort((a, b) => b.pct - a.pct);
   // Pagos recurrentes: una "plantilla" por serie (el movimiento más reciente)
   const recSeries = {};
   activeTx.forEach((t) => {
@@ -3186,63 +3289,248 @@ function HomeTab({
           })}
         </Box>
       )}
+      {/* Ingresos vs Gastos por mes */}
+      <Box>
+        <Lbl>Ingresos vs Gastos (6 meses)</Lbl>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'flex-end',
+            justifyContent: 'space-between',
+            gap: 6,
+            height: 110,
+            marginTop: 8,
+          }}
+        >
+          {monthly.map((m) => (
+            <div
+              key={m.key}
+              style={{
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 4,
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-end',
+                  gap: 3,
+                  height: 90,
+                }}
+              >
+                <div
+                  title={`Ingresos ${fmt(m.in, cur)}`}
+                  style={{
+                    width: 9,
+                    height: `${Math.max(2, (m.in / maxMonthly) * 100)}%`,
+                    background: P.gn,
+                    borderRadius: '3px 3px 0 0',
+                  }}
+                />
+                <div
+                  title={`Gastos ${fmt(m.out, cur)}`}
+                  style={{
+                    width: 9,
+                    height: `${Math.max(2, (m.out / maxMonthly) * 100)}%`,
+                    background: P.rd,
+                    borderRadius: '3px 3px 0 0',
+                  }}
+                />
+              </div>
+              <span
+                style={{
+                  fontSize: 9,
+                  color: m.cur ? P.ac : P.sb,
+                  fontWeight: m.cur ? 700 : 500,
+                }}
+              >
+                {m.label}
+              </span>
+            </div>
+          ))}
+        </div>
+        <div
+          style={{
+            display: 'flex',
+            gap: 14,
+            justifyContent: 'center',
+            marginTop: 8,
+            fontSize: 10,
+            color: P.sb,
+          }}
+        >
+          <span>
+            <span style={{ color: P.gn }}>■</span> Ingresos
+          </span>
+          <span>
+            <span style={{ color: P.rd }}>■</span> Gastos
+          </span>
+        </div>
+      </Box>
+
+      {/* Gastos por categoría (dona + subcategorías) */}
       <Box>
         <Lbl>Gastos por categoría</Lbl>
         {byCat.length === 0 ? (
-          <Nil t="No hay gastos" icon="📭" />
+          <Nil t="No hay gastos este mes" icon="📭" />
         ) : (
-          byCat.map(([cat, amt], i) => {
-            const cd = CATS.gasto.find((c) => c.n === cat);
-            const bp = budgets[cat];
-            const lim = bp ? totIn * (bp / 100) : 0;
-            const pct = lim ? (amt / lim) * 100 : (amt / maxC) * 100;
+          <>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 14,
+                marginBottom: 6,
+              }}
+            >
+              <div style={{ position: 'relative', flexShrink: 0 }}>
+                <Donut segments={catSegments} size={mob ? 110 : 130} />
+                <div
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <span style={{ fontSize: 9, color: P.sb }}>Total</span>
+                  <span
+                    style={{ fontSize: 13, fontWeight: 700, color: P.rd }}
+                  >
+                    {fmtS(totCat, cur)}
+                  </span>
+                </div>
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                {catSegments.slice(0, 5).map((s) => (
+                  <div
+                    key={s.cat}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      fontSize: 11,
+                      padding: '2px 0',
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: 2,
+                        background: s.color,
+                        flexShrink: 0,
+                      }}
+                    />
+                    <span
+                      style={{
+                        flex: 1,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {s.cat}
+                    </span>
+                    <span style={{ color: P.sb }}>
+                      {Math.round((s.value / totCat) * 100)}%
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            {catSegments.map((s) => {
+              const cd = getCats('gasto', customCats).find(
+                (c) => c.n === s.cat
+              );
+              const open = expandedCat === s.cat;
+              return (
+                <div key={s.cat} style={{ borderTop: `1px solid ${P.bd}` }}>
+                  <div
+                    onClick={() => setExpandedCat(open ? null : s.cat)}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      padding: '8px 0',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <span style={{ fontSize: 12, fontWeight: 500 }}>
+                      <span style={{ color: s.color }}>●</span> {cd?.i} {s.cat}
+                    </span>
+                    <span
+                      style={{ fontSize: 12, fontWeight: 600, color: P.rd }}
+                    >
+                      {fmtS(s.value, cur)}{' '}
+                      <span style={{ color: P.sb, fontSize: 10 }}>
+                        {open ? '▲' : '▼'}
+                      </span>
+                    </span>
+                  </div>
+                  {open && (
+                    <div style={{ paddingBottom: 8 }}>
+                      {subsOf(s.cat).map(([sub, amt]) => (
+                        <div
+                          key={sub}
+                          style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            fontSize: 11,
+                            color: P.sb,
+                            padding: '3px 0 3px 16px',
+                          }}
+                        >
+                          <span>{sub}</span>
+                          <span>{fmtS(amt, cur)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </>
+        )}
+      </Box>
+
+      {/* Gastos vs Presupuesto */}
+      {budgetRows.length > 0 && (
+        <Box>
+          <Lbl>Gastos vs Presupuesto</Lbl>
+          {budgetRows.map((r) => {
+            const cd = getCats('gasto', customCats).find((c) => c.n === r.cat);
+            const over = r.pct >= 100;
+            const near = r.pct >= 80;
+            const col = over ? P.rd : near ? P.am : P.gn;
             return (
-              <div key={cat} style={{ marginBottom: 10 }}>
+              <div key={r.cat} style={{ marginBottom: 10 }}>
                 <div
                   style={{
                     display: 'flex',
                     justifyContent: 'space-between',
+                    fontSize: 12,
                     marginBottom: 3,
                   }}
                 >
-                  <span style={{ fontSize: 12, fontWeight: 500 }}>
-                    {cd?.i} {cat}
-                    {bp ? (
-                      <span
-                        style={{
-                          fontSize: 9,
-                          color: P.sb,
-                          background: P.c2,
-                          borderRadius: 4,
-                          padding: '1px 4px',
-                          marginLeft: 3,
-                        }}
-                      >
-                        {bp}%
-                      </span>
-                    ) : (
-                      ''
-                    )}
+                  <span style={{ fontWeight: 500 }}>
+                    {cd?.i} {r.cat}
                   </span>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: P.rd }}>
-                    {mob ? fmtS(amt, cur) : fmt(amt, cur)}
+                  <span style={{ color: col, fontWeight: 600 }}>
+                    {fmtS(r.spent, cur)} / {fmtS(r.lim, cur)}
                   </span>
                 </div>
-                <Bar
-                  pct={Math.min(pct, 100)}
-                  color={
-                    lim && pct >= 100
-                      ? P.rd
-                      : lim && pct >= 80
-                      ? P.am
-                      : pal[i % pal.length]
-                  }
-                />
+                <Bar pct={Math.min(r.pct, 100)} color={col} />
               </div>
             );
-          })
-        )}
-      </Box>
+          })}
+        </Box>
+      )}
       {isGroup && memberRows.length > 0 && (
         <Box>
           <Lbl>Por persona (este mes)</Lbl>

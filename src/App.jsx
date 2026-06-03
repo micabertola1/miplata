@@ -747,23 +747,33 @@ function MainApp({ user, onLogout }) {
   };
 
   const updateTxFn = async (t) => {
-    if (t.scope === 'grupo' && t.groupId) {
-      await updateDoc(doc(db, 'groups', t.groupId, 'transactions', t.id), t);
-    } else {
-      await updateDoc(doc(db, 'users', user.uid, 'transactions', t.id), t);
+    try {
+      if (t.scope === 'grupo' && t.groupId) {
+        await updateDoc(doc(db, 'groups', t.groupId, 'transactions', t.id), t);
+      } else {
+        await updateDoc(doc(db, 'users', user.uid, 'transactions', t.id), t);
+      }
+      setModal(null);
+      setEditItem(null);
+    } catch (e) {
+      console.error('updateTx error:', e);
+      alert('No se pudo actualizar: ' + (e?.code || e?.message || e));
     }
-    setModal(null);
-    setEditItem(null);
   };
 
   const delTxFn = async (t) => {
-    if (t.scope === 'grupo' && t.groupId) {
-      await deleteDoc(doc(db, 'groups', t.groupId, 'transactions', t.id));
-    } else {
-      await deleteDoc(doc(db, 'users', user.uid, 'transactions', t.id));
+    try {
+      if (t.scope === 'grupo' && t.groupId) {
+        await deleteDoc(doc(db, 'groups', t.groupId, 'transactions', t.id));
+      } else {
+        await deleteDoc(doc(db, 'users', user.uid, 'transactions', t.id));
+      }
+      setModal(null);
+      setEditItem(null);
+    } catch (e) {
+      console.error('delTx error:', e);
+      alert('No se pudo borrar: ' + (e?.code || e?.message || e));
     }
-    setModal(null);
-    setEditItem(null);
   };
 
   // ── Bulk import (CSV) → siempre al espacio personal ──
@@ -2798,14 +2808,18 @@ function TxModal({
   const [cuotas, setCuotas] = useState(initial?.cuotas || 1);
   const isG = type === 'gasto';
 
-  // Scope: personal or a group
-  const initScope =
-    initial?.groupId ||
-    (viewScope !== 'personal'
-      ? viewScope
-      : defScope === 'grupo' && myGroups.length > 0
-      ? myGroups[0].id
-      : 'personal');
+  // Scope: personal or a group.
+  // Al EDITAR, respetar el scope real del movimiento (no los defaults).
+  const isEditing = !!initial?.id;
+  const initScope = initial?.groupId
+    ? initial.groupId
+    : isEditing
+    ? 'personal'
+    : viewScope !== 'personal'
+    ? viewScope
+    : defScope === 'grupo' && myGroups.length > 0
+    ? myGroups[0].id
+    : 'personal';
   const [scope, setScope] = useState(initScope);
   const [confirmDel, setConfirmDel] = useState(false);
   const cc = cats.find((c) => c.n === cat);

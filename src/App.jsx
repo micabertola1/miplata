@@ -129,6 +129,11 @@ function uid() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
 function mk(d) {
+  // Si es texto AAAA-MM-DD, tomar el mes directo (evita corrimiento por zona horaria)
+  if (typeof d === 'string') {
+    const m = d.match(/^(\d{4})-(\d{2})/);
+    if (m) return `${m[1]}-${m[2]}`;
+  }
   const x = new Date(d);
   return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}`;
 }
@@ -2048,7 +2053,7 @@ function TxRow({ t, cur, mob, onClick }) {
           <div style={{ fontSize: 10, color: P.sb }}>
             {t.cat}
             {t.createdByName ? ` · ${t.createdByName}` : ''} ·{' '}
-            {new Date(t.date).toLocaleDateString('es-AR', {
+            {new Date(String(t.date).slice(0, 10) + 'T00:00:00').toLocaleDateString('es-AR', {
               day: 'numeric',
               month: 'short',
             })}

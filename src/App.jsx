@@ -1865,12 +1865,70 @@ function ImportModal({ mob, onImport, onClose, groups = [], defaultDest }) {
   );
 }
 
-/* ── LISTA DE MOVIMIENTOS ── */
+/* ── LISTA DE MOVIMIENTOS + FILTROS ── */
 function TxListTab({ mob, cur, activeTx, onEdit }) {
   const [filter, setFilter] = useState('todos');
+  const [quick, setQuick] = useState('todo');
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+  const [search, setSearch] = useState('');
+  const [min, setMin] = useState('');
+  const [max, setMax] = useState('');
+
+  const reset = () => {
+    setFilter('todos');
+    setQuick('todo');
+    setFrom('');
+    setTo('');
+    setSearch('');
+    setMin('');
+    setMax('');
+  };
+
+  const p2 = (n) => String(n).padStart(2, '0');
+  const quickBounds = () => {
+    const now = new Date();
+    const y = now.getFullYear();
+    const mo = now.getMonth();
+    const ymd = (d) =>
+      `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`;
+    if (quick === 'este-mes')
+      return [`${y}-${p2(mo + 1)}-01`, `${y}-${p2(mo + 1)}-31`];
+    if (quick === 'mes-anterior') {
+      const d = new Date(y, mo - 1, 1);
+      return [
+        `${d.getFullYear()}-${p2(d.getMonth() + 1)}-01`,
+        `${d.getFullYear()}-${p2(d.getMonth() + 1)}-31`,
+      ];
+    }
+    if (quick === '30-dias') {
+      const d = new Date(now);
+      d.setDate(d.getDate() - 30);
+      return [ymd(d), ymd(now)];
+    }
+    if (quick === 'este-anio') return [`${y}-01-01`, `${y}-12-31`];
+    return [null, null];
+  };
+
+  const [qlo, qhi] = quickBounds();
+  const lo = from || qlo;
+  const hi = to || qhi;
+  const s = search.trim().toLowerCase();
+
   const items = activeTx
     .filter((t) => t.cur === cur)
-    .filter((t) => (filter === 'todos' ? true : t.type === filter))
+    .filter((t) => filter === 'todos' || t.type === filter)
+    .filter((t) => !lo || String(t.date) >= lo)
+    .filter((t) => !hi || String(t.date) <= hi)
+    .filter(
+      (t) =>
+        !s ||
+        `${t.desc || ''} ${t.cat || ''} ${t.sub || ''}`
+          .toLowerCase()
+          .includes(s)
+    )
+    .filter((t) => !min || t.amt >= Number(min))
+    .filter((t) => !max || t.amt <= Number(max))
     .sort((a, b) => (String(a.date) < String(b.date) ? 1 : -1));
 
   const groups = {};
@@ -1881,33 +1939,132 @@ function TxListTab({ mob, cur, activeTx, onEdit }) {
   });
   const months = Object.keys(groups).sort((a, b) => (a < b ? 1 : -1));
 
-  const pill = (id, l) => (
+  const pill = (id, l, val, set) => (
     <button
       key={id}
-      onClick={() => setFilter(id)}
+      onClick={() => set(id)}
       style={{
-        flex: 1,
-        background: filter === id ? P.ac : P.c2,
-        color: filter === id ? '#fff' : P.tx,
-        border: `1px solid ${filter === id ? P.ac : P.bd}`,
+        background: val === id ? P.ac : P.c2,
+        color: val === id ? '#fff' : P.tx,
+        border: `1px solid ${val === id ? P.ac : P.bd}`,
         borderRadius: 10,
-        padding: '8px',
+        padding: '7px 11px',
         fontSize: 12,
         fontWeight: 600,
         cursor: 'pointer',
+        whiteSpace: 'nowrap',
       }}
     >
       {l}
     </button>
   );
 
+  const inp = {
+    background: P.c2,
+    border: `1px solid ${P.bd}`,
+    color: P.tx,
+    padding: '9px 11px',
+    borderRadius: 10,
+    fontSize: 13,
+    width: '100%',
+    boxSizing: 'border-box',
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <div style={{ display: 'flex', gap: 6 }}>
-        {pill('todos', 'Todos')}
-        {pill('ingreso', '📈 Ingresos')}
-        {pill('gasto', '📉 Gastos')}
-      </div>
+      <Box>
+        <Lbl>Filtros</Lbl>
+        {/* Tipo */}
+        <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+          {pill('todos', 'Todos', filter, setFilter)}
+          {pill('ingreso', '📈 Ingresos', filter, setFilter)}
+          {pill('gasto', '📉 Gastos', filter, setFilter)}
+        </div>
+        {/* Fecha rápida */}
+        <div
+          style={{
+            display: 'flex',
+            gap: 6,
+            flexWrap: 'wrap',
+            marginBottom: 8,
+          }}
+        >
+          {[
+            ['todo', 'Todo'],
+            ['este-mes', 'Este mes'],
+            ['mes-anterior', 'Mes anterior'],
+            ['30-dias', 'Últ. 30 días'],
+            ['este-anio', 'Este año'],
+          ].map(([id, l]) =>
+            pill(id, l, quick, (v) => {
+              setQuick(v);
+              setFrom('');
+              setTo('');
+            })
+          )}
+        </div>
+        {/* Buscar */}
+        <input
+          placeholder="🔍 Buscar concepto, categoría…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{ ...inp, marginBottom: 8 }}
+        />
+        {/* Monto */}
+        <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+          <input
+            type="number"
+            placeholder="Monto mín."
+            value={min}
+            onChange={(e) => setMin(e.target.value)}
+            style={inp}
+          />
+          <input
+            type="number"
+            placeholder="Monto máx."
+            value={max}
+            onChange={(e) => setMax(e.target.value)}
+            style={inp}
+          />
+        </div>
+        {/* Rango de fechas */}
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <input
+            type="date"
+            value={from}
+            onChange={(e) => {
+              setFrom(e.target.value);
+              setQuick('todo');
+            }}
+            style={inp}
+          />
+          <span style={{ color: P.sb, fontSize: 12 }}>→</span>
+          <input
+            type="date"
+            value={to}
+            onChange={(e) => {
+              setTo(e.target.value);
+              setQuick('todo');
+            }}
+            style={inp}
+          />
+        </div>
+        <button
+          onClick={reset}
+          style={{
+            marginTop: 10,
+            background: 'transparent',
+            border: 'none',
+            color: P.sb,
+            fontSize: 12,
+            cursor: 'pointer',
+            padding: 0,
+          }}
+        >
+          ↺ Restablecer filtros
+        </button>
+      </Box>
+
       <div style={{ fontSize: 11, color: P.sb, textAlign: 'center' }}>
         {items.length} movimiento{items.length === 1 ? '' : 's'} · tocá cualquiera
         para editar

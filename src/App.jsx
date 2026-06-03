@@ -2026,6 +2026,7 @@ function ExchangeModal({ mob, onSave, onClose }) {
   const [usd, setUsd] = useState('');
   const [rate, setRate] = useState('');
   const [date, setDate] = useState(td());
+  const [source, setSource] = useState('cuenta'); // cuenta | ahorro
   const usdN = Number(String(usd).replace(',', '.'));
   const rateN = Number(String(rate).replace(',', '.'));
   const pesos = usdN > 0 && rateN > 0 ? Math.round(usdN * rateN) : 0;
@@ -2047,7 +2048,9 @@ function ExchangeModal({ mob, onSave, onClose }) {
       return;
     }
     onSave({
-      type: 'ahorro',
+      // Si sale de la cuenta del mes -> ahorro (resta del balance).
+      // Si sale de un ahorro/fondo que ya tenía -> cambio (no toca el mes).
+      type: source === 'ahorro' ? 'cambio' : 'ahorro',
       cat: 'Dólares',
       sub: 'Compra USD',
       amt: pesos,
@@ -2125,6 +2128,38 @@ function ExchangeModal({ mob, onSave, onClose }) {
             <div style={{ fontSize: 10, color: P.sb }}>TE SALE</div>
             <div style={{ fontSize: 24, fontWeight: 700, color: P.ac }}>
               {fmt(pesos, 'ARS')}
+            </div>
+          </div>
+          <div>
+            <Lbl>¿De dónde sale la plata?</Lbl>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {[
+                ['cuenta', 'De mi cuenta'],
+                ['ahorro', 'De un ahorro/fondo'],
+              ].map(([id, l]) => (
+                <button
+                  key={id}
+                  onClick={() => setSource(id)}
+                  style={{
+                    flex: 1,
+                    background: source === id ? P.ac : P.c2,
+                    color: source === id ? '#fff' : P.tx,
+                    border: `1px solid ${source === id ? P.ac : P.bd}`,
+                    borderRadius: 10,
+                    padding: '9px',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {l}
+                </button>
+              ))}
+            </div>
+            <div style={{ fontSize: 10, color: P.sb, marginTop: 5 }}>
+              {source === 'cuenta'
+                ? 'Resta de tus pesos del mes (cuenta como ahorro).'
+                : 'No toca el balance del mes (solo mueve tu ahorro a dólares).'}
             </div>
           </div>
           <div>
@@ -3959,9 +3994,10 @@ function TxRow({ t, cur, mob, onClick, customCats }) {
   const cd = getCats(t.type, customCats).find((c) => c.n === t.cat);
   const isIn = t.type === 'ingreso';
   const isSav = t.type === 'ahorro';
-  const rowColor = isIn ? P.gn : isSav ? P.ac : P.rd;
-  const rowBg = isIn ? P.gb : isSav ? P.ac + '1A' : P.rb;
-  const rowSign = isIn ? '+' : isSav ? '→ ' : '−';
+  const isCambio = t.type === 'cambio';
+  const rowColor = isIn ? P.gn : isSav || isCambio ? P.ac : P.rd;
+  const rowBg = isIn ? P.gb : isSav || isCambio ? P.ac + '1A' : P.rb;
+  const rowSign = isIn ? '+' : isCambio ? '💱 ' : isSav ? '→ ' : '−';
   return (
     <div
       onClick={onClick}

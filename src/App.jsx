@@ -924,6 +924,7 @@ function MainApp({ user, onLogout }) {
           efund: merged.efund,
           customCats: merged.customCats || {},
           favorites: merged.favorites || [],
+          savings: merged.savings || [],
           name: user.displayName,
           email: user.email,
         },
@@ -1711,6 +1712,15 @@ function MainApp({ user, onLogout }) {
             setSavPct={(p) => saveSettings({ savPct: p })}
             efund={settings.efund || { expenses: {}, saved: 0 }}
             setEfund={(ef) => saveSettings({ efund: ef })}
+            savings={settings.savings || []}
+            setSavings={(s) => saveSettings({ savings: s })}
+            usdHeld={[...tx].reduce(
+              (s, t) =>
+                s +
+                (t.usd > 0 ? t.usd : 0) -
+                (t.type === 'gasto' && t.cur === 'USD' ? t.amt : 0),
+              0
+            )}
           />
         )}
       </main>
@@ -4425,6 +4435,9 @@ function GoalsTab({
   setSavPct,
   efund,
   setEfund,
+  savings = [],
+  setSavings,
+  usdHeld = 0,
 }) {
   const [showAdd, setShowAdd] = useState(false);
   const [gn, setGn] = useState('');
@@ -4432,6 +4445,31 @@ function GoalsTab({
   const [gi, setGi] = useState('🎯');
   const [addAmt, setAddAmt] = useState({});
   const [showEF, setShowEF] = useState(false);
+  // Mis ahorros (saldo inicial / patrimonio)
+  const [sN, setSN] = useState('');
+  const [sA, setSA] = useState('');
+  const [sC, setSC] = useState('ARS');
+  const addSaving = () => {
+    if (!sN.trim() || !Number(sA)) return;
+    setSavings([
+      ...savings,
+      {
+        id: 'sv' + sN + sA + savings.length,
+        name: sN.trim(),
+        amount: Number(sA),
+        cur: sC,
+      },
+    ]);
+    setSN('');
+    setSA('');
+  };
+  const delSaving = (id) => setSavings(savings.filter((s) => s.id !== id));
+  const savArs = savings
+    .filter((s) => s.cur === 'ARS')
+    .reduce((a, s) => a + s.amount, 0);
+  const savUsd =
+    savings.filter((s) => s.cur === 'USD').reduce((a, s) => a + s.amount, 0) +
+    (usdHeld > 0 ? usdHeld : 0);
   const sT = totIn * (savPct / 100);
   const actual = totIn - totOut;
   const ok = actual >= sT;
@@ -4458,6 +4496,142 @@ function GoalsTab({
         paddingTop: 8,
       }}
     >
+      <Box style={{ background: `linear-gradient(135deg,${P.ac}0E,${P.gn}0A)` }}>
+        <Lbl>💰 Mis ahorros (patrimonio)</Lbl>
+        <div
+          style={{
+            display: 'flex',
+            gap: 14,
+            flexWrap: 'wrap',
+            marginBottom: 12,
+          }}
+        >
+          <div>
+            <div style={{ fontSize: 10, color: P.sb }}>EN PESOS</div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: P.gn }}>
+              {fmt(savArs, 'ARS')}
+            </div>
+          </div>
+          {savUsd > 0 && (
+            <div>
+              <div style={{ fontSize: 10, color: P.sb }}>EN DÓLARES</div>
+              <div style={{ fontSize: 22, fontWeight: 700, color: P.ac }}>
+                US$ {savUsd.toLocaleString('es-AR')}
+              </div>
+            </div>
+          )}
+        </div>
+        {savings.map((s) => (
+          <div
+            key={s.id}
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '6px 0',
+              borderTop: `1px solid ${P.bd}`,
+            }}
+          >
+            <span style={{ fontSize: 13 }}>{s.name}</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 13, fontWeight: 600 }}>
+                {s.cur === 'USD'
+                  ? `US$ ${s.amount.toLocaleString('es-AR')}`
+                  : fmt(s.amount, 'ARS')}
+              </span>
+              <span
+                onClick={() => delSaving(s.id)}
+                style={{ cursor: 'pointer', color: P.sb, fontSize: 12 }}
+              >
+                ✕
+              </span>
+            </span>
+          </div>
+        ))}
+        {usdHeld > 0 && (
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              padding: '6px 0',
+              borderTop: `1px solid ${P.bd}`,
+              fontSize: 12,
+              color: P.sb,
+            }}
+          >
+            <span>Dólares comprados en la app</span>
+            <span>US$ {usdHeld.toLocaleString('es-AR')}</span>
+          </div>
+        )}
+        <div
+          style={{
+            display: 'flex',
+            gap: 6,
+            marginTop: 10,
+            flexWrap: 'wrap',
+          }}
+        >
+          <input
+            placeholder="Ej: Fondo, Plazo fijo…"
+            value={sN}
+            onChange={(e) => setSN(e.target.value)}
+            style={{ ...iS, flex: 2, minWidth: 110 }}
+          />
+          <input
+            type="number"
+            placeholder="Monto"
+            value={sA}
+            onChange={(e) => setSA(e.target.value)}
+            style={{ ...iS, flex: 1, minWidth: 80 }}
+          />
+          <div
+            style={{
+              display: 'flex',
+              background: P.c2,
+              borderRadius: 10,
+              border: `1px solid ${P.bd}`,
+              overflow: 'hidden',
+            }}
+          >
+            {['ARS', 'USD'].map((c) => (
+              <button
+                key={c}
+                onClick={() => setSC(c)}
+                style={{
+                  background: sC === c ? P.ac : 'transparent',
+                  color: sC === c ? '#fff' : P.sb,
+                  border: 'none',
+                  padding: '0 10px',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                {c}
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={addSaving}
+            style={{
+              background: P.ac,
+              color: '#fff',
+              border: 'none',
+              borderRadius: 10,
+              padding: '0 16px',
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            Agregar
+          </button>
+        </div>
+        <div style={{ fontSize: 10, color: P.sb, marginTop: 6 }}>
+          Lo que ya tenías ahorrado. No cuenta como ingreso — es tu saldo
+          inicial.
+        </div>
+      </Box>
       <Box>
         <Lbl>Ahorro automático</Lbl>
         <div

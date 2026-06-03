@@ -4550,6 +4550,7 @@ function TxModal({
   const [recurring, setRecurring] = useState(initial?.recurring || false);
   const [freq, setFreq] = useState(initial?.freq || 'mensual');
   const [programado, setProgramado] = useState(initial?.pending || false);
+  const [showMore, setShowMore] = useState(mode === 'edit');
   const [pay, setPay] = useState(initial?.pay || 'debito');
   const [cuotas, setCuotas] = useState(initial?.cuotas || 1);
   const isG = type === 'gasto';
@@ -4659,6 +4660,8 @@ function TxModal({
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {showMore && (
+            <>
           {/* 1. Scope */}
           <div
             style={{
@@ -4762,9 +4765,11 @@ function TxModal({
               />
             </div>
           )}
+            </>
+          )}
 
           {/* 2. Amount */}
-          <div>
+          <div style={{ order: -3 }}>
             <Lbl>Monto ({cur})</Lbl>
             <input
               type="number"
@@ -4784,7 +4789,7 @@ function TxModal({
           </div>
 
           {/* 3. Category */}
-          <div>
+          <div style={{ order: -2 }}>
             <Lbl>Categoría</Lbl>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
               {cats.map((c) => (
@@ -4813,6 +4818,8 @@ function TxModal({
               ))}
             </div>
           </div>
+          {showMore && (
+            <>
           {cc && (
             <div>
               <Lbl>Subcategoría</Lbl>
@@ -5032,9 +5039,31 @@ function TxModal({
               style={iS}
             />
           </div>
+            </>
+          )}
+
+          <button
+            type="button"
+            onClick={() => setShowMore((v) => !v)}
+            style={{
+              order: -1,
+              alignSelf: 'flex-start',
+              background: 'transparent',
+              border: 'none',
+              color: P.ac,
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: 'pointer',
+              padding: '2px 0',
+            }}
+          >
+            {showMore
+              ? '▴ Menos opciones'
+              : '▾ Más opciones (espacio, fecha, medio de pago, recurrente…)'}
+          </button>
 
           {/* Save */}
-          <div style={{ display: 'flex', gap: 6, marginTop: 2 }}>
+          <div style={{ display: 'flex', gap: 6, marginTop: 2, order: 10 }}>
             {mode === 'edit' && !confirmDel && (
               <button
                 onClick={() => setConfirmDel(true)}
@@ -5157,6 +5186,7 @@ function TxModal({
               style={{
                 width: '100%',
                 marginTop: 8,
+                order: 11,
                 background: 'transparent',
                 border: 'none',
                 color: P.sb,

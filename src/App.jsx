@@ -208,6 +208,10 @@ const COL_ALIASES = {
     'medio_pago', 'medio de pago', 'método de pago', 'metodo de pago',
     'pago', 'metodo', 'método', 'forma de pago', 'medio',
   ],
+  member: [
+    'quién pagó', 'quien pago', 'quien_pago', 'miembro', 'pagado por',
+    'a quién ingresó', 'a quien ingreso', 'quién', 'quien', 'persona',
+  ],
 };
 
 // Equivalencias de categorías de otras apps → categorías de miplata
@@ -337,6 +341,8 @@ function mapParsedRows(headers, rows) {
       cur: get('moneda').toUpperCase() === 'USD' ? 'USD' : 'ARS',
       recurring: false,
     };
+    const who = get('member');
+    if (who) tx.member = who;
     if (type === 'gasto') {
       const p = get('medio_pago').toLowerCase();
       tx.pay = p.includes('cred')
@@ -1408,6 +1414,7 @@ function MainApp({ user, onLogout }) {
             budgets={settings.budgets || {}}
             onEdit={openEdit}
             customCats={settings.customCats}
+            isGroup={viewScope !== 'personal'}
           />
         )}
         {tab === 'movs' && (
@@ -1640,6 +1647,7 @@ function MainApp({ user, onLogout }) {
           myGroups={myGroups}
           viewScope={viewScope}
           customCats={settings.customCats}
+          userName={user.displayName || user.email}
         />
       )}
 
@@ -2606,8 +2614,21 @@ function HomeTab({
   budgets,
   onEdit,
   customCats,
+  isGroup,
 }) {
   const maxC = byCat.length ? byCat[0][1] : 1;
+  // Resumen por persona (solo grupo)
+  const byMember = {};
+  if (isGroup) {
+    mtx.forEach((t) => {
+      const who = t.member || t.createdByName || '—';
+      if (!byMember[who]) byMember[who] = { ingreso: 0, gasto: 0, ahorro: 0 };
+      byMember[who][t.type] = (byMember[who][t.type] || 0) + t.amt;
+    });
+  }
+  const memberRows = Object.entries(byMember).sort(
+    (a, b) => b[1].gasto + b[1].ingreso - (a[1].gasto + a[1].ingreso)
+  );
   const alerts = [];
   byCat.forEach(([cat, amt]) => {
     const p = budgets[cat];
@@ -2756,6 +2777,36 @@ function HomeTab({
           })
         )}
       </Box>
+      {isGroup && memberRows.length > 0 && (
+        <Box>
+          <Lbl>Por persona (este mes)</Lbl>
+          {memberRows.map(([name, v]) => (
+            <div
+              key={name}
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '7px 0',
+                borderBottom: `1px solid ${P.bd}`,
+              }}
+            >
+              <span style={{ fontSize: 13, fontWeight: 600 }}>👤 {name}</span>
+              <span style={{ fontSize: 11 }}>
+                {v.ingreso > 0 && (
+                  <span style={{ color: P.gn }}>+{fmtS(v.ingreso, cur)} </span>
+                )}
+                {v.gasto > 0 && (
+                  <span style={{ color: P.rd }}>-{fmtS(v.gasto, cur)} </span>
+                )}
+                {v.ahorro > 0 && (
+                  <span style={{ color: P.ac }}>→{fmtS(v.ahorro, cur)}</span>
+                )}
+              </span>
+            </div>
+          ))}
+        </Box>
+      )}
       <Box>
         <Lbl>Últimos movimientos</Lbl>
         {mtx.length === 0 ? (
@@ -2837,7 +2888,10 @@ function TxRow({ t, cur, mob, onClick, customCats }) {
           </div>
           <div style={{ fontSize: 10, color: P.sb }}>
             {t.cat}
-            {t.createdByName ? ` · ${t.createdByName}` : ''} ·{' '}
+            {t.member || t.createdByName
+              ? ` · ${t.member || t.createdByName}`
+              : ''}{' '}
+            ·{' '}
             {new Date(String(t.date).slice(0, 10) + 'T00:00:00').toLocaleDateString('es-AR', {
               day: 'numeric',
               month: 'short',
@@ -3701,6 +3755,7 @@ function TxModal({
   myGroups,
   viewScope,
   customCats,
+  userName,
 }) {
   const [type, setType] = useState(initial?.type || 'gasto');
   const cats = getCats(type, customCats);
@@ -3727,6 +3782,7 @@ function TxModal({
     ? myGroups[0].id
     : 'personal';
   const [scope, setScope] = useState(initScope);
+  const [member, setMember] = useState(initial?.member || userName || '');
   const [confirmDel, setConfirmDel] = useState(false);
   const cc = cats.find((c) => c.n === cat);
   const iS = {
@@ -3871,6 +3927,56 @@ function TxModal({
               ))}
             </div>
           </div>
+
+          {/* 1b. Quién pagó / a quién ingresó (solo grupo) */}
+          {scope !== 'personal' && (
+            <div>
+              <Lbl>
+                {type === 'ingreso' ? '¿A quién ingresó?' : '¿Quién pagó?'}
+              </Lbl>
+              <div
+                style={{
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: 4,
+                  marginBottom: 6,
+                }}
+              >
+                {Array.from(
+                  new Set(
+                    [
+                      userName,
+                      ...((myGroups.find((g) => g.id === scope) || {})
+                        .memberNames || []),
+                    ].filter(Boolean)
+                  )
+                ).map((nm) => (
+                  <button
+                    key={nm}
+                    onClick={() => setMember(nm)}
+                    style={{
+                      background: member === nm ? P.pu : P.c2,
+                      border: `1px solid ${member === nm ? P.pu : P.bd}`,
+                      color: member === nm ? '#fff' : P.tx,
+                      padding: '6px 12px',
+                      borderRadius: 10,
+                      cursor: 'pointer',
+                      fontSize: 12,
+                      fontWeight: 500,
+                    }}
+                  >
+                    {nm}
+                  </button>
+                ))}
+              </div>
+              <input
+                placeholder="Otra persona…"
+                value={member}
+                onChange={(e) => setMember(e.target.value)}
+                style={iS}
+              />
+            </div>
+          )}
 
           {/* 2. Amount */}
           <div>
@@ -4149,6 +4255,7 @@ function TxModal({
                     cuotas: isG && pay === 'credito' ? cuotas : undefined,
                     scope: isGroupScope ? 'grupo' : 'personal',
                     groupId: isGroupScope ? scope : undefined,
+                    member: isGroupScope ? member || userName : undefined,
                   };
                   onSave(txData);
                 }}

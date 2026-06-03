@@ -3232,11 +3232,15 @@ function HomeTab({
     });
   const cardRows = Object.entries(byCard).sort((a, b) => b[1] - a[1]);
 
-  // Dólares comprados (acumulado, de todos los meses del espacio)
+  // Dólares: comprados (cambios) − gastados (gastos en USD) = lo que tenés
   const usdBuys = activeTx.filter((t) => t.usd > 0);
-  const usdHeld = usdBuys.reduce((s, t) => s + t.usd, 0);
+  const usdBought = usdBuys.reduce((s, t) => s + t.usd, 0);
   const usdInvested = usdBuys.reduce((s, t) => s + (t.amt || 0), 0);
-  const usdAvgRate = usdHeld > 0 ? usdInvested / usdHeld : 0;
+  const usdSpent = activeTx
+    .filter((t) => t.type === 'gasto' && t.cur === 'USD')
+    .reduce((s, t) => s + t.amt, 0);
+  const usdHeld = usdBought - usdSpent;
+  const usdAvgRate = usdBought > 0 ? usdInvested / usdBought : 0;
   // Pagos recurrentes: una "plantilla" por serie (el movimiento más reciente)
   const recSeries = {};
   activeTx.forEach((t) => {
@@ -3861,9 +3865,9 @@ function HomeTab({
           </div>
         </Box>
       )}
-      {usdHeld > 0 && (
+      {usdBought > 0 && (
         <Box>
-          <Lbl>💵 Dólares</Lbl>
+          <Lbl>💵 Dólares que tenés</Lbl>
           <div
             style={{
               display: 'flex',
@@ -3872,13 +3876,14 @@ function HomeTab({
             }}
           >
             <div>
-              <div
-                style={{ fontSize: 24, fontWeight: 700, color: P.ac }}
-              >
+              <div style={{ fontSize: 26, fontWeight: 700, color: P.ac }}>
                 US$ {usdHeld.toLocaleString('es-AR')}
               </div>
               <div style={{ fontSize: 11, color: P.sb, marginTop: 2 }}>
-                comprados con {fmtS(usdInvested, 'ARS')}
+                compraste US$ {usdBought.toLocaleString('es-AR')}
+                {usdSpent > 0
+                  ? ` · gastaste US$ ${usdSpent.toLocaleString('es-AR')}`
+                  : ''}
               </div>
             </div>
             <div style={{ textAlign: 'right' }}>

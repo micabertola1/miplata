@@ -2288,6 +2288,16 @@ function TxListTab({ mob, cur, activeTx, onEdit, customCats }) {
   const [search, setSearch] = useState('');
   const [min, setMin] = useState('');
   const [max, setMax] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
+
+  const activeCount =
+    (filter !== 'todos' ? 1 : 0) +
+    (quick !== 'todo' ? 1 : 0) +
+    (from ? 1 : 0) +
+    (to ? 1 : 0) +
+    (search.trim() ? 1 : 0) +
+    (min ? 1 : 0) +
+    (max ? 1 : 0);
 
   const reset = () => {
     setFilter('todos');
@@ -2386,8 +2396,49 @@ function TxListTab({ mob, cur, activeTx, onEdit, customCats }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <button
+        onClick={() => setShowFilters((v) => !v)}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          background: activeCount > 0 ? P.ac + '14' : P.cd,
+          border: `1px solid ${activeCount > 0 ? P.ac : P.bd}`,
+          color: activeCount > 0 ? P.ac : P.tx,
+          borderRadius: 12,
+          padding: '11px 14px',
+          fontSize: 13,
+          fontWeight: 600,
+          cursor: 'pointer',
+        }}
+      >
+        <span>
+          🔎 Filtros
+          {activeCount > 0 ? ` (${activeCount})` : ''}
+        </span>
+        <span style={{ fontSize: 11, color: P.sb }}>
+          {showFilters ? '▲ ocultar' : '▼ mostrar'}
+        </span>
+      </button>
+      {showFilters && (
       <Box>
-        <Lbl>Filtros</Lbl>
+        {activeCount > 0 && (
+          <div style={{ textAlign: 'right', marginTop: -4, marginBottom: 6 }}>
+            <button
+              onClick={reset}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: P.sb,
+                fontSize: 11,
+                cursor: 'pointer',
+                padding: 0,
+              }}
+            >
+              ↺ Limpiar
+            </button>
+          </div>
+        )}
         {/* Tipo */}
         <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
           {pill('todos', 'Todos', filter, setFilter)}
@@ -2479,6 +2530,7 @@ function TxListTab({ mob, cur, activeTx, onEdit, customCats }) {
           ↺ Restablecer filtros
         </button>
       </Box>
+      )}
 
       <div style={{ fontSize: 11, color: P.sb, textAlign: 'center' }}>
         {items.length} movimiento{items.length === 1 ? '' : 's'} · tocá cualquiera
@@ -2590,35 +2642,33 @@ function HomeTab({
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: '1fr 1fr 1fr',
-          gap: mob ? 6 : 10,
+          gridTemplateColumns: '1fr 1fr',
+          gap: mob ? 8 : 10,
         }}
       >
-        <Box style={{ padding: mob ? 10 : 16 }}>
+        <Box style={{ padding: mob ? 12 : 16 }}>
           <Lbl>Ingresos</Lbl>
           <div
-            style={{ fontSize: mob ? 15 : 22, fontWeight: 700, color: P.gn }}
+            style={{ fontSize: mob ? 17 : 22, fontWeight: 700, color: P.gn }}
           >
-            {fmtS(totIn, cur)}
+            {mob ? fmtS(totIn, cur) : fmt(totIn, cur)}
           </div>
         </Box>
-        <Box style={{ padding: mob ? 10 : 16 }}>
+        <Box style={{ padding: mob ? 12 : 16 }}>
           <Lbl>Gastos</Lbl>
           <div
-            style={{ fontSize: mob ? 15 : 22, fontWeight: 700, color: P.rd }}
+            style={{ fontSize: mob ? 17 : 22, fontWeight: 700, color: P.rd }}
           >
-            {fmtS(totOut, cur)}
-          </div>
-        </Box>
-        <Box style={{ padding: mob ? 10 : 16 }}>
-          <Lbl>Ahorro</Lbl>
-          <div
-            style={{ fontSize: mob ? 15 : 22, fontWeight: 700, color: P.ac }}
-          >
-            {fmtS(totSav, cur)}
+            {mob ? fmtS(totOut, cur) : fmt(totOut, cur)}
           </div>
         </Box>
       </div>
+      <Box style={{ padding: mob ? 12 : 16 }}>
+        <Lbl>Ahorro</Lbl>
+        <div style={{ fontSize: mob ? 17 : 22, fontWeight: 700, color: P.ac }}>
+          {mob ? fmtS(totSav, cur) : fmt(totSav, cur)}
+        </div>
+      </Box>
       <Box
         style={{ background: `linear-gradient(135deg,${P.ac}06,${P.gn}06)` }}
       >

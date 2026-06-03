@@ -767,6 +767,7 @@ function MainApp({ user, onLogout }) {
           defScope: merged.defScope,
           efund: merged.efund,
           customCats: merged.customCats || {},
+          favorites: merged.favorites || [],
           name: user.displayName,
           email: user.email,
         },
@@ -1050,6 +1051,32 @@ function MainApp({ user, onLogout }) {
     setModal('add');
     setFabOpen(false);
   };
+  // Abrir el formulario PRE-CARGADO como nuevo (sin id, fecha hoy)
+  const openPrefill = (data) => {
+    if (!data) return;
+    const { id, createdAt, imported, date, serieId, recurring, ...rest } = data;
+    setEditItem({ ...rest });
+    setModal('add');
+    setFabOpen(false);
+  };
+  const lastTx = useMemo(
+    () =>
+      [...activeTx].sort((a, b) =>
+        String(b.date) !== String(a.date)
+          ? String(b.date) > String(a.date)
+            ? 1
+            : -1
+          : String(b.createdAt || '') > String(a.createdAt || '')
+          ? 1
+          : -1
+      )[0],
+    [activeTx]
+  );
+  const favorites = settings.favorites || [];
+  const saveFavorite = (fav) =>
+    saveSettings({ favorites: [...favorites, fav] });
+  const removeFavorite = (idx) =>
+    saveSettings({ favorites: favorites.filter((_, i) => i !== idx) });
 
   return (
     <div
@@ -1426,6 +1453,9 @@ function MainApp({ user, onLogout }) {
             activeTx={activeTx}
             month={month}
             onRegister={registerRecurring}
+            favorites={favorites}
+            onUseFav={openPrefill}
+            onRemoveFav={removeFavorite}
           />
         )}
         {tab === 'movs' && (
@@ -1528,6 +1558,41 @@ function MainApp({ user, onLogout }) {
                 {b.l}
               </button>
             ))}
+            {lastTx && (
+              <button
+                onClick={() => openPrefill(lastTx)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  background: P.cd,
+                  border: `1px solid ${P.bd}`,
+                  borderRadius: 12,
+                  padding: '9px 14px',
+                  cursor: 'pointer',
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.1)',
+                  fontSize: 13,
+                  fontWeight: 500,
+                  color: P.tx,
+                }}
+              >
+                <span
+                  style={{
+                    width: 26,
+                    height: 26,
+                    borderRadius: 7,
+                    background: P.ac + '12',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 13,
+                  }}
+                >
+                  ↩️
+                </span>
+                Repetir último
+              </button>
+            )}
             <button
               onClick={() => {
                 setFabOpen(false);
@@ -1659,6 +1724,7 @@ function MainApp({ user, onLogout }) {
           viewScope={viewScope}
           customCats={settings.customCats}
           userName={user.displayName || user.email}
+          onSaveFav={saveFavorite}
         />
       )}
 
@@ -2629,6 +2695,9 @@ function HomeTab({
   activeTx = [],
   month,
   onRegister,
+  favorites = [],
+  onUseFav,
+  onRemoveFav,
 }) {
   const maxC = byCat.length ? byCat[0][1] : 1;
   // Pagos recurrentes: una "plantilla" por serie (el movimiento más reciente)
@@ -2676,6 +2745,60 @@ function HomeTab({
     <div
       style={{ display: 'flex', flexDirection: 'column', gap: mob ? 10 : 14 }}
     >
+      {favorites.length > 0 && (
+        <Box>
+          <Lbl>⭐ Favoritos · carga rápida</Lbl>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {favorites.map((f, i) => (
+              <div
+                key={i}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  background: P.c2,
+                  border: `1px solid ${P.bd}`,
+                  borderRadius: 10,
+                  overflow: 'hidden',
+                }}
+              >
+                <button
+                  onClick={() => onUseFav(f)}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: P.tx,
+                    padding: '7px 10px',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {f.type === 'ingreso'
+                    ? '📈'
+                    : f.type === 'ahorro'
+                    ? '🏦'
+                    : '📉'}{' '}
+                  {f.desc || f.sub || f.cat}
+                  {f.amt ? ` · ${fmtS(f.amt, f.cur)}` : ''}
+                </button>
+                <span
+                  onClick={() => onRemoveFav(i)}
+                  title="Quitar favorito"
+                  style={{
+                    cursor: 'pointer',
+                    color: P.sb,
+                    padding: '7px 8px',
+                    fontSize: 11,
+                    borderLeft: `1px solid ${P.bd}`,
+                  }}
+                >
+                  ✕
+                </span>
+              </div>
+            ))}
+          </div>
+        </Box>
+      )}
       {alerts.map((a) => (
         <div
           key={a.cat}
@@ -3860,6 +3983,7 @@ function TxModal({
   viewScope,
   customCats,
   userName,
+  onSaveFav,
 }) {
   const [type, setType] = useState(initial?.type || 'gasto');
   const cats = getCats(type, customCats);
@@ -4418,6 +4542,35 @@ function TxModal({
               </button>
             )}
           </div>
+          {mode !== 'edit' && onSaveFav && (
+            <button
+              onClick={() => {
+                const amtNum = Number(String(amt).replace(',', '.'));
+                onSaveFav({
+                  type,
+                  cat,
+                  sub,
+                  amt: amtNum > 0 ? amtNum : undefined,
+                  desc,
+                  cur,
+                  pay: isG ? pay : undefined,
+                });
+                alert('⭐ Guardado en favoritos');
+              }}
+              style={{
+                width: '100%',
+                marginTop: 8,
+                background: 'transparent',
+                border: 'none',
+                color: P.sb,
+                fontSize: 12,
+                cursor: 'pointer',
+                padding: 4,
+              }}
+            >
+              ⭐ Guardar como favorito
+            </button>
+          )}
         </div>
       </div>
     </div>

@@ -154,18 +154,29 @@ function td() {
 const COL_ALIASES = {
   tipo: ['tipo', 'type', 'movimiento'],
   fecha: ['fecha', 'date', 'dia', 'día', 'fecha operacion', 'fecha operación'],
-  monto: ['monto', 'importe', 'amount', 'valor', 'total', 'precio', 'debito', 'débito'],
+  monto: ['monto', 'importe', 'amount', 'valor', 'total', 'precio'],
   categoria: ['categoria', 'categoría', 'rubro', 'category'],
   subcategoria: ['subcategoria', 'subcategoría', 'subrubro'],
+  concepto: ['concepto', 'titulo', 'título', 'nombre'],
   descripcion: [
-    'descripcion', 'descripción', 'concepto', 'detalle', 'nota',
+    'descripcion', 'descripción', 'detalle', 'nota',
     'observacion', 'observación', 'desc',
   ],
   moneda: ['moneda', 'currency', 'divisa'],
   medio_pago: [
-    'medio_pago', 'medio de pago', 'pago', 'metodo', 'método',
-    'forma de pago', 'medio',
+    'medio_pago', 'medio de pago', 'método de pago', 'metodo de pago',
+    'pago', 'metodo', 'método', 'forma de pago', 'medio',
   ],
+};
+
+// Equivalencias de categorías de otras apps → categorías de miplata
+const CAT_MAP = {
+  movilidad: 'Transporte',
+  transporte: 'Transporte',
+  recreación: 'Entretenimiento',
+  recreacion: 'Entretenimiento',
+  ocio: 'Entretenimiento',
+  entretenimiento: 'Entretenimiento',
 };
 
 function pad2(n) {
@@ -235,13 +246,13 @@ function parseCSV(text) {
   return { headers, rows };
 }
 
-function mapImportRows(text) {
-  const { headers, rows } = parseCSV(text);
-  if (!headers.length)
+function mapParsedRows(headers, rows) {
+  if (!headers || !headers.length)
     throw new Error('El archivo está vacío o no tiene filas de datos.');
+  const norm = headers.map((h) => String(h == null ? '' : h).toLowerCase().trim());
   const idx = {};
   for (const [field, aliases] of Object.entries(COL_ALIASES))
-    idx[field] = headers.findIndex((h) => aliases.includes(h));
+    idx[field] = norm.findIndex((h) => aliases.includes(h));
   if (idx.fecha === -1 || idx.monto === -1)
     throw new Error(
       'Faltan columnas obligatorias. Necesito al menos "fecha" y "monto" en los encabezados.'
@@ -249,7 +260,8 @@ function mapImportRows(text) {
   const valid = [], invalid = [];
   rows.forEach((cols, i) => {
     const rowNum = i + 2;
-    const get = (f) => (idx[f] >= 0 ? (cols[idx[f]] || '').trim() : '');
+    const get = (f) =>
+      idx[f] >= 0 && cols[idx[f]] != null ? String(cols[idx[f]]).trim() : '';
     const amt = parseAmount(get('monto'));
     const date = parseDateStr(get('fecha'));
     if (!amt || amt <= 0) {
@@ -261,12 +273,20 @@ function mapImportRows(text) {
       return;
     }
     const type = get('tipo').toLowerCase().startsWith('ing') ? 'ingreso' : 'gasto';
+    const rawCat = get('categoria');
+    const cat =
+      CAT_MAP[rawCat.toLowerCase()] ||
+      rawCat ||
+      (type === 'gasto' ? 'Compras' : 'Otros');
+    const desc = [get('concepto'), get('descripcion')]
+      .filter(Boolean)
+      .join(' — ');
     const tx = {
       type,
-      cat: get('categoria') || (type === 'gasto' ? 'Compras' : 'Otros'),
+      cat,
       sub: get('subcategoria'),
       amt,
-      desc: get('descripcion'),
+      desc,
       date,
       cur: get('moneda').toUpperCase() === 'USD' ? 'USD' : 'ARS',
       recurring: false,
@@ -275,6 +295,8 @@ function mapImportRows(text) {
       const p = get('medio_pago').toLowerCase();
       tx.pay = p.includes('cred')
         ? 'credito'
+        : p.includes('transf')
+        ? 'transferencia'
         : p.includes('efe')
         ? 'efectivo'
         : 'debito';
@@ -282,6 +304,11 @@ function mapImportRows(text) {
     valid.push(tx);
   });
   return { valid, invalid };
+}
+
+function mapImportRows(text) {
+  const { headers, rows } = parseCSV(text);
+  return mapParsedRows(headers, rows);
 }
 
 /* ── Palette ── */
@@ -1308,7 +1335,7 @@ function MainApp({ user, onLogout }) {
               >
                 📥
               </span>
-              Importar CSV
+              Importar datos
             </button>
           </div>
         )}
@@ -1430,19 +1457,46 @@ function ImportModal({ mob, onImport, onClose }) {
     setFileName(file.name);
     setError(null);
     setParsed(null);
+    const isExcel = /\.xlsx?$/i.test(file.name);
     const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const res = mapImportRows(reader.result);
-        if (!res.valid.length && !res.invalid.length)
-          setError('No se encontraron filas de datos en el archivo.');
-        else setParsed(res);
-      } catch (err) {
-        setError(err.message || 'No se pudo leer el archivo.');
-      }
-    };
     reader.onerror = () => setError('No se pudo abrir el archivo.');
-    reader.readAsText(file, 'UTF-8');
+    if (isExcel) {
+      reader.onload = async () => {
+        try {
+          const XLSX = await import('xlsx');
+          const wb = XLSX.read(reader.result, { type: 'array' });
+          const ws = wb.Sheets[wb.SheetNames[0]];
+          const aoa = XLSX.utils.sheet_to_json(ws, {
+            header: 1,
+            raw: false,
+            defval: '',
+          });
+          const headers = (aoa[0] || []).map((h) => String(h));
+          const rows = aoa
+            .slice(1)
+            .filter((r) => r.some((c) => String(c).trim() !== ''));
+          const res = mapParsedRows(headers, rows);
+          if (!res.valid.length && !res.invalid.length)
+            setError('No se encontraron filas de datos en el Excel.');
+          else setParsed(res);
+        } catch (err) {
+          setError(err.message || 'No se pudo leer el Excel.');
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    } else {
+      reader.onload = () => {
+        try {
+          const res = mapImportRows(reader.result);
+          if (!res.valid.length && !res.invalid.length)
+            setError('No se encontraron filas de datos en el archivo.');
+          else setParsed(res);
+        } catch (err) {
+          setError(err.message || 'No se pudo leer el archivo.');
+        }
+      };
+      reader.readAsText(file, 'UTF-8');
+    }
   };
 
   const confirm = async () => {
@@ -1511,9 +1565,9 @@ function ImportModal({ mob, onImport, onClose }) {
         ) : (
           <>
             <p style={{ fontSize: 12, color: P.sb, margin: '6px 0 14px' }}>
-              Subí un archivo CSV con columnas <b>fecha</b> y <b>monto</b> (más
-              tipo, categoría, descripción, moneda y medio de pago si tenés).
-              Acepta separador coma o punto y coma.
+              Subí un archivo <b>Excel (.xlsx)</b> o <b>CSV</b> con columnas{' '}
+              <b>fecha</b> y <b>monto</b> (más tipo, categoría, descripción,
+              moneda y medio de pago si tenés).
             </p>
 
             <label
@@ -1530,10 +1584,10 @@ function ImportModal({ mob, onImport, onClose }) {
                 marginBottom: 14,
               }}
             >
-              {fileName ? `📄 ${fileName}` : '📂 Elegí un archivo .csv'}
+              {fileName ? `📄 ${fileName}` : '📂 Elegí un archivo Excel o CSV'}
               <input
                 type="file"
-                accept=".csv,.txt,text/csv"
+                accept=".csv,.txt,.xlsx,.xls,text/csv"
                 onChange={handleFile}
                 style={{ display: 'none' }}
               />

@@ -896,6 +896,23 @@ function MainApp({ user, onLogout }) {
     return order.filter(Boolean);
   };
 
+  // Marcar un gasto programado como pagado (pasa a contar en el presupuesto)
+  const markPaid = async (t) => {
+    for (const ref of txRefs(t)) {
+      try {
+        await updateDoc(ref, { pending: false });
+        notify('Pago registrado ✓', 'success');
+        return;
+      } catch (e) {
+        if (e?.code !== 'not-found') {
+          console.error('markPaid error:', e);
+          notify('No pudimos registrar el pago. Probá de nuevo.', 'error');
+          return;
+        }
+      }
+    }
+  };
+
   const updateTxFn = async (t) => {
     let lastErr;
     for (const ref of txRefs(t)) {
@@ -1064,25 +1081,31 @@ function MainApp({ user, onLogout }) {
   }, [viewScope, tx, myGroups, groupTx]);
 
   const mtx = activeTx.filter((t) => mk(t.date) === month && t.cur === cur);
+  // Los gastos PROGRAMADOS (pendientes de pago) no cuentan hasta marcarse pagados
+  const paid = (t) => !t.pending;
   const totIn = mtx
-    .filter((t) => t.type === 'ingreso')
+    .filter((t) => t.type === 'ingreso' && paid(t))
     .reduce((s, t) => s + t.amt, 0);
   const totOut = mtx
-    .filter((t) => t.type === 'gasto')
+    .filter((t) => t.type === 'gasto' && paid(t))
     .reduce((s, t) => s + t.amt, 0);
   const totSav = mtx
-    .filter((t) => t.type === 'ahorro')
+    .filter((t) => t.type === 'ahorro' && paid(t))
     .reduce((s, t) => s + t.amt, 0);
   const bal = totIn - totOut - totSav;
   const byCat = useMemo(() => {
     const m = {};
     mtx
-      .filter((t) => t.type === 'gasto')
+      .filter((t) => t.type === 'gasto' && !t.pending)
       .forEach((t) => {
         m[t.cat] = (m[t.cat] || 0) + t.amt;
       });
     return Object.entries(m).sort((a, b) => b[1] - a[1]);
   }, [mtx]);
+  // Gastos programados pendientes de pago (cualquier mes, scope/moneda actual)
+  const pendingTx = activeTx
+    .filter((t) => t.pending && t.cur === cur)
+    .sort((a, b) => (String(a.date) > String(b.date) ? 1 : -1));
 
   const prevM = () => {
     const [y, m] = month.split('-').map(Number);
@@ -1527,6 +1550,8 @@ function MainApp({ user, onLogout }) {
             favorites={favorites}
             onUseFav={openPrefill}
             onRemoveFav={removeFavorite}
+            pendingTx={pendingTx}
+            onMarkPaid={markPaid}
           />
         )}
         {tab === 'movs' && (
@@ -2769,8 +2794,15 @@ function HomeTab({
   favorites = [],
   onUseFav,
   onRemoveFav,
+  pendingTx = [],
+  onMarkPaid,
 }) {
   const maxC = byCat.length ? byCat[0][1] : 1;
+  const todayStr = (() => {
+    const d = new Date();
+    const p = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  })();
   // Pagos recurrentes: una "plantilla" por serie (el movimiento más reciente)
   const recSeries = {};
   activeTx.forEach((t) => {
@@ -2868,6 +2900,67 @@ function HomeTab({
               </div>
             ))}
           </div>
+        </Box>
+      )}
+      {pendingTx.length > 0 && (
+        <Box>
+          <Lbl>📅 Por pagar (programados)</Lbl>
+          {pendingTx.map((t) => {
+            const overdue = String(t.date) <= todayStr;
+            return (
+              <div
+                key={t.id}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '8px 0',
+                  borderBottom: `1px solid ${P.bd}`,
+                }}
+              >
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 600,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {t.desc || t.sub || t.cat}
+                  </div>
+                  <div
+                    style={{ fontSize: 10, color: overdue ? P.rd : P.sb }}
+                  >
+                    {fmtS(t.amt, t.cur)} · {overdue ? 'venció' : 'vence'}{' '}
+                    {new Date(
+                      String(t.date).slice(0, 10) + 'T00:00:00'
+                    ).toLocaleDateString('es-AR', {
+                      day: 'numeric',
+                      month: 'short',
+                    })}
+                  </div>
+                </div>
+                <button
+                  onClick={() => onMarkPaid(t)}
+                  style={{
+                    background: P.gn,
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: 9,
+                    padding: '6px 11px',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    flexShrink: 0,
+                  }}
+                >
+                  ✓ Pagado
+                </button>
+              </div>
+            );
+          })}
         </Box>
       )}
       {alerts.map((a) => (
@@ -3180,6 +3273,11 @@ function TxRow({ t, cur, mob, onClick, customCats }) {
             {t.recurring && (
               <span title="Pago recurrente" style={{ color: P.ac }}>
                 🔁{' '}
+              </span>
+            )}
+            {t.pending && (
+              <span title="Programado · pendiente de pago" style={{ color: P.am }}>
+                📅{' '}
               </span>
             )}
             {t.desc || t.sub || t.cat}
@@ -4065,6 +4163,7 @@ function TxModal({
   const [date, setDate] = useState(initial?.date?.slice(0, 10) || td());
   const [recurring, setRecurring] = useState(initial?.recurring || false);
   const [freq, setFreq] = useState(initial?.freq || 'mensual');
+  const [programado, setProgramado] = useState(initial?.pending || false);
   const [pay, setPay] = useState(initial?.pay || 'debito');
   const [cuotas, setCuotas] = useState(initial?.cuotas || 1);
   const isG = type === 'gasto';
@@ -4463,7 +4562,47 @@ function TxModal({
                 🔄 Recurrente
               </button>
             </div>
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'flex-end',
+              }}
+            >
+              <button
+                onClick={() => setProgramado(!programado)}
+                title="No cuenta en el presupuesto hasta marcarlo pagado"
+                style={{
+                  background: programado ? P.am + '22' : P.c2,
+                  border: `1px solid ${programado ? P.am : P.bd}`,
+                  color: programado ? P.am : P.sb,
+                  padding: '11px 12px',
+                  borderRadius: 12,
+                  cursor: 'pointer',
+                  fontSize: 11,
+                  fontWeight: 500,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                📅 Programado
+              </button>
+            </div>
           </div>
+          {programado && (
+            <div
+              style={{
+                fontSize: 11,
+                color: P.sb,
+                background: P.am + '14',
+                borderRadius: 10,
+                padding: '8px 11px',
+              }}
+            >
+              📅 Este gasto queda <b>pendiente</b> y no baja el presupuesto
+              hasta que lo marques como pagado (en la tarjeta "Por pagar" de
+              Inicio).
+            </div>
+          )}
 
           {recurring && (
             <div>
@@ -4582,6 +4721,7 @@ function TxModal({
                     date,
                     cur,
                     recurring,
+                    pending: programado,
                     freq: recurring ? freq : undefined,
                     serieId: recurring
                       ? initial?.serieId ||

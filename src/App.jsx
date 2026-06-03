@@ -800,6 +800,14 @@ function MainApp({ user, onLogout }) {
     }
   };
 
+  // Registrar la instancia de un pago recurrente en el mes visto
+  const registerRecurring = async (template) => {
+    const day = String(template.date || '').slice(8, 10) || '01';
+    const newDate = `${month}-${day}`;
+    const { id, createdAt, imported, ...rest } = template;
+    await addTx({ ...rest, date: newDate });
+  };
+
   // Ubicaciones posibles del documento, ordenadas por probabilidad.
   // Tolera datos viejos inconsistentes (scope/groupId pegados).
   const txRefs = (t) => {
@@ -1415,6 +1423,9 @@ function MainApp({ user, onLogout }) {
             onEdit={openEdit}
             customCats={settings.customCats}
             isGroup={viewScope !== 'personal'}
+            activeTx={activeTx}
+            month={month}
+            onRegister={registerRecurring}
           />
         )}
         {tab === 'movs' && (
@@ -2615,8 +2626,30 @@ function HomeTab({
   onEdit,
   customCats,
   isGroup,
+  activeTx = [],
+  month,
+  onRegister,
 }) {
   const maxC = byCat.length ? byCat[0][1] : 1;
+  // Pagos recurrentes: una "plantilla" por serie (el movimiento más reciente)
+  const recSeries = {};
+  activeTx.forEach((t) => {
+    if (t.recurring && t.serieId) {
+      const prev = recSeries[t.serieId];
+      if (!prev || String(t.date) > String(prev.date)) recSeries[t.serieId] = t;
+    }
+  });
+  const recList = Object.values(recSeries).sort((a, b) =>
+    (a.desc || a.cat) > (b.desc || b.cat) ? 1 : -1
+  );
+  const doneThisMonth = (serieId) =>
+    activeTx.some((t) => t.serieId === serieId && mk(t.date) === month);
+  const freqLabel = {
+    mensual: 'mensual',
+    semanal: 'semanal',
+    quincenal: 'quincenal',
+    anual: 'anual',
+  };
   // Resumen por persona (solo grupo)
   const byMember = {};
   if (isGroup) {
@@ -2720,6 +2753,72 @@ function HomeTab({
           />
         </div>
       </Box>
+      {recList.length > 0 && (
+        <Box>
+          <Lbl>🔁 Pagos recurrentes</Lbl>
+          {recList.map((t) => {
+            const done = doneThisMonth(t.serieId);
+            return (
+              <div
+                key={t.serieId}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '8px 0',
+                  borderBottom: `1px solid ${P.bd}`,
+                }}
+              >
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 600,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {t.desc || t.sub || t.cat}
+                  </div>
+                  <div style={{ fontSize: 10, color: P.sb }}>
+                    {fmtS(t.amt, t.cur)} · {freqLabel[t.freq] || 'mensual'}
+                  </div>
+                </div>
+                {done ? (
+                  <span
+                    style={{
+                      fontSize: 11,
+                      color: P.gn,
+                      fontWeight: 600,
+                      flexShrink: 0,
+                    }}
+                  >
+                    ✓ cargado
+                  </span>
+                ) : (
+                  <button
+                    onClick={() => onRegister(t)}
+                    style={{
+                      background: P.ac,
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: 9,
+                      padding: '6px 11px',
+                      fontSize: 11,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      flexShrink: 0,
+                    }}
+                  >
+                    Registrar
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </Box>
+      )}
       <Box>
         <Lbl>Gastos por categoría</Lbl>
         {byCat.length === 0 ? (
@@ -2884,6 +2983,11 @@ function TxRow({ t, cur, mob, onClick, customCats }) {
               whiteSpace: 'nowrap',
             }}
           >
+            {t.recurring && (
+              <span title="Pago recurrente" style={{ color: P.ac }}>
+                🔁{' '}
+              </span>
+            )}
             {t.desc || t.sub || t.cat}
           </div>
           <div style={{ fontSize: 10, color: P.sb }}>
@@ -3765,6 +3869,7 @@ function TxModal({
   const [desc, setDesc] = useState(initial?.desc || '');
   const [date, setDate] = useState(initial?.date?.slice(0, 10) || td());
   const [recurring, setRecurring] = useState(initial?.recurring || false);
+  const [freq, setFreq] = useState(initial?.freq || 'mensual');
   const [pay, setPay] = useState(initial?.pay || 'debito');
   const [cuotas, setCuotas] = useState(initial?.cuotas || 1);
   const isG = type === 'gasto';
@@ -4165,6 +4270,37 @@ function TxModal({
             </div>
           </div>
 
+          {recurring && (
+            <div>
+              <Lbl>¿Cada cuánto se repite?</Lbl>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                {[
+                  ['mensual', 'Mensual'],
+                  ['semanal', 'Semanal'],
+                  ['quincenal', 'Quincenal'],
+                  ['anual', 'Anual'],
+                ].map(([id, l]) => (
+                  <button
+                    key={id}
+                    onClick={() => setFreq(id)}
+                    style={{
+                      background: freq === id ? P.ac : P.c2,
+                      border: `1px solid ${freq === id ? P.ac : P.bd}`,
+                      color: freq === id ? '#fff' : P.tx,
+                      padding: '6px 12px',
+                      borderRadius: 10,
+                      cursor: 'pointer',
+                      fontSize: 12,
+                      fontWeight: 500,
+                    }}
+                  >
+                    {l}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* 6. Note */}
           <div>
             <Lbl>Nota</Lbl>
@@ -4251,6 +4387,13 @@ function TxModal({
                     date,
                     cur,
                     recurring,
+                    freq: recurring ? freq : undefined,
+                    serieId: recurring
+                      ? initial?.serieId ||
+                        'r' +
+                          Date.now().toString(36) +
+                          Math.random().toString(36).slice(2, 7)
+                      : undefined,
                     pay: isG ? pay : undefined,
                     cuotas: isG && pay === 'credito' ? cuotas : undefined,
                     scope: isGroupScope ? 'grupo' : 'personal',

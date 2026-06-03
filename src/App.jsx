@@ -743,7 +743,6 @@ function MainApp({ user, onLogout }) {
   const [settings, setSettings] = useState({
     budgets: {},
     savPct: 20,
-    defScope: 'personal',
     efund: { expenses: {}, saved: 0 },
   });
   const [myGroups, setMyGroups] = useState([]); // [{id, name, members}]
@@ -914,6 +913,40 @@ function MainApp({ user, onLogout }) {
   };
 
   const updateTxFn = async (t) => {
+    // ¿Cambió de espacio? (personal <-> grupo, o grupo A <-> grupo B)
+    const orig = editItem || {};
+    const origGroup = orig.scope === 'grupo' ? orig.groupId || null : null;
+    const newGroup = t.scope === 'grupo' ? t.groupId || null : null;
+    if (origGroup !== newGroup) {
+      // Mudar entre colecciones: crear en el nuevo lugar y SOLO si funcionó, borrar el viejo
+      try {
+        const oldRef = origGroup
+          ? doc(db, 'groups', origGroup, 'transactions', orig.id)
+          : doc(db, 'users', user.uid, 'transactions', orig.id);
+        const { id, createdAt, imported, ...rest } = t;
+        const isGroup = rest.scope === 'grupo' && rest.groupId;
+        const col = isGroup
+          ? collection(db, 'groups', rest.groupId, 'transactions')
+          : collection(db, 'users', user.uid, 'transactions');
+        const extra = isGroup
+          ? {
+              createdBy: user.uid,
+              createdByName: user.displayName,
+              createdAt: new Date().toISOString(),
+            }
+          : { createdAt: new Date().toISOString() };
+        await addDoc(col, { ...rest, ...extra });
+        await deleteDoc(oldRef);
+        setModal(null);
+        setEditItem(null);
+        notify('Movimiento movido', 'success');
+        return;
+      } catch (e) {
+        console.error('moveTx error:', e);
+        notify('No pudimos mover el movimiento. Probá de nuevo.', 'error');
+        return;
+      }
+    }
     let lastErr;
     for (const ref of txRefs(t)) {
       try {

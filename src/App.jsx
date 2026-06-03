@@ -4922,6 +4922,7 @@ function TxModal({
   const [cat, setCat] = useState(initial?.cat || cats[0].n);
   const [sub, setSub] = useState(initial?.sub || '');
   const [amt, setAmt] = useState(initial?.amt?.toString() || '');
+  const [curSel, setCurSel] = useState(initial?.cur || cur);
   const [desc, setDesc] = useState(initial?.desc || '');
   const [date, setDate] = useState(initial?.date?.slice(0, 10) || td());
   const [recurring, setRecurring] = useState(initial?.recurring || false);
@@ -5143,7 +5144,56 @@ function TxModal({
 
           {/* 2. Amount */}
           <div style={{ order: -3 }}>
-            <Lbl>Monto ({cur})</Lbl>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: 5,
+              }}
+            >
+              <span
+                style={{
+                  fontSize: 10,
+                  color: P.sb,
+                  fontWeight: 500,
+                  textTransform: 'uppercase',
+                  letterSpacing: 0.7,
+                }}
+              >
+                Monto
+              </span>
+              <div
+                style={{
+                  display: 'flex',
+                  background: P.c2,
+                  borderRadius: 8,
+                  border: `1px solid ${P.bd}`,
+                  overflow: 'hidden',
+                }}
+              >
+                {[
+                  ['ARS', '$ Pesos'],
+                  ['USD', 'US$ Dólares'],
+                ].map(([c, l]) => (
+                  <button
+                    key={c}
+                    onClick={() => setCurSel(c)}
+                    style={{
+                      background: curSel === c ? P.ac : 'transparent',
+                      color: curSel === c ? '#fff' : P.sb,
+                      border: 'none',
+                      padding: '5px 11px',
+                      fontSize: 11,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {l}
+                  </button>
+                ))}
+              </div>
+            </div>
             <input
               type="number"
               placeholder="0"
@@ -5288,7 +5338,8 @@ function TxModal({
                     borderRadius: 8,
                   }}
                 >
-                  {cuotas} cuotas de {fmt(Math.ceil(Number(amt) / cuotas), cur)}
+                  {cuotas} cuotas de{' '}
+                  {fmt(Math.ceil(Number(amt) / cuotas), curSel)}
                 </div>
               )}
             </div>
@@ -5552,7 +5603,7 @@ function TxModal({
                     amt: amtNum,
                     desc,
                     date,
-                    cur,
+                    cur: curSel,
                     recurring,
                     pending: programado,
                     freq: recurring ? freq : undefined,
@@ -5597,7 +5648,7 @@ function TxModal({
                   sub,
                   amt: amtNum > 0 ? amtNum : undefined,
                   desc,
-                  cur,
+                  cur: curSel,
                   pay: isG ? pay : undefined,
                 });
                 notify('Guardado en favoritos ⭐', 'success');

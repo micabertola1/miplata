@@ -114,6 +114,25 @@ const CATS = {
     },
   ],
 };
+
+// Combina las categorías fijas con las personalizadas del usuario
+function getCats(type, customCats) {
+  const base = (CATS[type] || []).map((c) => ({ ...c, s: [...c.s] }));
+  const custom = (customCats && customCats[type]) || [];
+  custom.forEach((cc) => {
+    if (!cc || !cc.n) return;
+    const ex = base.find((c) => c.n === cc.n);
+    if (ex) {
+      (cc.s || []).forEach((sub) => {
+        if (sub && !ex.s.includes(sub)) ex.s.push(sub);
+      });
+    } else {
+      base.push({ n: cc.n, i: cc.i || '🏷️', s: [...(cc.s || [])], custom: true });
+    }
+  });
+  return base;
+}
+
 const MO = [
   'Ene',
   'Feb',
@@ -660,6 +679,7 @@ function MainApp({ user, onLogout }) {
   const [cur, setCur] = useState('ARS');
   const [fabOpen, setFabOpen] = useState(false);
   const [showImport, setShowImport] = useState(false);
+  const [showCats, setShowCats] = useState(false);
   const [viewScope, setViewScope] = useState('personal');
   const [mob, setMob] = useState(window.innerWidth < 680);
   const [joinCode, setJoinCode] = useState('');
@@ -740,6 +760,7 @@ function MainApp({ user, onLogout }) {
           savPct: merged.savPct,
           defScope: merged.defScope,
           efund: merged.efund,
+          customCats: merged.customCats || {},
           name: user.displayName,
           email: user.email,
         },
@@ -1094,6 +1115,24 @@ function MainApp({ user, onLogout }) {
               </button>
             ))}
           </div>
+          <button
+            onClick={() => setShowCats(true)}
+            title="Personalizar categorías"
+            style={{
+              width: 28,
+              height: 28,
+              borderRadius: 8,
+              background: P.c2,
+              border: `1px solid ${P.bd}`,
+              fontSize: 13,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            🏷️
+          </button>
           {user.photoURL && (
             <img
               src={user.photoURL}
@@ -1368,6 +1407,7 @@ function MainApp({ user, onLogout }) {
             mtx={mtx}
             budgets={settings.budgets || {}}
             onEdit={openEdit}
+            customCats={settings.customCats}
           />
         )}
         {tab === 'movs' && (
@@ -1376,6 +1416,7 @@ function MainApp({ user, onLogout }) {
             cur={cur}
             activeTx={activeTx}
             onEdit={openEdit}
+            customCats={settings.customCats}
           />
         )}
         {tab === 'insights' && (
@@ -1598,6 +1639,7 @@ function MainApp({ user, onLogout }) {
           setDefScope={(s) => saveSettings({ defScope: s })}
           myGroups={myGroups}
           viewScope={viewScope}
+          customCats={settings.customCats}
         />
       )}
 
@@ -1610,6 +1652,352 @@ function MainApp({ user, onLogout }) {
           onClose={() => setShowImport(false)}
         />
       )}
+
+      {showCats && (
+        <CategoryManager
+          mob={mob}
+          customCats={settings.customCats || {}}
+          onSave={(cc) => saveSettings({ customCats: cc })}
+          onClose={() => setShowCats(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ── PERSONALIZADOR DE CATEGORÍAS ── */
+function CategoryManager({ mob, customCats, onSave, onClose }) {
+  const [type, setType] = useState('gasto');
+  const [draft, setDraft] = useState(() =>
+    JSON.parse(JSON.stringify(customCats || {}))
+  );
+  const [newCat, setNewCat] = useState('');
+  const [newEmoji, setNewEmoji] = useState('🏷️');
+  const [subInputs, setSubInputs] = useState({});
+
+  const cats = getCats(type, draft);
+  const isCustomCat = (name) => (draft[type] || []).some((c) => c.n === name);
+  const customSubsOf = (name) => {
+    const c = (draft[type] || []).find((x) => x.n === name);
+    return new Set(c ? c.s : []);
+  };
+
+  const addCategory = () => {
+    const n = newCat.trim();
+    if (!n) return;
+    if (cats.some((c) => c.n.toLowerCase() === n.toLowerCase())) {
+      alert('Ya existe una categoría con ese nombre.');
+      return;
+    }
+    const d = { ...draft };
+    d[type] = [...(d[type] || []), { n, i: newEmoji || '🏷️', s: [] }];
+    setDraft(d);
+    setNewCat('');
+    setNewEmoji('🏷️');
+  };
+
+  const delCategory = (name) => {
+    if (!window.confirm(`¿Borrar la categoría "${name}"?`)) return;
+    const d = { ...draft };
+    d[type] = (d[type] || []).filter((c) => c.n !== name);
+    setDraft(d);
+  };
+
+  const addSub = (catName) => {
+    const val = (subInputs[catName] || '').trim();
+    if (!val) return;
+    const d = { ...draft };
+    const arr = d[type] ? d[type].map((c) => ({ ...c, s: [...c.s] })) : [];
+    let cat = arr.find((c) => c.n === catName);
+    if (!cat) {
+      cat = { n: catName, i: '🏷️', s: [] };
+      arr.push(cat);
+    }
+    if (!cat.s.includes(val)) cat.s.push(val);
+    d[type] = arr;
+    setDraft(d);
+    setSubInputs({ ...subInputs, [catName]: '' });
+  };
+
+  const delSub = (catName, sub) => {
+    const d = { ...draft };
+    d[type] = (d[type] || []).map((c) =>
+      c.n === catName ? { ...c, s: c.s.filter((x) => x !== sub) } : c
+    );
+    setDraft(d);
+  };
+
+  const inp = {
+    background: P.c2,
+    border: `1px solid ${P.bd}`,
+    color: P.tx,
+    padding: '8px 10px',
+    borderRadius: 9,
+    fontSize: 13,
+    boxSizing: 'border-box',
+  };
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(42,38,33,0.25)',
+        display: 'flex',
+        alignItems: mob ? 'flex-end' : 'center',
+        justifyContent: 'center',
+        zIndex: 200,
+        backdropFilter: 'blur(6px)',
+      }}
+      onClick={onClose}
+    >
+      <div
+        style={{
+          background: P.cd,
+          borderRadius: mob ? '22px 22px 0 0' : 22,
+          padding: mob ? '18px 16px 28px' : 26,
+          width: '100%',
+          maxWidth: mob ? '100%' : 500,
+          maxHeight: mob ? '92vh' : '88vh',
+          overflowY: 'auto',
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: 12,
+          }}
+        >
+          <span style={{ fontSize: 17, fontWeight: 700 }}>🏷️ Categorías</span>
+          <button
+            onClick={onClose}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              fontSize: 18,
+              cursor: 'pointer',
+              color: P.sb,
+            }}
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Tipo */}
+        <div
+          style={{
+            display: 'flex',
+            background: P.c2,
+            borderRadius: 12,
+            padding: 3,
+            marginBottom: 14,
+            border: `1px solid ${P.bd}`,
+          }}
+        >
+          {[
+            ['gasto', '📉 Gasto', P.rd],
+            ['ingreso', '📈 Ingreso', P.gn],
+            ['ahorro', '🏦 Ahorro', P.ac],
+          ].map(([id, l, color]) => (
+            <button
+              key={id}
+              onClick={() => setType(id)}
+              style={{
+                flex: 1,
+                background: type === id ? color : 'transparent',
+                border: 'none',
+                color: type === id ? '#fff' : P.sb,
+                padding: '8px',
+                borderRadius: 10,
+                cursor: 'pointer',
+                fontSize: mob ? 12 : 13,
+                fontWeight: 600,
+              }}
+            >
+              {l}
+            </button>
+          ))}
+        </div>
+
+        {/* Nueva categoría */}
+        <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
+          <input
+            value={newEmoji}
+            onChange={(e) => setNewEmoji(e.target.value)}
+            maxLength={2}
+            style={{ ...inp, width: 48, textAlign: 'center' }}
+          />
+          <input
+            placeholder="Nueva categoría…"
+            value={newCat}
+            onChange={(e) => setNewCat(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && addCategory()}
+            style={{ ...inp, flex: 1 }}
+          />
+          <button
+            onClick={addCategory}
+            style={{
+              background: P.ac,
+              color: '#fff',
+              border: 'none',
+              borderRadius: 9,
+              padding: '0 14px',
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            Agregar
+          </button>
+        </div>
+
+        {/* Lista de categorías */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {cats.map((c) => (
+            <div
+              key={c.n}
+              style={{
+                border: `1px solid ${P.bd}`,
+                borderRadius: 12,
+                padding: 12,
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  marginBottom: 8,
+                }}
+              >
+                <span style={{ fontWeight: 600, fontSize: 14 }}>
+                  {c.i} {c.n}
+                  {isCustomCat(c.n) && !CATS[type].some((b) => b.n === c.n) && (
+                    <span style={{ fontSize: 10, color: P.sb }}> · tuya</span>
+                  )}
+                </span>
+                {isCustomCat(c.n) && !CATS[type].some((b) => b.n === c.n) && (
+                  <button
+                    onClick={() => delCategory(c.n)}
+                    title="Borrar categoría"
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      cursor: 'pointer',
+                      fontSize: 13,
+                    }}
+                  >
+                    🗑️
+                  </button>
+                )}
+              </div>
+              <div
+                style={{
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: 5,
+                  marginBottom: 8,
+                }}
+              >
+                {c.s.map((sub) => {
+                  const removable = customSubsOf(c.n).has(sub);
+                  return (
+                    <span
+                      key={sub}
+                      style={{
+                        background: P.c2,
+                        border: `1px solid ${P.bd}`,
+                        borderRadius: 8,
+                        padding: '3px 8px',
+                        fontSize: 11,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 4,
+                      }}
+                    >
+                      {sub}
+                      {removable && (
+                        <span
+                          onClick={() => delSub(c.n, sub)}
+                          style={{ cursor: 'pointer', color: P.rd }}
+                        >
+                          ✕
+                        </span>
+                      )}
+                    </span>
+                  );
+                })}
+              </div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <input
+                  placeholder="Nueva subcategoría…"
+                  value={subInputs[c.n] || ''}
+                  onChange={(e) =>
+                    setSubInputs({ ...subInputs, [c.n]: e.target.value })
+                  }
+                  onKeyDown={(e) => e.key === 'Enter' && addSub(c.n)}
+                  style={{ ...inp, flex: 1, fontSize: 12, padding: '6px 9px' }}
+                />
+                <button
+                  onClick={() => addSub(c.n)}
+                  style={{
+                    background: P.c2,
+                    border: `1px solid ${P.bd}`,
+                    color: P.tx,
+                    borderRadius: 9,
+                    padding: '0 12px',
+                    fontSize: 12,
+                    cursor: 'pointer',
+                  }}
+                >
+                  +
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, marginTop: 18 }}>
+          <button
+            onClick={onClose}
+            style={{
+              flex: 1,
+              background: P.c2,
+              border: `1px solid ${P.bd}`,
+              color: P.tx,
+              padding: '12px',
+              borderRadius: 14,
+              cursor: 'pointer',
+              fontSize: 13,
+              fontWeight: 600,
+            }}
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={() => {
+              onSave(draft);
+              onClose();
+            }}
+            style={{
+              flex: 2,
+              background: P.ac,
+              border: 'none',
+              color: '#fff',
+              padding: '12px',
+              borderRadius: 14,
+              cursor: 'pointer',
+              fontSize: 13,
+              fontWeight: 600,
+            }}
+          >
+            Guardar cambios
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1892,7 +2280,7 @@ function ImportModal({ mob, onImport, onClose, groups = [], defaultDest }) {
 }
 
 /* ── LISTA DE MOVIMIENTOS + FILTROS ── */
-function TxListTab({ mob, cur, activeTx, onEdit }) {
+function TxListTab({ mob, cur, activeTx, onEdit, customCats }) {
   const [filter, setFilter] = useState('todos');
   const [quick, setQuick] = useState('todo');
   const [from, setFrom] = useState('');
@@ -2142,6 +2530,7 @@ function TxListTab({ mob, cur, activeTx, onEdit }) {
                   cur={cur}
                   mob={mob}
                   onClick={() => onEdit(t)}
+                  customCats={customCats}
                 />
               ))}
             </Box>
@@ -2164,6 +2553,7 @@ function HomeTab({
   mtx,
   budgets,
   onEdit,
+  customCats,
 }) {
   const maxC = byCat.length ? byCat[0][1] : 1;
   const alerts = [];
@@ -2331,6 +2721,7 @@ function HomeTab({
                 cur={cur}
                 mob={mob}
                 onClick={() => onEdit(t)}
+                customCats={customCats}
               />
             ))
         )}
@@ -2339,10 +2730,8 @@ function HomeTab({
   );
 }
 
-function TxRow({ t, cur, mob, onClick }) {
-  const cd = [...CATS.gasto, ...CATS.ingreso, ...CATS.ahorro].find(
-    (c) => c.n === t.cat
-  );
+function TxRow({ t, cur, mob, onClick, customCats }) {
+  const cd = getCats(t.type, customCats).find((c) => c.n === t.cat);
   const isIn = t.type === 'ingreso';
   const isSav = t.type === 'ahorro';
   const rowColor = isIn ? P.gn : isSav ? P.ac : P.rd;
@@ -3261,9 +3650,10 @@ function TxModal({
   setDefScope,
   myGroups,
   viewScope,
+  customCats,
 }) {
   const [type, setType] = useState(initial?.type || 'gasto');
-  const cats = CATS[type] || CATS.gasto;
+  const cats = getCats(type, customCats);
   const [cat, setCat] = useState(initial?.cat || cats[0].n);
   const [sub, setSub] = useState(initial?.sub || '');
   const [amt, setAmt] = useState(initial?.amt?.toString() || '');
@@ -3357,7 +3747,7 @@ function TxModal({
               key={id}
               onClick={() => {
                 setType(id);
-                setCat(CATS[id][0].n);
+                setCat((getCats(id, customCats)[0] || {}).n || '');
                 setSub('');
               }}
               style={{

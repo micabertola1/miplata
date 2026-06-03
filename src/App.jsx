@@ -2920,9 +2920,15 @@ function HomeTab({
       out: items
         .filter((t) => t.type === 'gasto')
         .reduce((s, t) => s + t.amt, 0),
+      sav: items
+        .filter((t) => t.type === 'ahorro')
+        .reduce((s, t) => s + t.amt, 0),
     };
   });
-  const maxMonthly = Math.max(1, ...monthly.map((m) => Math.max(m.in, m.out)));
+  const maxMonthly = Math.max(
+    1,
+    ...monthly.map((m) => Math.max(m.in, m.out, m.sav))
+  );
 
   // Segmentos de categoría (gastos del mes)
   const catSegments = byCat.map(([cat, amt], i) => ({
@@ -3289,9 +3295,9 @@ function HomeTab({
           })}
         </Box>
       )}
-      {/* Ingresos vs Gastos por mes */}
+      {/* Ingresos vs Gastos vs Ahorro por mes */}
       <Box>
-        <Lbl>Ingresos vs Gastos (6 meses)</Lbl>
+        <Lbl>Ingresos · Gastos · Ahorro (6 meses)</Lbl>
         <div
           style={{
             display: 'flex',
@@ -3339,6 +3345,15 @@ function HomeTab({
                     borderRadius: '3px 3px 0 0',
                   }}
                 />
+                <div
+                  title={`Ahorro ${fmt(m.sav, cur)}`}
+                  style={{
+                    width: 9,
+                    height: `${Math.max(2, (m.sav / maxMonthly) * 100)}%`,
+                    background: P.ac,
+                    borderRadius: '3px 3px 0 0',
+                  }}
+                />
               </div>
               <span
                 style={{
@@ -3367,6 +3382,9 @@ function HomeTab({
           </span>
           <span>
             <span style={{ color: P.rd }}>■</span> Gastos
+          </span>
+          <span>
+            <span style={{ color: P.ac }}>■</span> Ahorro
           </span>
         </div>
       </Box>

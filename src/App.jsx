@@ -96,6 +96,23 @@ const CATS = {
     },
     { n: 'Otros', i: '💰', s: ['Ventas', 'Reembolsos', 'Regalos', 'Otros'] },
   ],
+  ahorro: [
+    {
+      n: 'Dólares',
+      i: '💵',
+      s: ['Compra USD', 'Caja de ahorro USD', 'Efectivo USD', 'Otros'],
+    },
+    {
+      n: 'Inversiones',
+      i: '📈',
+      s: ['Plazo fijo', 'Acciones', 'Cripto', 'Fondos', 'Bonos', 'Otros'],
+    },
+    {
+      n: 'Reserva',
+      i: '🏦',
+      s: ['Fondo emergencia', 'Meta', 'Caja de ahorro', 'Otros'],
+    },
+  ],
 };
 const MO = [
   'Ene',
@@ -277,7 +294,12 @@ function mapParsedRows(headers, rows) {
       invalid.push({ rowNum, reason: 'fecha inválida (usá AAAA-MM-DD o DD/MM/AAAA)' });
       return;
     }
-    const type = get('tipo').toLowerCase().startsWith('ing') ? 'ingreso' : 'gasto';
+    const rawType = get('tipo').toLowerCase();
+    const type = rawType.startsWith('ing')
+      ? 'ingreso'
+      : rawType.startsWith('aho')
+      ? 'ahorro'
+      : 'gasto';
     const rawCat = get('categoria');
     const cat =
       CAT_MAP[rawCat.toLowerCase()] ||
@@ -941,7 +963,10 @@ function MainApp({ user, onLogout }) {
   const totOut = mtx
     .filter((t) => t.type === 'gasto')
     .reduce((s, t) => s + t.amt, 0);
-  const bal = totIn - totOut;
+  const totSav = mtx
+    .filter((t) => t.type === 'ahorro')
+    .reduce((s, t) => s + t.amt, 0);
+  const bal = totIn - totOut - totSav;
   const byCat = useMemo(() => {
     const m = {};
     mtx
@@ -1337,6 +1362,7 @@ function MainApp({ user, onLogout }) {
             cur={cur}
             totIn={totIn}
             totOut={totOut}
+            totSav={totSav}
             bal={bal}
             byCat={byCat}
             mtx={mtx}
@@ -1979,6 +2005,7 @@ function TxListTab({ mob, cur, activeTx, onEdit }) {
           {pill('todos', 'Todos', filter, setFilter)}
           {pill('ingreso', '📈 Ingresos', filter, setFilter)}
           {pill('gasto', '📉 Gastos', filter, setFilter)}
+          {pill('ahorro', '🏦 Ahorro', filter, setFilter)}
         </div>
         {/* Fecha rápida */}
         <div
@@ -2080,6 +2107,9 @@ function TxListTab({ mob, cur, activeTx, onEdit }) {
           const outSum = list
             .filter((t) => t.type === 'gasto')
             .reduce((s, t) => s + t.amt, 0);
+          const savSum = list
+            .filter((t) => t.type === 'ahorro')
+            .reduce((s, t) => s + t.amt, 0);
           return (
             <Box key={m}>
               <div
@@ -2094,9 +2124,15 @@ function TxListTab({ mob, cur, activeTx, onEdit }) {
                   {MOF[+m.slice(5) - 1]} {m.slice(0, 4)}
                 </span>
                 <span style={{ fontSize: 11 }}>
-                  <span style={{ color: P.gn }}>+{fmt(inSum, cur)}</span>
-                  {'   '}
-                  <span style={{ color: P.rd }}>-{fmt(outSum, cur)}</span>
+                  {inSum > 0 && (
+                    <span style={{ color: P.gn }}>+{fmtS(inSum, cur)} </span>
+                  )}
+                  {outSum > 0 && (
+                    <span style={{ color: P.rd }}>-{fmtS(outSum, cur)} </span>
+                  )}
+                  {savSum > 0 && (
+                    <span style={{ color: P.ac }}>→{fmtS(savSum, cur)}</span>
+                  )}
                 </span>
               </div>
               {list.map((t) => (
@@ -2122,6 +2158,7 @@ function HomeTab({
   cur,
   totIn,
   totOut,
+  totSav,
   bal,
   byCat,
   mtx,
@@ -2163,24 +2200,32 @@ function HomeTab({
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
-          gap: mob ? 8 : 10,
+          gridTemplateColumns: '1fr 1fr 1fr',
+          gap: mob ? 6 : 10,
         }}
       >
-        <Box style={{ padding: mob ? 12 : 16 }}>
+        <Box style={{ padding: mob ? 10 : 16 }}>
           <Lbl>Ingresos</Lbl>
           <div
-            style={{ fontSize: mob ? 17 : 22, fontWeight: 700, color: P.gn }}
+            style={{ fontSize: mob ? 15 : 22, fontWeight: 700, color: P.gn }}
           >
-            {mob ? fmtS(totIn, cur) : fmt(totIn, cur)}
+            {fmtS(totIn, cur)}
           </div>
         </Box>
-        <Box style={{ padding: mob ? 12 : 16 }}>
+        <Box style={{ padding: mob ? 10 : 16 }}>
           <Lbl>Gastos</Lbl>
           <div
-            style={{ fontSize: mob ? 17 : 22, fontWeight: 700, color: P.rd }}
+            style={{ fontSize: mob ? 15 : 22, fontWeight: 700, color: P.rd }}
           >
-            {mob ? fmtS(totOut, cur) : fmt(totOut, cur)}
+            {fmtS(totOut, cur)}
+          </div>
+        </Box>
+        <Box style={{ padding: mob ? 10 : 16 }}>
+          <Lbl>Ahorro</Lbl>
+          <div
+            style={{ fontSize: mob ? 15 : 22, fontWeight: 700, color: P.ac }}
+          >
+            {fmtS(totSav, cur)}
           </div>
         </Box>
       </div>
@@ -2295,8 +2340,14 @@ function HomeTab({
 }
 
 function TxRow({ t, cur, mob, onClick }) {
-  const cd = [...CATS.gasto, ...CATS.ingreso].find((c) => c.n === t.cat);
+  const cd = [...CATS.gasto, ...CATS.ingreso, ...CATS.ahorro].find(
+    (c) => c.n === t.cat
+  );
   const isIn = t.type === 'ingreso';
+  const isSav = t.type === 'ahorro';
+  const rowColor = isIn ? P.gn : isSav ? P.ac : P.rd;
+  const rowBg = isIn ? P.gb : isSav ? P.ac + '1A' : P.rb;
+  const rowSign = isIn ? '+' : isSav ? '→ ' : '−';
   return (
     <div
       onClick={onClick}
@@ -2323,7 +2374,7 @@ function TxRow({ t, cur, mob, onClick }) {
             width: mob ? 34 : 38,
             height: mob ? 34 : 38,
             borderRadius: 11,
-            background: isIn ? P.gb : P.rb,
+            background: rowBg,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -2359,11 +2410,11 @@ function TxRow({ t, cur, mob, onClick }) {
         style={{
           fontSize: mob ? 12 : 14,
           fontWeight: 600,
-          color: isIn ? P.gn : P.rd,
+          color: rowColor,
           flexShrink: 0,
         }}
       >
-        {isIn ? '+' : '−'}
+        {rowSign}
         {mob ? fmtS(t.amt, cur) : fmt(t.amt, cur)}
       </span>
     </div>
@@ -3298,9 +3349,10 @@ function TxModal({
           }}
         >
           {[
-            ['ingreso', '📈 Ingreso'],
-            ['gasto', '📉 Gasto'],
-          ].map(([id, l]) => (
+            ['ingreso', '📈 Ingreso', P.gn],
+            ['gasto', '📉 Gasto', P.rd],
+            ['ahorro', '🏦 Ahorro', P.ac],
+          ].map(([id, l, color]) => (
             <button
               key={id}
               onClick={() => {
@@ -3310,18 +3362,13 @@ function TxModal({
               }}
               style={{
                 flex: 1,
-                background:
-                  type === id
-                    ? id === 'ingreso'
-                      ? P.gn
-                      : P.rd
-                    : 'transparent',
+                background: type === id ? color : 'transparent',
                 border: 'none',
                 color: type === id ? '#fff' : P.sb,
                 padding: '9px',
                 borderRadius: 10,
                 cursor: 'pointer',
-                fontSize: 13,
+                fontSize: mob ? 12 : 13,
                 fontWeight: 600,
               }}
             >

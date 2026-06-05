@@ -3445,11 +3445,27 @@ function HomeTab({
   // Tarjetas: cuánto pagás de cada una este mes (suma de cuotas/consumos)
   const byCard = {};
   mtx
-    .filter((t) => t.pay === 'credito' && t.card && !t.pending)
+    .filter((t) => t.pay === 'credito' && (t.card || t.cardNet) && !t.pending)
     .forEach((t) => {
-      byCard[t.card] = (byCard[t.card] || 0) + t.amt;
+      const key = [t.cardNet, t.card].filter(Boolean).join(' · ') || 'Tarjeta';
+      if (!byCard[key]) byCard[key] = { total: 0, due: null };
+      byCard[key].total += t.amt;
+      if (t.cardDue) byCard[key].due = t.cardDue;
     });
-  const cardRows = Object.entries(byCard).sort((a, b) => b[1] - a[1]);
+  const cardRows = Object.entries(byCard).sort(
+    (a, b) => b[1].total - a[1].total
+  );
+  // Próximo vencimiento a partir de un día del mes
+  const dueInfo = (day) => {
+    if (!day) return null;
+    const now = new Date();
+    let m = now.getMonth();
+    let y = now.getFullYear();
+    if (day < now.getDate()) m += 1;
+    const dd = new Date(y, m, day);
+    const days = Math.round((dd - now) / 86400000);
+    return { day, days };
+  };
 
   // Dólares: comprados (cambios) − gastados (gastos en USD) = lo que tenés
   const usdBuys = activeTx.filter((t) => t.usd > 0);
@@ -4061,23 +4077,47 @@ function HomeTab({
       {cardRows.length > 0 && (
         <Box>
           <Lbl>💳 Tarjetas · a pagar este mes</Lbl>
-          {cardRows.map(([name, total]) => (
-            <div
-              key={name}
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                padding: '7px 0',
-                borderBottom: `1px solid ${P.bd}`,
-              }}
-            >
-              <span style={{ fontSize: 13, fontWeight: 600 }}>💳 {name}</span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: P.rd }}>
-                {fmtS(total, cur)}
-              </span>
-            </div>
-          ))}
+          {cardRows.map(([name, info]) => {
+            const d = dueInfo(info.due);
+            return (
+              <div
+                key={name}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '7px 0',
+                  borderBottom: `1px solid ${P.bd}`,
+                }}
+              >
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600 }}>
+                    💳 {name}
+                  </div>
+                  {d && (
+                    <div
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 600,
+                        color: d.days <= 3 ? P.rd : P.sb,
+                        marginTop: 1,
+                      }}
+                    >
+                      📅 vence el {d.day}
+                      {d.days === 0
+                        ? ' · ¡hoy!'
+                        : d.days === 1
+                        ? ' · mañana'
+                        : ` · en ${d.days} días`}
+                    </div>
+                  )}
+                </div>
+                <span style={{ fontSize: 13, fontWeight: 700, color: P.rd }}>
+                  {fmtS(info.total, cur)}
+                </span>
+              </div>
+            );
+          })}
           <div style={{ fontSize: 10, color: P.sb, marginTop: 6 }}>
             Suma de consumos y cuotas del mes. No cargues aparte el pago del
             resumen (sería duplicar).
@@ -5316,6 +5356,10 @@ function TxModal({
   const [pay, setPay] = useState(initial?.pay || 'debito');
   const [cuotas, setCuotas] = useState(initial?.cuotas || 1);
   const [card, setCard] = useState(initial?.card || '');
+  const [cardNet, setCardNet] = useState(initial?.cardNet || '');
+  const [cardDue, setCardDue] = useState(
+    initial?.cardDue ? String(initial.cardDue) : ''
+  );
   const isG = type === 'gasto';
 
   // Scope: personal or a group.
@@ -5731,45 +5775,64 @@ function TxModal({
 
           {isG && pay === 'credito' && (
             <div>
-              <Lbl>¿Con qué pagás?</Lbl>
-              <div
-                style={{
-                  display: 'flex',
-                  flexWrap: 'wrap',
-                  gap: 4,
-                }}
-              >
-                {Array.from(
-                  new Set(
-                    [
-                      ...knownCards,
-                      'Visa',
-                      'Mastercard',
-                      'Tarjeta Mercado Pago',
-                      'Naranja',
-                      'Amex',
-                      'Cabal',
-                      'Otra tarjeta',
-                    ].filter(Boolean)
-                  )
-                ).map((nm) => (
+              <Lbl>¿Con qué tarjeta?</Lbl>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                {[
+                  { id: 'Visa', c: '#1A1F71' },
+                  { id: 'Mastercard', c: '#EB001B' },
+                  { id: 'Amex', c: '#2E77BC' },
+                  { id: 'Mercado Pago', c: '#00AEEF' },
+                  { id: 'Naranja', c: '#FF6A00' },
+                  { id: 'Otra', c: P.sb },
+                ].map((n) => (
                   <button
-                    key={nm}
-                    onClick={() => setCard(nm)}
+                    key={n.id}
+                    onClick={() => setCardNet(cardNet === n.id ? '' : n.id)}
                     style={{
-                      background: card === nm ? P.ac : P.c2,
-                      border: `1px solid ${card === nm ? P.ac : P.bd}`,
-                      color: card === nm ? '#fff' : P.tx,
+                      background: cardNet === n.id ? n.c : P.c2,
+                      border: `1px solid ${cardNet === n.id ? n.c : P.bd}`,
+                      color: cardNet === n.id ? '#fff' : P.tx,
                       padding: '6px 12px',
                       borderRadius: 10,
                       cursor: 'pointer',
                       fontSize: 12,
-                      fontWeight: 500,
+                      fontWeight: 600,
                     }}
                   >
-                    💳 {nm}
+                    💳 {n.id}
                   </button>
                 ))}
+              </div>
+              <input
+                list="known-cards"
+                placeholder="Nombre de la tarjeta (ej: Galicia, BBVA negra)"
+                value={card}
+                onChange={(e) => setCard(e.target.value)}
+                style={{ ...iS, marginTop: 6 }}
+              />
+              <datalist id="known-cards">
+                {knownCards.filter(Boolean).map((nm) => (
+                  <option key={nm} value={nm} />
+                ))}
+              </datalist>
+              <div style={{ marginTop: 6 }}>
+                <Lbl>Día de vencimiento (pago del resumen)</Lbl>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <input
+                    type="number"
+                    min="1"
+                    max="31"
+                    placeholder="Día"
+                    value={cardDue}
+                    onChange={(e) => setCardDue(e.target.value)}
+                    style={{ ...iS, width: 90 }}
+                  />
+                  <span style={{ fontSize: 11, color: P.sb }}>
+                    {cardDue
+                      ? `Vence el ${cardDue} de cada mes · te aviso en Inicio`
+                      : 'Opcional — para verlo en "Tarjetas a pagar"'}
+                  </span>
+                </div>
               </div>
             </div>
           )}
@@ -6000,6 +6063,12 @@ function TxModal({
                     pay: isG ? pay : undefined,
                     cuotas: isG && pay === 'credito' ? cuotas : undefined,
                     card: isG && pay === 'credito' ? card || undefined : undefined,
+                    cardNet:
+                      isG && pay === 'credito' ? cardNet || undefined : undefined,
+                    cardDue:
+                      isG && pay === 'credito' && cardDue
+                        ? Number(cardDue)
+                        : undefined,
                     scope: isGroupScope ? 'grupo' : 'personal',
                     groupId: isGroupScope ? scope : undefined,
                     member: isGroupScope ? member || userName : undefined,

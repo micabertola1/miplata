@@ -845,12 +845,51 @@ function MainApp({ user, onLogout }) {
   const [viewScope, setViewScope] = useState('personal');
   const [mob, setMob] = useState(window.innerWidth < 680);
   const [joinCode, setJoinCode] = useState('');
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [showCode, setShowCode] = useState(false);
 
   useEffect(() => {
     const h = () => setMob(window.innerWidth < 680);
     window.addEventListener('resize', h);
     return () => window.removeEventListener('resize', h);
   }, []);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const h = (e) => {
+      if (e.key === 'Escape') setMenuOpen(false);
+    };
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
+  }, [menuOpen]);
+
+  const menuRow = {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    width: '100%',
+    textAlign: 'left',
+    background: 'transparent',
+    border: 'none',
+    padding: '10px 12px',
+    borderRadius: 10,
+    cursor: 'pointer',
+    fontSize: 14,
+    color: P.tx,
+    fontFamily: 'inherit',
+  };
+  const miniBtn = (active) => ({
+    background: active ? P.ac + '18' : P.c2,
+    border: `1px solid ${active ? P.ac : P.bd}`,
+    color: active ? P.ac : P.sb,
+    padding: '4px 10px',
+    borderRadius: 8,
+    cursor: 'pointer',
+    fontSize: 11,
+    fontWeight: 500,
+    fontFamily: 'inherit',
+  });
 
   // ── Load personal data from Firestore ──
   useEffect(() => {
@@ -1392,30 +1431,31 @@ function MainApp({ user, onLogout }) {
               src={user.photoURL}
               alt=""
               style={{
-                width: 28,
-                height: 28,
+                width: 30,
+                height: 30,
                 borderRadius: '50%',
                 cursor: 'pointer',
+                border: `2px solid ${menuOpen ? P.ac : 'transparent'}`,
               }}
-              onClick={onLogout}
-              title="Cerrar sesión"
+              onClick={() => setMenuOpen((o) => !o)}
+              title="Mi cuenta"
             />
           )}
           {!user.photoURL && (
             <button
-              onClick={onLogout}
+              onClick={() => setMenuOpen((o) => !o)}
               style={{
-                width: 28,
-                height: 28,
+                width: 30,
+                height: 30,
                 borderRadius: '50%',
                 background: P.ab,
-                border: `1px solid ${P.bd}`,
+                border: `2px solid ${menuOpen ? P.ac : P.bd}`,
                 fontSize: 11,
                 fontWeight: 700,
                 color: P.ac,
                 cursor: 'pointer',
               }}
-              title="Cerrar sesión"
+              title="Mi cuenta"
             >
               {user.displayName?.[0] || 'U'}
             </button>
@@ -1423,7 +1463,7 @@ function MainApp({ user, onLogout }) {
         </div>
       </header>
 
-      {/* Scope bar */}
+      {/* Scope bar: solo el espacio actual */}
       <div
         style={{
           background: P.cd,
@@ -1435,177 +1475,311 @@ function MainApp({ user, onLogout }) {
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: 6,
-            overflowX: 'auto',
+            justifyContent: 'center',
+            gap: 8,
             maxWidth: 800,
             margin: '0 auto',
           }}
         >
-          <button
-            onClick={() => setViewScope('personal')}
+          <span
             style={{
-              background: viewScope === 'personal' ? P.ac : P.c2,
-              border: `1px solid ${viewScope === 'personal' ? P.ac : P.bd}`,
-              color: viewScope === 'personal' ? '#fff' : P.tx,
-              padding: '6px 14px',
-              borderRadius: 10,
-              cursor: 'pointer',
-              fontSize: 12,
-              fontWeight: 500,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 4,
-              whiteSpace: 'nowrap',
-              flexShrink: 0,
-            }}
-          >
-            👤 Personal
-          </button>
-          {myGroups.map((g) => (
-            <button
-              key={g.id}
-              onClick={() => setViewScope(g.id)}
-              style={{
-                background: viewScope === g.id ? P.pu : P.c2,
-                border: `1px solid ${viewScope === g.id ? P.pu : P.bd}`,
-                color: viewScope === g.id ? '#fff' : P.tx,
-                padding: '6px 14px',
-                borderRadius: 10,
-                cursor: 'pointer',
-                fontSize: 12,
-                fontWeight: 500,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 4,
-                whiteSpace: 'nowrap',
-                flexShrink: 0,
-              }}
-            >
-              👥 {g.name}
-            </button>
-          ))}
-          <button
-            onClick={async () => {
-              const name = prompt('Nombre del grupo:');
-              if (name?.trim()) await createGroup(name.trim());
-            }}
-            style={{
-              background: 'transparent',
-              border: `1px dashed ${P.bd}`,
-              color: P.sb,
-              padding: '6px 12px',
-              borderRadius: 10,
-              cursor: 'pointer',
-              fontSize: 12,
-              whiteSpace: 'nowrap',
-              flexShrink: 0,
-            }}
-          >
-            + Crear grupo
-          </button>
-          <button
-            onClick={() => saveSettings({ defScope: viewScope })}
-            title="Abrir siempre en este espacio"
-            style={{
-              background: settings.defScope === viewScope ? P.ac + '18' : 'transparent',
-              border: `1px solid ${settings.defScope === viewScope ? P.ac : P.bd}`,
-              color: settings.defScope === viewScope ? P.ac : P.sb,
-              padding: '6px 12px',
-              borderRadius: 10,
-              cursor: 'pointer',
-              fontSize: 12,
-              fontWeight: 500,
-              whiteSpace: 'nowrap',
-              flexShrink: 0,
-            }}
-          >
-            {settings.defScope === viewScope
-              ? '⭐ Predeterminado'
-              : '☆ Predeterminar'}
-          </button>
-        </div>
-        {/* Join group + share code */}
-        {viewScope !== 'personal' && (
-          <div
-            style={{
-              maxWidth: 800,
-              margin: '6px auto 0',
-              display: 'flex',
+              display: 'inline-flex',
               alignItems: 'center',
               gap: 6,
-              fontSize: 10,
-              color: P.sb,
+              background: viewScope === 'personal' ? P.ab : P.pu + '18',
+              border: `1px solid ${viewScope === 'personal' ? P.ac : P.pu}`,
+              color: viewScope === 'personal' ? P.ac : P.pu,
+              padding: '6px 14px',
+              borderRadius: 999,
+              fontSize: 13,
+              fontWeight: 600,
+              maxWidth: '70%',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
             }}
           >
-            <span>Código para invitar:</span>
-            <code
-              style={{
-                background: P.c2,
-                padding: '2px 8px',
-                borderRadius: 6,
-                fontSize: 10,
-                fontWeight: 600,
-                color: P.tx,
-                cursor: 'pointer',
-              }}
-              onClick={() => {
-                navigator.clipboard?.writeText(viewScope);
-                notify('Código copiado.', 'success');
-              }}
-            >
-              {viewScope}
-            </code>
-            <span>(tocá para copiar)</span>
-          </div>
-        )}
-        {viewScope === 'personal' && (
+            {viewScope === 'personal'
+              ? '👤 Personal'
+              : '👥 ' +
+                (myGroups.find((g) => g.id === viewScope)?.name || 'Grupo')}
+            {settings.defScope === viewScope && ' ⭐'}
+          </span>
+          <button
+            onClick={() => setMenuOpen(true)}
+            style={{
+              background: 'transparent',
+              border: `1px solid ${P.bd}`,
+              color: P.sb,
+              padding: '6px 12px',
+              borderRadius: 999,
+              cursor: 'pointer',
+              fontSize: 12,
+              fontWeight: 500,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            Cambiar ▾
+          </button>
+        </div>
+      </div>
+
+      {/* Menú de cuenta + espacios */}
+      {menuOpen && (
+        <>
+          <div
+            onClick={() => {
+              setMenuOpen(false);
+              setShowCode(false);
+            }}
+            style={{
+              position: 'fixed',
+              inset: 0,
+              background: 'rgba(0,0,0,0.25)',
+              zIndex: 100,
+            }}
+          />
           <div
             style={{
-              maxWidth: 800,
-              margin: '6px auto 0',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 4,
+              position: 'fixed',
+              top: 56,
+              right: mob ? 10 : 24,
+              left: mob ? 10 : 'auto',
+              width: mob ? 'auto' : 320,
+              maxHeight: 'calc(100vh - 72px)',
+              overflowY: 'auto',
+              background: P.cd,
+              border: `1px solid ${P.bd}`,
+              borderRadius: 16,
+              boxShadow: '0 12px 40px rgba(0,0,0,0.18)',
+              zIndex: 101,
+              padding: 6,
             }}
           >
-            <input
-              placeholder="Código de grupo para unirte"
-              value={joinCode}
-              onChange={(e) => setJoinCode(e.target.value)}
+            {/* Cuenta */}
+            <div
               style={{
-                background: P.c2,
-                border: `1px solid ${P.bd}`,
-                borderRadius: 8,
-                padding: '4px 8px',
-                fontSize: 10,
-                color: P.tx,
-                flex: 1,
-                maxWidth: 200,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '10px 12px',
               }}
-            />
-            {joinCode && (
-              <button
-                onClick={() => {
-                  joinGroup(joinCode);
-                  setJoinCode('');
-                }}
-                style={{
-                  background: P.pu,
-                  border: 'none',
-                  color: '#fff',
-                  padding: '4px 10px',
-                  borderRadius: 8,
-                  fontSize: 10,
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                }}
-              >
-                Unirme
-              </button>
-            )}
+            >
+              {user.photoURL ? (
+                <img
+                  src={user.photoURL}
+                  alt=""
+                  style={{ width: 40, height: 40, borderRadius: '50%' }}
+                />
+              ) : (
+                <div
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: '50%',
+                    background: P.ab,
+                    color: P.ac,
+                    fontWeight: 700,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  {user.displayName?.[0] || 'U'}
+                </div>
+              )}
+              <div style={{ minWidth: 0 }}>
+                <div
+                  style={{
+                    fontWeight: 600,
+                    fontSize: 14,
+                    color: P.tx,
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}
+                >
+                  {user.displayName || 'Mi cuenta'}
+                </div>
+                <div
+                  style={{
+                    fontSize: 11,
+                    color: P.sb,
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}
+                >
+                  {user.email}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ height: 1, background: P.bd, margin: '4px 8px' }} />
+
+            <div
+              style={{
+                fontSize: 11,
+                fontWeight: 600,
+                color: P.sb,
+                letterSpacing: 0.5,
+                padding: '8px 12px 4px',
+              }}
+            >
+              MIS ESPACIOS
+            </div>
+
+            {/* Personal */}
+            <button
+              onClick={() => {
+                setViewScope('personal');
+                setMenuOpen(false);
+                setShowCode(false);
+              }}
+              style={{
+                ...menuRow,
+                background: viewScope === 'personal' ? P.ab : 'transparent',
+              }}
+            >
+              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                👤 Personal {settings.defScope === 'personal' && '⭐'}
+              </span>
+              {viewScope === 'personal' && (
+                <span style={{ color: P.ac }}>✓</span>
+              )}
+            </button>
+
+            {myGroups.map((g) => (
+              <div key={g.id}>
+                <button
+                  onClick={() => {
+                    setViewScope(g.id);
+                    setMenuOpen(false);
+                    setShowCode(false);
+                  }}
+                  style={{
+                    ...menuRow,
+                    background: viewScope === g.id ? P.pu + '14' : 'transparent',
+                  }}
+                >
+                  <span
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      minWidth: 0,
+                    }}
+                  >
+                    <span
+                      style={{
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      👥 {g.name}
+                    </span>
+                    {settings.defScope === g.id && '⭐'}
+                  </span>
+                  {viewScope === g.id && (
+                    <span style={{ color: P.pu }}>✓</span>
+                  )}
+                </button>
+                {viewScope === g.id && (
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      alignItems: 'center',
+                      gap: 6,
+                      padding: '2px 12px 8px 34px',
+                    }}
+                  >
+                    <button
+                      onClick={() => saveSettings({ defScope: g.id })}
+                      style={miniBtn(settings.defScope === g.id)}
+                    >
+                      {settings.defScope === g.id
+                        ? '⭐ Predeterminado'
+                        : '☆ Predeterminar'}
+                    </button>
+                    <button
+                      onClick={() => setShowCode((s) => !s)}
+                      style={miniBtn(false)}
+                    >
+                      🔑 {showCode ? 'Ocultar código' : 'Ver código'}
+                    </button>
+                    {showCode && (
+                      <code
+                        onClick={() => {
+                          navigator.clipboard?.writeText(g.id);
+                          notify('Código copiado.', 'success');
+                        }}
+                        title="Tocá para copiar"
+                        style={{
+                          background: P.c2,
+                          padding: '4px 8px',
+                          borderRadius: 6,
+                          fontSize: 11,
+                          fontWeight: 600,
+                          color: P.tx,
+                          cursor: 'pointer',
+                          wordBreak: 'break-all',
+                        }}
+                      >
+                        {g.id} 📋
+                      </code>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+
+            {/* Acciones de grupo */}
+            <button
+              onClick={async () => {
+                const name = prompt('Nombre del grupo:');
+                setMenuOpen(false);
+                if (name?.trim()) await createGroup(name.trim());
+              }}
+              style={menuRow}
+            >
+              ➕ Crear grupo
+            </button>
+            <button
+              onClick={() => {
+                const c = prompt('Pegá el código del grupo para unirte:');
+                setMenuOpen(false);
+                if (c?.trim()) joinGroup(c.trim());
+              }}
+              style={menuRow}
+            >
+              🔑 Unirme con un código
+            </button>
+
+            <div style={{ height: 1, background: P.bd, margin: '4px 8px' }} />
+
+            <button
+              onClick={() => {
+                setShowCats(true);
+                setMenuOpen(false);
+              }}
+              style={menuRow}
+            >
+              🏷️ Categorías
+            </button>
+
+            <div style={{ height: 1, background: P.bd, margin: '4px 8px' }} />
+
+            <button
+              onClick={onLogout}
+              style={{ ...menuRow, color: P.rd, fontWeight: 600 }}
+            >
+              🚪 Cerrar sesión
+            </button>
           </div>
-        )}
-      </div>
+        </>
+      )}
 
       {/* Content */}
       <main

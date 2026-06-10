@@ -1895,6 +1895,10 @@ function MainApp({ user, onLogout }) {
                 (t.type === 'gasto' && t.cur === 'USD' ? t.amt : 0),
               0
             )}
+            usdBuys={tx
+              .filter((t) => t.usd > 0)
+              .sort((a, b) => (b.date || '').localeCompare(a.date || ''))}
+            delTx={delTxFn}
           />
         )}
       </main>
@@ -4652,7 +4656,10 @@ function GoalsTab({
   savings = [],
   setSavings,
   usdHeld = 0,
+  usdBuys = [],
+  delTx,
 }) {
+  const [showUsd, setShowUsd] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
   const [gn, setGn] = useState('');
   const [gt, setGt] = useState('');
@@ -4763,18 +4770,59 @@ function GoalsTab({
           </div>
         ))}
         {usdHeld > 0 && (
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              padding: '6px 0',
-              borderTop: `1px solid ${P.bd}`,
-              fontSize: 12,
-              color: P.sb,
-            }}
-          >
-            <span>Dólares comprados en la app</span>
-            <span>US$ {usdHeld.toLocaleString('es-AR')}</span>
+          <div style={{ borderTop: `1px solid ${P.bd}` }}>
+            <div
+              onClick={() => setShowUsd((v) => !v)}
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '6px 0',
+                fontSize: 12,
+                color: P.sb,
+                cursor: usdBuys.length ? 'pointer' : 'default',
+              }}
+            >
+              <span>
+                Dólares comprados en la app{' '}
+                {usdBuys.length > 0 && (showUsd ? '▾' : '▸')}
+              </span>
+              <span>US$ {usdHeld.toLocaleString('es-AR')}</span>
+            </div>
+            {showUsd &&
+              usdBuys.map((t) => (
+                <div
+                  key={t.id}
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '5px 0 5px 12px',
+                    fontSize: 12,
+                  }}
+                >
+                  <span style={{ color: P.sb }}>
+                    {(t.date || '').slice(8, 10)}/{(t.date || '').slice(5, 7)} ·
+                    US$ {Number(t.usd).toLocaleString('es-AR')}
+                    {t.rate ? ` @ $${Number(t.rate).toLocaleString('es-AR')}` : ''}
+                  </span>
+                  <span
+                    onClick={() => {
+                      if (window.confirm('¿Borrar esta compra de dólares?'))
+                        delTx && delTx(t);
+                    }}
+                    style={{ cursor: 'pointer', color: P.rd, fontSize: 13 }}
+                    title="Borrar esta compra"
+                  >
+                    ✕
+                  </span>
+                </div>
+              ))}
+            {showUsd && usdBuys.length === 0 && (
+              <div style={{ fontSize: 11, color: P.sb, padding: '4px 0 6px 12px' }}>
+                No hay compras para editar.
+              </div>
+            )}
           </div>
         )}
         <div

@@ -3359,6 +3359,7 @@ function HomeTab({
   onAdd,
 }) {
   const maxC = byCat.length ? byCat[0][1] : 1;
+  const [hoverMonth, setHoverMonth] = useState(null);
   const todayStr = (() => {
     const d = new Date();
     const p = (n) => String(n).padStart(2, '0');
@@ -3831,64 +3832,107 @@ function HomeTab({
             marginTop: 8,
           }}
         >
-          {monthly.map((m) => (
-            <div
-              key={m.key}
-              style={{
-                flex: 1,
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: 4,
-              }}
-            >
+          {monthly.map((m) => {
+            const active = hoverMonth === m.key;
+            return (
               <div
+                key={m.key}
+                onMouseEnter={() => setHoverMonth(m.key)}
+                onMouseLeave={() => setHoverMonth(null)}
+                onClick={() => setHoverMonth(active ? null : m.key)}
                 style={{
+                  flex: 1,
                   display: 'flex',
-                  alignItems: 'flex-end',
-                  gap: 3,
-                  height: 90,
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: 4,
+                  position: 'relative',
+                  cursor: 'pointer',
                 }}
               >
+                {active && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      bottom: 100,
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                      background: P.tx,
+                      color: '#fff',
+                      borderRadius: 8,
+                      padding: '6px 9px',
+                      fontSize: 10,
+                      lineHeight: 1.5,
+                      whiteSpace: 'nowrap',
+                      zIndex: 20,
+                      boxShadow: '0 6px 18px rgba(0,0,0,0.25)',
+                      pointerEvents: 'none',
+                    }}
+                  >
+                    <div style={{ fontWeight: 700, marginBottom: 2 }}>
+                      {m.label}
+                    </div>
+                    <div>
+                      <span style={{ color: '#8FD3B6' }}>■</span> Ingresos{' '}
+                      {fmt(m.in, cur)}
+                    </div>
+                    <div>
+                      <span style={{ color: '#E79A95' }}>■</span> Gastos{' '}
+                      {fmt(m.out, cur)}
+                    </div>
+                    <div>
+                      <span style={{ color: '#9FBCDC' }}>■</span> Ahorro{' '}
+                      {fmt(m.sav, cur)}
+                    </div>
+                  </div>
+                )}
                 <div
-                  title={`Ingresos ${fmt(m.in, cur)}`}
                   style={{
-                    width: 9,
-                    height: `${Math.max(2, (m.in / maxMonthly) * 100)}%`,
-                    background: P.gn,
-                    borderRadius: '3px 3px 0 0',
+                    display: 'flex',
+                    alignItems: 'flex-end',
+                    gap: 3,
+                    height: 90,
+                    opacity: hoverMonth && !active ? 0.45 : 1,
+                    transition: 'opacity 0.12s',
                   }}
-                />
-                <div
-                  title={`Gastos ${fmt(m.out, cur)}`}
+                >
+                  <div
+                    style={{
+                      width: 9,
+                      height: `${Math.max(2, (m.in / maxMonthly) * 100)}%`,
+                      background: P.gn,
+                      borderRadius: '3px 3px 0 0',
+                    }}
+                  />
+                  <div
+                    style={{
+                      width: 9,
+                      height: `${Math.max(2, (m.out / maxMonthly) * 100)}%`,
+                      background: P.rd,
+                      borderRadius: '3px 3px 0 0',
+                    }}
+                  />
+                  <div
+                    style={{
+                      width: 9,
+                      height: `${Math.max(2, (m.sav / maxMonthly) * 100)}%`,
+                      background: P.ac,
+                      borderRadius: '3px 3px 0 0',
+                    }}
+                  />
+                </div>
+                <span
                   style={{
-                    width: 9,
-                    height: `${Math.max(2, (m.out / maxMonthly) * 100)}%`,
-                    background: P.rd,
-                    borderRadius: '3px 3px 0 0',
+                    fontSize: 9,
+                    color: m.cur ? P.ac : P.sb,
+                    fontWeight: m.cur ? 700 : 500,
                   }}
-                />
-                <div
-                  title={`Ahorro ${fmt(m.sav, cur)}`}
-                  style={{
-                    width: 9,
-                    height: `${Math.max(2, (m.sav / maxMonthly) * 100)}%`,
-                    background: P.ac,
-                    borderRadius: '3px 3px 0 0',
-                  }}
-                />
+                >
+                  {m.label}
+                </span>
               </div>
-              <span
-                style={{
-                  fontSize: 9,
-                  color: m.cur ? P.ac : P.sb,
-                  fontWeight: m.cur ? 700 : 500,
-                }}
-              >
-                {m.label}
-              </span>
-            </div>
-          ))}
+            );
+          })}
         </div>
         <div
           style={{

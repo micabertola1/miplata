@@ -833,7 +833,7 @@ function MainApp({ user, onLogout }) {
   const [groupTx, setGroupTx] = useState({}); // {groupId: [tx]}
   const [dataLoaded, setDataLoaded] = useState(false);
 
-  const [tab, setTab] = useState('home');
+  const [tab, setTab] = useState('insights');
   const [modal, setModal] = useState(null);
   const [editItem, setEditItem] = useState(null);
   const [month, setMonth] = useState(mk(new Date()));
@@ -1867,6 +1867,7 @@ function MainApp({ user, onLogout }) {
             byCat={byCat}
             totIn={totIn}
             totOut={totOut}
+            totSav={totSav}
             mtx={mtx}
             budgets={settings.budgets || {}}
             saveBudgets={(b) => saveSettings({ budgets: b })}
@@ -4372,6 +4373,25 @@ function TxRow({ t, cur, mob, onClick, customCats }) {
 }
 
 /* ── INSIGHTS ── */
+function useCountUp(target, ms = 650) {
+  const [v, setV] = useState(0);
+  useEffect(() => {
+    let raf,
+      start = null;
+    const from = 0;
+    const step = (t) => {
+      if (start === null) start = t;
+      const p = Math.min(1, (t - start) / ms);
+      const eased = 1 - Math.pow(1 - p, 3);
+      setV(from + (target - from) * eased);
+      if (p < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [target, ms]);
+  return v;
+}
+
 function InsightsTab({
   mob,
   cur,
@@ -4380,6 +4400,7 @@ function InsightsTab({
   byCat,
   totIn,
   totOut,
+  totSav = 0,
   mtx,
   budgets,
   saveBudgets,
@@ -4387,6 +4408,16 @@ function InsightsTab({
   const total = byCat.reduce((s, [, a]) => s + a, 0);
   const [bCat, setBCat] = useState('');
   const [bPct, setBPct] = useState('');
+  const [anim, setAnim] = useState(false);
+  useEffect(() => {
+    setAnim(false);
+    const t = setTimeout(() => setAnim(true), 40);
+    return () => clearTimeout(t);
+  }, [month, cur]);
+  const cIn = useCountUp(totIn);
+  const cOut = useCountUp(totOut);
+  const cSav = useCountUp(totSav);
+  const cBal = totIn - totOut - totSav;
   const trend = useMemo(() => {
     const ms = [];
     let [y, m] = month.split('-').map(Number);
@@ -4413,10 +4444,65 @@ function InsightsTab({
   }, [activeTx, month, cur]);
   const maxT = Math.max(...trend.map((t) => Math.max(t.inc, t.exp)), 1);
 
+  const cards = [
+    { l: 'Ingresos', v: cIn, c: P.gn, bg: P.gb, e: '📈' },
+    { l: 'Gastos', v: cOut, c: P.rd, bg: P.rb, e: '📉' },
+    { l: 'Ahorro', v: cSav, c: P.ac, bg: P.ab, e: '🏦' },
+  ];
+
   return (
     <div
       style={{ display: 'flex', flexDirection: 'column', gap: mob ? 10 : 14 }}
     >
+      {/* Resumen del mes */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3, 1fr)',
+          gap: mob ? 6 : 10,
+        }}
+      >
+        {cards.map((c) => (
+          <div
+            key={c.l}
+            style={{
+              background: c.bg,
+              border: `1px solid ${c.c}33`,
+              borderRadius: 14,
+              padding: mob ? '10px 8px' : '12px 14px',
+            }}
+          >
+            <div style={{ fontSize: mob ? 10 : 11, color: P.sb }}>
+              {c.e} {c.l}
+            </div>
+            <div
+              style={{
+                fontSize: mob ? 14 : 18,
+                fontWeight: 700,
+                color: c.c,
+                marginTop: 2,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              {fmtS(Math.round(c.v), cur)}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div
+        style={{
+          textAlign: 'center',
+          fontSize: 12,
+          color: P.sb,
+          marginTop: -4,
+        }}
+      >
+        Balance del mes:{' '}
+        <b style={{ color: cBal >= 0 ? P.gn : P.rd }}>{fmtS(cBal, cur)}</b>
+      </div>
+
       <Box>
         <Lbl>Tendencia 6 meses</Lbl>
         <div
@@ -4449,25 +4535,37 @@ function InsightsTab({
                 }}
               >
                 <div
+                  title={`Ingresos ${fmt(t.inc, cur)}`}
                   style={{
                     flex: 1,
                     background: P.gn,
                     borderRadius: '3px 3px 0 0',
-                    height: `${Math.max(3, (t.inc / maxT) * 100)}%`,
-                    opacity: 0.45,
+                    height: anim ? `${Math.max(3, (t.inc / maxT) * 100)}%` : '3%',
+                    opacity: i === trend.length - 1 ? 1 : 0.7,
+                    transition: 'height 0.6s cubic-bezier(.22,1,.36,1)',
                   }}
                 />
                 <div
+                  title={`Gastos ${fmt(t.exp, cur)}`}
                   style={{
                     flex: 1,
                     background: P.rd,
                     borderRadius: '3px 3px 0 0',
-                    height: `${Math.max(3, (t.exp / maxT) * 100)}%`,
-                    opacity: 0.45,
+                    height: anim ? `${Math.max(3, (t.exp / maxT) * 100)}%` : '3%',
+                    opacity: i === trend.length - 1 ? 1 : 0.7,
+                    transition: 'height 0.6s cubic-bezier(.22,1,.36,1)',
                   }}
                 />
               </div>
-              <span style={{ fontSize: 9, color: P.sb }}>{t.l}</span>
+              <span
+                style={{
+                  fontSize: 9,
+                  color: i === trend.length - 1 ? P.ac : P.sb,
+                  fontWeight: i === trend.length - 1 ? 700 : 500,
+                }}
+              >
+                {t.l}
+              </span>
             </div>
           ))}
         </div>
@@ -4576,6 +4674,65 @@ function InsightsTab({
           </div>
         )}
       </Box>
+      {Object.keys(budgets).length > 0 && (
+        <Box>
+          <Lbl>🎯 Presupuesto vs gasto real</Lbl>
+          {Object.entries(budgets).map(([cat, pct]) => {
+            const budget = (totIn * pct) / 100;
+            const spent = byCat.find(([c]) => c === cat)?.[1] || 0;
+            const ratio = budget > 0 ? spent / budget : 0;
+            const col = ratio > 1 ? P.rd : ratio >= 0.8 ? P.am : P.gn;
+            return (
+              <div key={cat} style={{ marginBottom: 10 }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    fontSize: 12,
+                    marginBottom: 3,
+                  }}
+                >
+                  <span style={{ fontWeight: 600 }}>{cat}</span>
+                  <span style={{ color: P.sb }}>
+                    <b style={{ color: col }}>{fmtS(spent, cur)}</b> /{' '}
+                    {fmtS(budget, cur)}
+                  </span>
+                </div>
+                <div
+                  style={{
+                    height: 9,
+                    background: P.c2,
+                    borderRadius: 6,
+                    overflow: 'hidden',
+                  }}
+                >
+                  <div
+                    style={{
+                      height: '100%',
+                      width: anim
+                        ? `${Math.min(100, ratio * 100)}%`
+                        : '0%',
+                      background: col,
+                      borderRadius: 6,
+                      transition: 'width 0.7s cubic-bezier(.22,1,.36,1)',
+                    }}
+                  />
+                </div>
+                <div style={{ fontSize: 10, color: col, marginTop: 2 }}>
+                  {ratio > 1
+                    ? `Te pasaste ${fmtS(spent - budget, cur)} 🔴`
+                    : ratio >= 0.8
+                    ? `Vas al ${Math.round(ratio * 100)}% ⚠️`
+                    : `Usaste el ${Math.round(ratio * 100)}% ✅`}
+                </div>
+              </div>
+            );
+          })}
+          <div style={{ fontSize: 10, color: P.sb, marginTop: 2 }}>
+            El presupuesto se calcula como % de tus ingresos del mes.
+          </div>
+        </Box>
+      )}
       <Box>
         <Lbl>Presupuesto por categoría (%)</Lbl>
         <div

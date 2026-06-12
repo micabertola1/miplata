@@ -1260,6 +1260,24 @@ function MainApp({ user, onLogout }) {
       });
     return Object.entries(m).sort((a, b) => b[1] - a[1]);
   }, [mtx]);
+  // Saldo arrastrado de meses anteriores (lo que sobró: ingresos - gastos - ahorros)
+  const carry = useMemo(() => {
+    if (!month) return 0;
+    const keys = new Set(
+      activeTx.map((t) => mk(t.date)).filter((k) => k && k < month)
+    );
+    let s = 0;
+    keys.forEach((k) => {
+      chargesForMonth(activeTx, k)
+        .filter((t) => t.cur === cur && !t.pending)
+        .forEach((t) => {
+          if (t.type === 'ingreso') s += t.amt;
+          else if (t.type === 'gasto' || t.type === 'ahorro') s -= t.amt;
+        });
+    });
+    return Math.round(s);
+  }, [activeTx, month, cur]);
+
   // Gastos programados pendientes de pago (cualquier mes, scope/moneda actual)
   const pendingTx = activeTx
     .filter((t) => t.pending && t.cur === cur)
@@ -1833,6 +1851,7 @@ function MainApp({ user, onLogout }) {
             bal={bal}
             byCat={byCat}
             mtx={mtx}
+            carry={carry}
             budgets={settings.budgets || {}}
             onEdit={openEdit}
             customCats={settings.customCats}
@@ -1868,6 +1887,8 @@ function MainApp({ user, onLogout }) {
             totIn={totIn}
             totOut={totOut}
             totSav={totSav}
+            carry={carry}
+            isGroup={viewScope !== 'personal'}
             mtx={mtx}
             budgets={settings.budgets || {}}
             saveBudgets={(b) => saveSettings({ budgets: b })}
@@ -3345,6 +3366,7 @@ function HomeTab({
   bal,
   byCat,
   mtx,
+  carry = 0,
   budgets,
   onEdit,
   customCats,
@@ -3684,6 +3706,27 @@ function HomeTab({
             ? 'Disponible este mes'
             : 'Este mes gastaste más de lo que ingresó'}
         </div>
+        {carry !== 0 && (
+          <div
+            style={{
+              marginTop: 8,
+              fontSize: 12,
+              color: P.tx,
+              background: P.cd,
+              borderRadius: 10,
+              padding: '7px 10px',
+            }}
+          >
+            👜 Venías con{' '}
+            <b style={{ color: carry >= 0 ? P.gn : P.rd }}>
+              {fmtS(carry, cur)}
+            </b>{' '}
+            de meses anteriores · disponible total{' '}
+            <b style={{ color: bal + carry >= 0 ? P.gn : P.rd }}>
+              {fmtS(bal + carry, cur)}
+            </b>
+          </div>
+        )}
 
         <div
           style={{
@@ -4401,11 +4444,30 @@ function InsightsTab({
   totIn,
   totOut,
   totSav = 0,
+  carry = 0,
+  isGroup = false,
   mtx,
   budgets,
   saveBudgets,
 }) {
   const total = byCat.reduce((s, [, a]) => s + a, 0);
+  // Por persona (solo grupo)
+  const byMember = {};
+  if (isGroup) {
+    mtx
+      .filter((t) => !t.pending && t.cur === cur)
+      .forEach((t) => {
+        const who = t.member || t.createdByName || '—';
+        if (!byMember[who])
+          byMember[who] = { ingreso: 0, gasto: 0, ahorro: 0 };
+        if (byMember[who][t.type] != null)
+          byMember[who][t.type] += t.amt;
+      });
+  }
+  const memberRows = Object.entries(byMember).sort(
+    (a, b) => b[1].gasto + b[1].ingreso - (a[1].gasto + a[1].ingreso)
+  );
+  const pctOf = (v, tot) => (tot > 0 ? Math.round((v / tot) * 100) : 0);
   const [bCat, setBCat] = useState('');
   const [bPct, setBPct] = useState('');
   const [anim, setAnim] = useState(false);
@@ -4501,7 +4563,83 @@ function InsightsTab({
       >
         Balance del mes:{' '}
         <b style={{ color: cBal >= 0 ? P.gn : P.rd }}>{fmtS(cBal, cur)}</b>
+        {carry !== 0 && (
+          <span>
+            {' · '}venías con{' '}
+            <b style={{ color: carry >= 0 ? P.gn : P.rd }}>
+              {fmtS(carry, cur)}
+            </b>{' '}
+            → disponible{' '}
+            <b style={{ color: cBal + carry >= 0 ? P.gn : P.rd }}>
+              {fmtS(cBal + carry, cur)}
+            </b>
+          </span>
+        )}
       </div>
+
+      {isGroup && memberRows.length > 0 && (
+        <Box>
+          <Lbl>👥 Por persona (este mes)</Lbl>
+          {memberRows.map(([name, v]) => (
+            <div
+              key={name}
+              style={{
+                padding: '8px 0',
+                borderBottom: `1px solid ${P.bd}`,
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  marginBottom: 5,
+                }}
+              >
+                <span>👤 {name}</span>
+              </div>
+              <div
+                style={{
+                  display: 'flex',
+                  gap: 6,
+                  flexWrap: 'wrap',
+                  fontSize: 11,
+                }}
+              >
+                {[
+                  ['Ingresó', v.ingreso, totIn, P.gn],
+                  ['Gastó', v.gasto, totOut, P.rd],
+                  ['Ahorró', v.ahorro, totSav, P.ac],
+                ].map(([lbl, val, tot, col]) => (
+                  <div
+                    key={lbl}
+                    style={{
+                      flex: 1,
+                      minWidth: 90,
+                      background: P.c2,
+                      borderRadius: 8,
+                      padding: '6px 8px',
+                    }}
+                  >
+                    <div style={{ color: P.sb, fontSize: 10 }}>{lbl}</div>
+                    <div style={{ fontWeight: 700, color: col }}>
+                      {fmtS(val, cur)}
+                    </div>
+                    <div style={{ color: P.sb, fontSize: 10 }}>
+                      {pctOf(val, tot)}% del total
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+          <div style={{ fontSize: 10, color: P.sb, marginTop: 6 }}>
+            El % es la parte que aportó cada persona sobre el total del grupo en
+            el mes.
+          </div>
+        </Box>
+      )}
 
       <Box>
         <Lbl>Tendencia 6 meses</Lbl>

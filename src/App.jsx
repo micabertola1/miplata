@@ -1872,6 +1872,7 @@ function MainApp({ user, onLogout }) {
             pendingTx={pendingTx}
             onMarkPaid={markPaid}
             onAdd={openAdd}
+            onSeeAll={() => setTab('movs')}
           />
         )}
         {tab === 'movs' && (
@@ -3388,6 +3389,7 @@ function HomeTab({
   pendingTx = [],
   onMarkPaid,
   onAdd,
+  onSeeAll,
 }) {
   const maxC = byCat.length ? byCat[0][1] : 1;
   const [hoverMonth, setHoverMonth] = useState(null);
@@ -3410,6 +3412,7 @@ function HomeTab({
   const hasBudgets = Object.keys(budgets || {}).length > 0;
 
   const [expandedCat, setExpandedCat] = useState(null);
+  const [showPending, setShowPending] = useState(false);
 
   // Serie mensual (6 meses terminando en el mes visto)
   const months6 = (() => {
@@ -3557,63 +3560,47 @@ function HomeTab({
     <div
       style={{ display: 'flex', flexDirection: 'column', gap: mob ? 10 : 14 }}
     >
-      {favorites.length > 0 && (
-        <Box>
-          <Lbl>⭐ Favoritos · carga rápida</Lbl>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            {favorites.map((f, i) => (
-              <div
-                key={i}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  background: P.c2,
-                  border: `1px solid ${P.bd}`,
-                  borderRadius: 10,
-                  overflow: 'hidden',
-                }}
-              >
-                <button
-                  onClick={() => onUseFav(f)}
-                  style={{
-                    background: 'transparent',
-                    border: 'none',
-                    color: P.tx,
-                    padding: '7px 10px',
-                    fontSize: 12,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                  }}
-                >
-                  {f.type === 'ingreso'
-                    ? '📈'
-                    : f.type === 'ahorro'
-                    ? '🏦'
-                    : '📉'}{' '}
-                  {f.desc || f.sub || f.cat}
-                  {f.amt ? ` · ${fmtS(f.amt, f.cur)}` : ''}
-                </button>
-                <span
-                  onClick={() => onRemoveFav(i)}
-                  title="Quitar favorito"
-                  style={{
-                    cursor: 'pointer',
-                    color: P.sb,
-                    padding: '7px 8px',
-                    fontSize: 11,
-                    borderLeft: `1px solid ${P.bd}`,
-                  }}
-                >
-                  ✕
-                </span>
-              </div>
-            ))}
-          </div>
-        </Box>
-      )}
-      {pendingTx.length > 0 && (
-        <Box>
-          <Lbl>📅 Por pagar (programados)</Lbl>
+      {(() => {
+        const recPending = recList.filter((t) => !doneThisMonth(t.serieId));
+        const np = pendingTx.length;
+        const nr = recPending.length;
+        if (np === 0 && nr === 0) return null;
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div
+              onClick={() => setShowPending((v) => !v)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 8,
+                background: P.amb,
+                border: `1px solid ${P.am}33`,
+                borderRadius: 12,
+                padding: '10px 14px',
+                cursor: 'pointer',
+                fontSize: 13,
+                fontWeight: 600,
+                color: P.tx,
+              }}
+            >
+              <span>
+                📅{' '}
+                {np > 0
+                  ? `${np} pago${np === 1 ? '' : 's'} pendiente${
+                      np === 1 ? '' : 's'
+                    }`
+                  : ''}
+                {np > 0 && nr > 0 ? ' · ' : ''}
+                {nr > 0
+                  ? `${nr} recurrente${nr === 1 ? '' : 's'} sin registrar`
+                  : ''}
+              </span>
+              <span style={{ color: P.sb }}>{showPending ? '▾' : '→'}</span>
+            </div>
+            {showPending && (
+              <Box>
+                {np > 0 && <Lbl>📅 Por pagar (programados)</Lbl>}
           {pendingTx.map((t) => {
             const overdue = String(t.date) <= todayStr;
             return (
@@ -3670,8 +3657,57 @@ function HomeTab({
               </div>
             );
           })}
-        </Box>
-      )}
+                {nr > 0 && <Lbl>🔁 Recurrentes sin registrar</Lbl>}
+                {recPending.map((t) => (
+                  <div
+                    key={t.serieId}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      padding: '8px 0',
+                      borderBottom: `1px solid ${P.bd}`,
+                    }}
+                  >
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div
+                        style={{
+                          fontSize: 13,
+                          fontWeight: 600,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {t.desc || t.sub || t.cat}
+                      </div>
+                      <div style={{ fontSize: 10, color: P.sb }}>
+                        {fmtS(t.amt, t.cur)} · {freqLabel[t.freq] || 'mensual'}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => onRegister(t)}
+                      style={{
+                        background: P.ac,
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: 9,
+                        padding: '6px 11px',
+                        fontSize: 11,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        flexShrink: 0,
+                      }}
+                    >
+                      Registrar
+                    </button>
+                  </div>
+                ))}
+              </Box>
+            )}
+          </div>
+        );
+      })()}
       {alerts.map((a) => (
         <div
           key={a.cat}
@@ -3805,209 +3841,6 @@ function HomeTab({
           </div>
         )}
       </Box>
-      {recList.length > 0 && (
-        <Box>
-          <Lbl>🔁 Pagos recurrentes</Lbl>
-          {recList.map((t) => {
-            const done = doneThisMonth(t.serieId);
-            return (
-              <div
-                key={t.serieId}
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  padding: '8px 0',
-                  borderBottom: `1px solid ${P.bd}`,
-                }}
-              >
-                <div style={{ minWidth: 0, flex: 1 }}>
-                  <div
-                    style={{
-                      fontSize: 13,
-                      fontWeight: 600,
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    {t.desc || t.sub || t.cat}
-                  </div>
-                  <div style={{ fontSize: 10, color: P.sb }}>
-                    {fmtS(t.amt, t.cur)} · {freqLabel[t.freq] || 'mensual'}
-                  </div>
-                </div>
-                {done ? (
-                  <span
-                    style={{
-                      fontSize: 11,
-                      color: P.gn,
-                      fontWeight: 600,
-                      flexShrink: 0,
-                    }}
-                  >
-                    ✓ cargado
-                  </span>
-                ) : (
-                  <button
-                    onClick={() => onRegister(t)}
-                    style={{
-                      background: P.ac,
-                      color: '#fff',
-                      border: 'none',
-                      borderRadius: 9,
-                      padding: '6px 11px',
-                      fontSize: 11,
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      flexShrink: 0,
-                    }}
-                  >
-                    Registrar
-                  </button>
-                )}
-              </div>
-            );
-          })}
-        </Box>
-      )}
-      {/* Ingresos vs Gastos vs Ahorro por mes */}
-      <Box>
-        <Lbl>Ingresos · Gastos · Ahorro (6 meses)</Lbl>
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'flex-end',
-            justifyContent: 'space-between',
-            gap: 6,
-            height: 110,
-            marginTop: 8,
-          }}
-        >
-          {monthly.map((m) => {
-            const active = hoverMonth === m.key;
-            return (
-              <div
-                key={m.key}
-                onMouseEnter={() => setHoverMonth(m.key)}
-                onMouseLeave={() => setHoverMonth(null)}
-                onClick={() => setHoverMonth(active ? null : m.key)}
-                style={{
-                  flex: 1,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: 4,
-                  position: 'relative',
-                  cursor: 'pointer',
-                }}
-              >
-                {active && (
-                  <div
-                    style={{
-                      position: 'absolute',
-                      bottom: 100,
-                      left: '50%',
-                      transform: 'translateX(-50%)',
-                      background: P.tx,
-                      color: '#fff',
-                      borderRadius: 8,
-                      padding: '6px 9px',
-                      fontSize: 10,
-                      lineHeight: 1.5,
-                      whiteSpace: 'nowrap',
-                      zIndex: 20,
-                      boxShadow: '0 6px 18px rgba(0,0,0,0.25)',
-                      pointerEvents: 'none',
-                    }}
-                  >
-                    <div style={{ fontWeight: 700, marginBottom: 2 }}>
-                      {m.label}
-                    </div>
-                    <div>
-                      <span style={{ color: '#8FD3B6' }}>■</span> Ingresos{' '}
-                      {fmt(m.in, cur)}
-                    </div>
-                    <div>
-                      <span style={{ color: '#E79A95' }}>■</span> Gastos{' '}
-                      {fmt(m.out, cur)}
-                    </div>
-                    <div>
-                      <span style={{ color: '#9FBCDC' }}>■</span> Ahorro{' '}
-                      {fmt(m.sav, cur)}
-                    </div>
-                  </div>
-                )}
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'flex-end',
-                    gap: 3,
-                    height: 90,
-                    opacity: hoverMonth && !active ? 0.45 : 1,
-                    transition: 'opacity 0.12s',
-                  }}
-                >
-                  <div
-                    style={{
-                      width: 9,
-                      height: `${Math.max(2, (m.in / maxMonthly) * 100)}%`,
-                      background: P.gn,
-                      borderRadius: '3px 3px 0 0',
-                    }}
-                  />
-                  <div
-                    style={{
-                      width: 9,
-                      height: `${Math.max(2, (m.out / maxMonthly) * 100)}%`,
-                      background: P.rd,
-                      borderRadius: '3px 3px 0 0',
-                    }}
-                  />
-                  <div
-                    style={{
-                      width: 9,
-                      height: `${Math.max(2, (m.sav / maxMonthly) * 100)}%`,
-                      background: P.ac,
-                      borderRadius: '3px 3px 0 0',
-                    }}
-                  />
-                </div>
-                <span
-                  style={{
-                    fontSize: 9,
-                    color: m.cur ? P.ac : P.sb,
-                    fontWeight: m.cur ? 700 : 500,
-                  }}
-                >
-                  {m.label}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-        <div
-          style={{
-            display: 'flex',
-            gap: 14,
-            justifyContent: 'center',
-            marginTop: 8,
-            fontSize: 10,
-            color: P.sb,
-          }}
-        >
-          <span>
-            <span style={{ color: P.gn }}>■</span> Ingresos
-          </span>
-          <span>
-            <span style={{ color: P.rd }}>■</span> Gastos
-          </span>
-          <span>
-            <span style={{ color: P.ac }}>■</span> Ahorro
-          </span>
-        </div>
-      </Box>
-
       {/* Gastos por categoría (dona + subcategorías) */}
       <Box>
         <Lbl>Gastos por categoría</Lbl>
@@ -4142,148 +3975,6 @@ function HomeTab({
         )}
       </Box>
 
-      {/* Gastos vs Presupuesto */}
-      {budgetRows.length > 0 && (
-        <Box>
-          <Lbl>Gastos vs Presupuesto</Lbl>
-          {budgetRows.map((r) => {
-            const cd = getCats('gasto', customCats).find((c) => c.n === r.cat);
-            const over = r.pct >= 100;
-            const near = r.pct >= 80;
-            const col = over ? P.rd : near ? P.am : P.gn;
-            return (
-              <div key={r.cat} style={{ marginBottom: 10 }}>
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    fontSize: 12,
-                    marginBottom: 3,
-                  }}
-                >
-                  <span style={{ fontWeight: 500 }}>
-                    {cd?.i} {r.cat}
-                  </span>
-                  <span style={{ color: col, fontWeight: 600 }}>
-                    {fmtS(r.spent, cur)} / {fmtS(r.lim, cur)}
-                  </span>
-                </div>
-                <Bar pct={Math.min(r.pct, 100)} color={col} />
-              </div>
-            );
-          })}
-        </Box>
-      )}
-      {cardRows.length > 0 && (
-        <Box>
-          <Lbl>💳 Tarjetas · a pagar este mes</Lbl>
-          {cardRows.map(([name, info]) => {
-            const d = dueInfo(info.due);
-            return (
-              <div
-                key={name}
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  padding: '7px 0',
-                  borderBottom: `1px solid ${P.bd}`,
-                }}
-              >
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600 }}>
-                    💳 {name}
-                  </div>
-                  {d && (
-                    <div
-                      style={{
-                        fontSize: 11,
-                        fontWeight: 600,
-                        color: d.days <= 3 ? P.rd : P.sb,
-                        marginTop: 1,
-                      }}
-                    >
-                      📅 vence el {d.day}
-                      {d.days === 0
-                        ? ' · ¡hoy!'
-                        : d.days === 1
-                        ? ' · mañana'
-                        : ` · en ${d.days} días`}
-                    </div>
-                  )}
-                </div>
-                <span style={{ fontSize: 13, fontWeight: 700, color: P.rd }}>
-                  {fmtS(info.total, cur)}
-                </span>
-              </div>
-            );
-          })}
-          <div style={{ fontSize: 10, color: P.sb, marginTop: 6 }}>
-            Suma de consumos y cuotas del mes. No cargues aparte el pago del
-            resumen (sería duplicar).
-          </div>
-        </Box>
-      )}
-      {usdBought > 0 && (
-        <Box>
-          <Lbl>💵 Dólares que tenés</Lbl>
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'baseline',
-            }}
-          >
-            <div>
-              <div style={{ fontSize: 26, fontWeight: 700, color: P.ac }}>
-                US$ {usdHeld.toLocaleString('es-AR')}
-              </div>
-              <div style={{ fontSize: 11, color: P.sb, marginTop: 2 }}>
-                compraste US$ {usdBought.toLocaleString('es-AR')}
-                {usdSpent > 0
-                  ? ` · gastaste US$ ${usdSpent.toLocaleString('es-AR')}`
-                  : ''}
-              </div>
-            </div>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: 10, color: P.sb }}>COTIZ. PROMEDIO</div>
-              <div style={{ fontSize: 14, fontWeight: 600, color: P.tx }}>
-                ${Math.round(usdAvgRate).toLocaleString('es-AR')}
-              </div>
-            </div>
-          </div>
-        </Box>
-      )}
-      {isGroup && memberRows.length > 0 && (
-        <Box>
-          <Lbl>Por persona (este mes)</Lbl>
-          {memberRows.map(([name, v]) => (
-            <div
-              key={name}
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                padding: '7px 0',
-                borderBottom: `1px solid ${P.bd}`,
-              }}
-            >
-              <span style={{ fontSize: 13, fontWeight: 600 }}>👤 {name}</span>
-              <span style={{ fontSize: 11 }}>
-                {v.ingreso > 0 && (
-                  <span style={{ color: P.gn }}>+{fmtS(v.ingreso, cur)} </span>
-                )}
-                {v.gasto > 0 && (
-                  <span style={{ color: P.rd }}>-{fmtS(v.gasto, cur)} </span>
-                )}
-                {v.ahorro > 0 && (
-                  <span style={{ color: P.ac }}>→{fmtS(v.ahorro, cur)}</span>
-                )}
-              </span>
-            </div>
-          ))}
-        </Box>
-      )}
       <Box>
         <Lbl>Últimos movimientos</Lbl>
         {mtx.length === 0 ? (
@@ -4295,19 +3986,38 @@ function HomeTab({
             onAction={() => onAdd && onAdd('gasto')}
           />
         ) : (
-          [...mtx]
-            .sort((a, b) => new Date(b.date) - new Date(a.date))
-            .slice(0, 6)
-            .map((t) => (
-              <TxRow
-                key={t.id}
-                t={t}
-                cur={cur}
-                mob={mob}
-                onClick={() => onEdit(t)}
-                customCats={customCats}
-              />
-            ))
+          <>
+            {[...mtx]
+              .sort((a, b) => new Date(b.date) - new Date(a.date))
+              .slice(0, 3)
+              .map((t) => (
+                <TxRow
+                  key={t.id}
+                  t={t}
+                  cur={cur}
+                  mob={mob}
+                  onClick={() => onEdit(t)}
+                  customCats={customCats}
+                />
+              ))}
+            <button
+              onClick={() => onSeeAll && onSeeAll()}
+              style={{
+                width: '100%',
+                marginTop: 8,
+                background: 'transparent',
+                border: `1px solid ${P.bd}`,
+                color: P.ac,
+                borderRadius: 12,
+                padding: '10px',
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              Ver todos →
+            </button>
+          </>
         )}
       </Box>
     </div>

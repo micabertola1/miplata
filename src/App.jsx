@@ -4460,6 +4460,18 @@ function InsightsTab({
   onAdd,
 }) {
   const total = byCat.reduce((s, [, a]) => s + a, 0);
+  // Gasto por subcategoría (Categoría · Subcategoría)
+  const bySub = (() => {
+    const m = {};
+    mtx
+      .filter((t) => t.type === 'gasto' && !t.pending && t.cur === cur)
+      .forEach((t) => {
+        const k = `${t.cat} · ${t.sub || 'Otros'}`;
+        m[k] = (m[k] || 0) + t.amt;
+      });
+    return Object.entries(m).sort((a, b) => b[1] - a[1]);
+  })();
+  const subTotal = bySub.reduce((s, [, a]) => s + a, 0);
   // Por persona (solo grupo)
   const byMember = {};
   if (isGroup) {
@@ -4871,6 +4883,121 @@ function InsightsTab({
           </div>
         )}
       </Box>
+      {bySub.length > 0 && (
+        <Box>
+          <Lbl>🍰 Detalle por subcategoría</Lbl>
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: mob ? 'column' : 'row',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: mob ? 12 : 24,
+              marginTop: 8,
+            }}
+          >
+            <svg
+              viewBox="0 0 200 200"
+              width={mob ? 120 : 140}
+              height={mob ? 120 : 140}
+            >
+              {(() => {
+                let cum = -90;
+                return bySub.map(([k, amt], i) => {
+                  const p = amt / subTotal,
+                    ang = p * 360,
+                    st = cum;
+                  cum += ang;
+                  const r = 80,
+                    cx = 100,
+                    cy = 100,
+                    lg = ang > 180 ? 1 : 0,
+                    sr = (st * Math.PI) / 180,
+                    er = ((st + ang) * Math.PI) / 180;
+                  return (
+                    <path
+                      key={k}
+                      d={`M${cx},${cy} L${cx + r * Math.cos(sr)},${
+                        cy + r * Math.sin(sr)
+                      } A${r},${r} 0 ${lg} 1 ${cx + r * Math.cos(er)},${
+                        cy + r * Math.sin(er)
+                      } Z`}
+                      fill={pal[i % pal.length]}
+                      opacity={0.75}
+                    />
+                  );
+                });
+              })()}
+              <circle cx={100} cy={100} r={48} fill={P.cd} />
+              <text
+                x={100}
+                y={97}
+                textAnchor="middle"
+                fill={P.tx}
+                fontSize={11}
+                fontWeight={700}
+                fontFamily="'Poppins'"
+              >
+                {fmtS(subTotal, cur)}
+              </text>
+              <text
+                x={100}
+                y={110}
+                textAnchor="middle"
+                fill={P.sb}
+                fontSize={8}
+              >
+                total
+              </text>
+            </svg>
+            <div style={{ flex: 1, width: '100%' }}>
+              {bySub.slice(0, 10).map(([k, amt], i) => (
+                <div
+                  key={k}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    fontSize: 11,
+                    marginBottom: 4,
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: 3,
+                      background: pal[i % pal.length],
+                      opacity: 0.75,
+                      flexShrink: 0,
+                    }}
+                  />
+                  <span
+                    style={{
+                      color: P.tx,
+                      flex: 1,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {k}
+                  </span>
+                  <span style={{ color: P.sb }}>{fmtS(amt, cur)}</span>
+                  <span style={{ fontWeight: 600, minWidth: 32, textAlign: 'right' }}>
+                    {Math.round((amt / subTotal) * 100)}%
+                  </span>
+                </div>
+              ))}
+              {bySub.length > 10 && (
+                <div style={{ fontSize: 10, color: P.sb, marginTop: 4 }}>
+                  + {bySub.length - 10} subcategorías más
+                </div>
+              )}
+            </div>
+          </div>
+        </Box>
+      )}
       {Object.keys(budgets).length > 0 && (
         <Box>
           <Lbl>🎯 Presupuesto vs gasto real</Lbl>

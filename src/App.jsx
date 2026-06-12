@@ -1892,6 +1892,7 @@ function MainApp({ user, onLogout }) {
             mtx={mtx}
             budgets={settings.budgets || {}}
             saveBudgets={(b) => saveSettings({ budgets: b })}
+            onAdd={openAdd}
           />
         )}
         {tab === 'goals' && (
@@ -4449,6 +4450,7 @@ function InsightsTab({
   mtx,
   budgets,
   saveBudgets,
+  onAdd,
 }) {
   const total = byCat.reduce((s, [, a]) => s + a, 0);
   // Por persona (solo grupo)
@@ -4576,6 +4578,56 @@ function InsightsTab({
           </span>
         )}
       </div>
+
+      {cBal + carry > 0 && (
+        <Box
+          style={{
+            background: `linear-gradient(135deg,${P.gn}12,${P.ac}0A)`,
+            border: `1px solid ${P.gn}22`,
+          }}
+        >
+          <div style={{ fontSize: 15, fontWeight: 700, color: P.tx }}>
+            💰 Te quedan {fmtS(cBal + carry, cur)} para gastar o ahorrar
+          </div>
+          <div style={{ fontSize: 12, color: P.sb, marginTop: 2 }}>
+            ¿Qué vas a hacer con ellos? 👀
+          </div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+            <button
+              onClick={() => onAdd && onAdd('ahorro')}
+              style={{
+                flex: 1,
+                background: P.ac,
+                color: '#fff',
+                border: 'none',
+                borderRadius: 12,
+                padding: '10px',
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              🏦 Ahorrar una parte
+            </button>
+            <button
+              onClick={() => onAdd && onAdd('gasto')}
+              style={{
+                flex: 1,
+                background: 'transparent',
+                color: P.tx,
+                border: `1px solid ${P.bd}`,
+                borderRadius: 12,
+                padding: '10px',
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              📉 Registrar un gasto
+            </button>
+          </div>
+        </Box>
+      )}
 
       {isGroup && memberRows.length > 0 && (
         <Box>

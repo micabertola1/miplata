@@ -84,6 +84,11 @@ const CATS = {
       i: '📋',
       s: ['Monotributo', 'IIBB', 'Seguros', 'Cuotas', 'Deudas', 'Otros'],
     },
+    {
+      n: 'Tarjetas',
+      i: '💳',
+      s: ['Resumen', 'Cuotas', 'Intereses', 'Mantenimiento', 'Otros'],
+    },
   ],
   ingreso: [
     {

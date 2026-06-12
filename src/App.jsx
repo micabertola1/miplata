@@ -35,6 +35,8 @@ const CATS = {
         'Delivery',
         'Café',
         'Kiosco',
+        'Salida amigos',
+        'Salida pareja',
         'Otros',
       ],
     },

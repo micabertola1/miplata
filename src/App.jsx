@@ -4608,10 +4608,10 @@ function InsightsTab({
                 }}
               >
                 {[
-                  ['Ingresó', v.ingreso, totIn, P.gn],
-                  ['Gastó', v.gasto, totOut, P.rd],
-                  ['Ahorró', v.ahorro, totSav, P.ac],
-                ].map(([lbl, val, tot, col]) => (
+                  ['Ingresó', v.ingreso, totIn, P.gn, 'del total del grupo'],
+                  ['Gastó', v.gasto, v.ingreso, P.rd, 'de lo que ingresó'],
+                  ['Ahorró', v.ahorro, v.ingreso, P.ac, 'de lo que ingresó'],
+                ].map(([lbl, val, base, col, suf]) => (
                   <div
                     key={lbl}
                     style={{
@@ -4627,7 +4627,7 @@ function InsightsTab({
                       {fmtS(val, cur)}
                     </div>
                     <div style={{ color: P.sb, fontSize: 10 }}>
-                      {pctOf(val, tot)}% del total
+                      {base > 0 ? `${pctOf(val, base)}% ${suf}` : '—'}
                     </div>
                   </div>
                 ))}
@@ -4635,8 +4635,8 @@ function InsightsTab({
             </div>
           ))}
           <div style={{ fontSize: 10, color: P.sb, marginTop: 6 }}>
-            El % es la parte que aportó cada persona sobre el total del grupo en
-            el mes.
+            "Ingresó" = % que aportó al total del grupo. "Gastó" y "Ahorró" = %
+            sobre lo que ingresó esa persona.
           </div>
         </Box>
       )}

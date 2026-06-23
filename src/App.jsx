@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { auth, googleProvider, db } from './firebase.js';
 import {
   signInWithPopup,
@@ -391,6 +392,98 @@ function mapParsedRows(headers, rows) {
 function mapImportRows(text) {
   const { headers, rows } = parseCSV(text);
   return mapParsedRows(headers, rows);
+}
+
+/* ── PDF bank statement parsers ── */
+
+async function extractPDFText(arrayBuffer) {
+  const pdfjsLib = await import('pdfjs-dist');
+  pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  let fullText = '';
+  for (let p = 1; p <= pdf.numPages; p++) {
+    const page = await pdf.getPage(p);
+    const content = await page.getTextContent();
+    const byY = new Map();
+    for (const item of content.items) {
+      if (!item.str.trim()) continue;
+      const y = Math.round(item.transform[5]);
+      if (!byY.has(y)) byY.set(y, []);
+      byY.get(y).push({ x: item.transform[4], str: item.str });
+    }
+    const lines = [...byY.entries()]
+      .sort((a, b) => b[0] - a[0])
+      .map(([, items]) => items.sort((a, b) => a.x - b.x).map(i => i.str).join(' '));
+    fullText += lines.join('\n') + '\n';
+  }
+  return fullText;
+}
+
+function detectBankPDF(text) {
+  if (/banco\s*macro|\bMacro\b/i.test(text)) return 'macro';
+  if (/supervielle/i.test(text)) return 'supervielle';
+  if (/galicia/i.test(text)) return 'galicia';
+  return null;
+}
+
+const _PDF_SKIP = /^(SU PAGO EN|DEV\.IMP\.|INTERESES\s+FINAN|IMP\s+DE\s+SELLOS|DB\s+IVA|IVA\s+RG|DB\.RG\s+\d|BONIF\.\s+CONSUMO|Tarjeta\s+\d)/i;
+const _CUOTA_RE = /\s+[Cc]uota\s+(\d+)\/(\d+)/;
+
+function guessCatPDF(desc) {
+  const d = desc.toLowerCase();
+  if (/netflix|spotify|disney|amazon\s*prime|apple\.com|youtube|playstation|hbo|deezer|flow/i.test(d)) return 'Entretenimiento';
+  if (/pedidosya|rappi|glovo/i.test(d)) return 'Delivery';
+  if (/\bcoto\b|carrefour|\bdia\b|walmart|\bvea\b|disco|jumbo|supermercado/i.test(d)) return 'Supermercado';
+  if (/sushi|restaurant|nikkei|cantina|parrilla|cafeter/i.test(d)) return 'Restaurantes';
+  if (/airline|lan\b|aerolin|flybondi|jetsmart|hotel|booking|airbnb/i.test(d)) return 'Viajes';
+  if (/google|microsoft|adobe|dropbox|github/i.test(d)) return 'Tecnología';
+  if (/farmacia|medic|clinica|salud/i.test(d)) return 'Salud';
+  if (/\buber\b|cabify|remis/i.test(d)) return 'Transporte';
+  return 'Compras';
+}
+
+function parseMacroPDF(text) {
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+  const startIdx = lines.findIndex(l => /SALDO ANTERIOR/.test(l));
+  const endIdx = lines.findIndex((l, i) => i > startIdx && /SALDO ACTUAL/.test(l));
+  if (startIdx === -1) return { valid: [], invalid: [{ rowNum: '—', reason: 'No se encontró la sección de movimientos' }] };
+  const txLines = lines.slice(startIdx + 1, endIdx > -1 ? endIdx : undefined);
+  const valid = [];
+  const invalid = [];
+  const dateRe = /^(\d{2})\.(\d{2})\.(\d{2})\s+(.*)/;
+  for (const line of txLines) {
+    const dm = line.match(dateRe);
+    if (!dm) continue;
+    const [, dd, mm, yy, rest] = dm;
+    if (_PDF_SKIP.test(rest)) continue;
+    const date = `20${yy}-${mm}-${dd}`;
+    const isUSD = /\bUSD\b/i.test(rest);
+    const allAmts = [...rest.matchAll(/([\d.]+,\d{2})(-?)/g)];
+    if (!allAmts.length) { invalid.push({ rowNum: line.slice(0, 20), reason: 'sin monto' }); continue; }
+    const lastAmt = allAmts[allAmts.length - 1];
+    if (lastAmt[2] === '-') continue;
+    const amt = parseAmount(lastAmt[1]);
+    if (!amt || amt <= 0) continue;
+    const cuotaMatch = rest.match(_CUOTA_RE);
+    let desc = rest
+      .replace(/^[A-Z0-9]+[K*]?\s+/, '')
+      .replace(_CUOTA_RE, '')
+      .replace(/\s*\bUSD\b\s*/gi, ' ')
+      .replace(/\s+[\d.]+,\d{2}-?\s*$/g, '')
+      .replace(/\s+[\d.]+,\d{2}-?\s*$/g, '')
+      .trim();
+    if (cuotaMatch) desc += ` (cuota ${cuotaMatch[1]}/${cuotaMatch[2]})`;
+    valid.push({ type: 'gasto', cat: guessCatPDF(desc), sub: '', amt, desc, date, cur: isUSD ? 'USD' : 'ARS', recurring: false, pay: 'credito', imported: true });
+  }
+  return { valid, invalid };
+}
+
+async function parseBankPDF(arrayBuffer) {
+  const text = await extractPDFText(arrayBuffer);
+  const bank = detectBankPDF(text);
+  if (!bank) throw new Error('No reconocí el banco. Por ahora soportamos Macro, Supervielle y Galicia.');
+  if (bank === 'macro') return parseMacroPDF(text);
+  throw new Error(`Soporte para ${bank} próximamente.`);
 }
 
 /* ── Palette ── */
@@ -2776,6 +2869,7 @@ function ImportModal({ mob, onImport, onClose, groups = [], defaultDest }) {
   const [done, setDone] = useState(null);
   const [fileName, setFileName] = useState('');
   const [dest, setDest] = useState(defaultDest || 'personal');
+  const [parsing, setParsing] = useState(false);
 
   const handleFile = (e) => {
     const file = e.target.files && e.target.files[0];
@@ -2784,6 +2878,7 @@ function ImportModal({ mob, onImport, onClose, groups = [], defaultDest }) {
     setError(null);
     setParsed(null);
     const isExcel = /\.xlsx?$/i.test(file.name);
+    const isPDF = /\.pdf$/i.test(file.name);
     const reader = new FileReader();
     reader.onerror = () => setError('No se pudo abrir el archivo.');
     if (isExcel) {
@@ -2808,6 +2903,20 @@ function ImportModal({ mob, onImport, onClose, groups = [], defaultDest }) {
         } catch (err) {
           setError(err.message || 'No se pudo leer el Excel.');
         }
+      };
+      reader.readAsArrayBuffer(file);
+    } else if (isPDF) {
+      reader.onload = async () => {
+        setParsing(true);
+        try {
+          const res = await parseBankPDF(reader.result);
+          if (!res.valid.length && !res.invalid.length)
+            setError('No se encontraron movimientos en el PDF.');
+          else setParsed(res);
+        } catch (err) {
+          setError(err.message || 'No se pudo leer el PDF.');
+        }
+        setParsing(false);
       };
       reader.readAsArrayBuffer(file);
     } else {
@@ -2891,9 +3000,8 @@ function ImportModal({ mob, onImport, onClose, groups = [], defaultDest }) {
         ) : (
           <>
             <p style={{ fontSize: 12, color: P.sb, margin: '6px 0 14px' }}>
-              Subí un archivo <b>Excel (.xlsx)</b> o <b>CSV</b> con columnas{' '}
-              <b>fecha</b> y <b>monto</b> (más tipo, categoría, descripción,
-              moneda y medio de pago si tenés).
+              Subí un <b>resumen bancario PDF</b> (Macro, Supervielle, Galicia)
+              o un archivo <b>Excel / CSV</b> con columnas <b>fecha</b> y <b>monto</b>.
             </p>
 
             <label
@@ -2910,10 +3018,10 @@ function ImportModal({ mob, onImport, onClose, groups = [], defaultDest }) {
                 marginBottom: 14,
               }}
             >
-              {fileName ? `📄 ${fileName}` : '📂 Elegí un archivo Excel o CSV'}
+              {parsing ? '⏳ Leyendo PDF…' : fileName ? `📄 ${fileName}` : '📂 PDF del banco · Excel · CSV'}
               <input
                 type="file"
-                accept=".csv,.txt,.xlsx,.xls,text/csv"
+                accept=".csv,.txt,.xlsx,.xls,.pdf,text/csv"
                 onChange={handleFile}
                 style={{ display: 'none' }}
               />

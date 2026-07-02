@@ -3654,6 +3654,24 @@ function HomeTab({
   const memberRows = Object.entries(byMember).sort(
     (a, b) => b[1].gasto + b[1].ingreso - (a[1].gasto + a[1].ingreso)
   );
+  // Distribución del ingreso (cómo se reparte el ingreso del mes)
+  const distSegments = (() => {
+    if (totIn <= 0) return [];
+    const gastos = mtx.filter((t) => t.type === 'gasto' && !t.pending);
+    const recAmt = gastos.filter((t) => t.recurring).reduce((s, t) => s + t.amt, 0);
+    const cuotaAmt = gastos.filter((t) => !t.recurring && t.pay === 'credito').reduce((s, t) => s + t.amt, 0);
+    const varAmt = gastos.filter((t) => !t.recurring && t.pay !== 'credito').reduce((s, t) => s + t.amt, 0);
+    const savAmt = mtx.filter((t) => t.type === 'ahorro').reduce((s, t) => s + t.amt, 0);
+    const dispAmt = Math.max(0, bal);
+    return [
+      { label: 'Disponible', value: dispAmt, color: P.gn },
+      { label: 'Ahorro', value: savAmt, color: P.ac },
+      { label: 'Recurrentes', value: recAmt, color: P.am },
+      { label: 'Tarjeta', value: cuotaAmt, color: '#8B6CF6' },
+      { label: 'Otros gastos', value: varAmt, color: P.rd },
+    ].filter((s) => s.value > 0);
+  })();
+
   const alerts = [];
   byCat.forEach(([cat, amt]) => {
     const p = budgets[cat];
@@ -3949,6 +3967,68 @@ function HomeTab({
           </div>
         )}
       </Box>
+
+      {/* Distribución del ingreso */}
+      {distSegments.length > 0 && (
+        <Box>
+          <Lbl>Distribución del ingreso</Lbl>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <div style={{ position: 'relative', flexShrink: 0 }}>
+              <Donut segments={distSegments} size={mob ? 118 : 136} stroke={18} />
+              <div
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 1,
+                }}
+              >
+                <span style={{ fontSize: 9, color: P.sb, textTransform: 'uppercase', letterSpacing: 0.4 }}>Ingresos</span>
+                <span style={{ fontSize: mob ? 11 : 12, fontWeight: 700, color: P.gn, fontVariantNumeric: 'tabular-nums' }}>
+                  {fmtS(totIn, cur)}
+                </span>
+              </div>
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              {distSegments.map((s) => (
+                <div
+                  key={s.label}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 7,
+                    padding: '4px 0',
+                    borderBottom: `1px solid ${P.bd}`,
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: 2,
+                      background: s.color,
+                      flexShrink: 0,
+                    }}
+                  />
+                  <span style={{ flex: 1, fontSize: 11, color: P.tx, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {s.label}
+                  </span>
+                  <span style={{ fontSize: 11, color: P.sb, fontWeight: 500 }}>
+                    {Math.round((s.value / totIn) * 100)}%
+                  </span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: P.tx, fontVariantNumeric: 'tabular-nums', minWidth: 60, textAlign: 'right' }}>
+                    {fmtS(s.value, cur)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </Box>
+      )}
+
       {/* Gastos por categoría (dona + subcategorías) */}
       <Box>
         <Lbl>Gastos por categoría</Lbl>

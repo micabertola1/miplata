@@ -4435,66 +4435,29 @@ function InsightsTab({
     <div
       style={{ display: 'flex', flexDirection: 'column', gap: mob ? 10 : 14 }}
     >
-      {/* Resumen del mes */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(3, 1fr)',
-          gap: mob ? 6 : 10,
-        }}
-      >
-        {cards.map((c) => (
-          <div
-            key={c.l}
-            style={{
-              background: c.bg,
-              border: `1px solid ${c.c}33`,
-              borderRadius: 14,
-              padding: mob ? '10px 8px' : '12px 14px',
-            }}
-          >
-            <div style={{ fontSize: mob ? 10 : 11, color: P.sb }}>
-              {c.e} {c.l}
-            </div>
-            <div
-              style={{
-                fontSize: mob ? 14 : 18,
-                fontWeight: 700,
-                color: c.c,
-                marginTop: 2,
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-              }}
-            >
-              {fmtS(Math.round(c.v), cur)}
-            </div>
-          </div>
-        ))}
-      </div>
-      <div
-        style={{
-          textAlign: 'center',
-          fontSize: 12,
-          color: P.sb,
-          marginTop: -4,
-        }}
-      >
-        Balance del mes:{' '}
-        <b style={{ color: cBal >= 0 ? P.gn : P.rd }}>{fmtS(cBal, cur)}</b>
+      {/* Hero compacto */}
+      <Box style={{ background: `linear-gradient(135deg,${P.ac}0E,${P.gn}0A)`, padding: mob ? 18 : 22 }}>
+        <Lbl>Balance de {MOF[Number(month.slice(5, 7)) - 1]}</Lbl>
+        <div style={{ fontSize: mob ? 34 : 42, fontWeight: 700, color: cBal >= 0 ? P.gn : P.rd, lineHeight: 1.05, fontVariantNumeric: 'tabular-nums' }}>
+          {fmtS(cBal, cur)}
+        </div>
         {carry !== 0 && (
-          <span>
-            {' · '}venías con{' '}
-            <b style={{ color: carry >= 0 ? P.gn : P.rd }}>
-              {fmtS(carry, cur)}
-            </b>{' '}
-            → disponible{' '}
-            <b style={{ color: cBal + carry >= 0 ? P.gn : P.rd }}>
-              {fmtS(cBal + carry, cur)}
-            </b>
-          </span>
+          <div style={{ fontSize: 12, color: P.sb, marginTop: 3 }}>
+            venías con <b style={{ color: carry >= 0 ? P.gn : P.rd }}>{fmtS(carry, cur)}</b>
+            {' · '}disponible total <b style={{ color: cBal + carry >= 0 ? P.gn : P.rd }}>{fmtS(cBal + carry, cur)}</b>
+          </div>
         )}
-      </div>
+        <div style={{ display: 'flex', gap: 8, marginTop: 14, borderTop: `1px solid ${P.bd}`, paddingTop: 12 }}>
+          {[['Ingresos', cIn, P.gn], ['Gastos', cOut, P.rd], ['Ahorro', cSav, P.ac]].map(([l, v, c]) => (
+            <div key={l} style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 10, color: P.sb, textTransform: 'uppercase', letterSpacing: 0.4, fontWeight: 600 }}>{l}</div>
+              <div style={{ fontSize: mob ? 15 : 18, fontWeight: 700, color: c, fontVariantNumeric: 'tabular-nums', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {fmtS(Math.round(v), cur)}
+              </div>
+            </div>
+          ))}
+        </div>
+      </Box>
 
       {cBal + carry > 0 && (
         <Box
@@ -4546,69 +4509,6 @@ function InsightsTab({
         </Box>
       )}
 
-      {isGroup && memberRows.length > 0 && (
-        <Box>
-          <Lbl>👥 Por persona (este mes)</Lbl>
-          {memberRows.map(([name, v]) => (
-            <div
-              key={name}
-              style={{
-                padding: '8px 0',
-                borderBottom: `1px solid ${P.bd}`,
-              }}
-            >
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  fontSize: 13,
-                  fontWeight: 600,
-                  marginBottom: 5,
-                }}
-              >
-                <span>👤 {name}</span>
-              </div>
-              <div
-                style={{
-                  display: 'flex',
-                  gap: 6,
-                  flexWrap: 'wrap',
-                  fontSize: 11,
-                }}
-              >
-                {[
-                  ['Ingresó', v.ingreso, totIn, P.gn, 'del total del grupo'],
-                  ['Gastó', v.gasto, v.ingreso, P.rd, 'de lo que ingresó'],
-                  ['Ahorró', v.ahorro, v.ingreso, P.ac, 'de lo que ingresó'],
-                ].map(([lbl, val, base, col, suf]) => (
-                  <div
-                    key={lbl}
-                    style={{
-                      flex: 1,
-                      minWidth: 90,
-                      background: P.c2,
-                      borderRadius: 8,
-                      padding: '6px 8px',
-                    }}
-                  >
-                    <div style={{ color: P.sb, fontSize: 10 }}>{lbl}</div>
-                    <div style={{ fontWeight: 700, color: col }}>
-                      {fmtS(val, cur)}
-                    </div>
-                    <div style={{ color: P.sb, fontSize: 10 }}>
-                      {base > 0 ? `${pctOf(val, base)}% ${suf}` : '—'}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-          <div style={{ fontSize: 10, color: P.sb, marginTop: 6 }}>
-            "Ingresó" = % que aportó al total del grupo. "Gastó" y "Ahorró" = %
-            sobre lo que ingresó esa persona.
-          </div>
-        </Box>
-      )}
 
       <Box>
         <Lbl>Tendencia 6 meses</Lbl>

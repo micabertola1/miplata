@@ -6043,7 +6043,7 @@ function TxModal({
   const [freq, setFreq] = useState(initial?.freq || 'mensual');
   const [dueDay, setDueDay] = useState(initial?.dueDay ? String(initial.dueDay) : '');
   const [programado, setProgramado] = useState(initial?.pending || false);
-  const [showMore, setShowMore] = useState(mode === 'edit');
+  const [showMore, setShowMore] = useState(true);
   const [pay, setPay] = useState(initial?.pay || 'debito');
   const [cuotas, setCuotas] = useState(initial?.cuotas || 1);
   const [card, setCard] = useState(initial?.card || '');

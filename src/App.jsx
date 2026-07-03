@@ -4029,6 +4029,74 @@ function HomeTab({
         </Box>
       )}
 
+      {/* Gastos fijos mensuales con vencimiento */}
+      {recList.filter((t) => !t.freq || t.freq === 'mensual').length > 0 && (
+        <Box>
+          <Lbl>📋 Gastos fijos del mes</Lbl>
+          {recList
+            .filter((t) => !t.freq || t.freq === 'mensual')
+            .map((t) => {
+              const done = doneThisMonth(t.serieId);
+              const todayD = Number(todayStr.slice(8, 10));
+              const due = t.dueDay;
+              const dueInfo = (() => {
+                if (!due) return null;
+                if (done) return { text: `día ${due}`, color: P.sb };
+                const diff = due - todayD;
+                if (diff < 0) return { text: `venció el ${due}`, color: P.rd };
+                if (diff === 0) return { text: 'vence hoy', color: P.rd };
+                if (diff <= 3) return { text: `vence el ${due} (en ${diff}d)`, color: P.am };
+                return { text: `vence el ${due}`, color: P.sb };
+              })();
+              return (
+                <div
+                  key={t.serieId}
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '8px 0',
+                    borderBottom: `1px solid ${P.bd}`,
+                    opacity: done ? 0.6 : 1,
+                  }}
+                >
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <span style={{ color: done ? P.gn : P.ac, flexShrink: 0 }}>{done ? '✓' : '🔁'}</span>
+                      {t.desc || t.sub || t.cat}
+                    </div>
+                    <div style={{ fontSize: 11, color: P.sb, marginTop: 2, display: 'flex', gap: 8 }}>
+                      <span>{fmtS(t.amt, t.cur)}</span>
+                      {dueInfo && (
+                        <span style={{ color: dueInfo.color, fontWeight: 500 }}>{dueInfo.text}</span>
+                      )}
+                    </div>
+                  </div>
+                  {!done && (
+                    <button
+                      onClick={() => onRegister(t)}
+                      style={{
+                        background: P.ac,
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: 9,
+                        padding: '6px 11px',
+                        fontSize: 11,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        flexShrink: 0,
+                        marginLeft: 8,
+                      }}
+                    >
+                      Registrar
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+        </Box>
+      )}
+
       {/* Gastos por categoría (dona + subcategorías) */}
       <Box>
         <Lbl>Gastos por categoría</Lbl>
@@ -5722,6 +5790,7 @@ function TxModal({
   const [date, setDate] = useState(initial?.date?.slice(0, 10) || td());
   const [recurring, setRecurring] = useState(initial?.recurring || false);
   const [freq, setFreq] = useState(initial?.freq || 'mensual');
+  const [dueDay, setDueDay] = useState(initial?.dueDay ? String(initial.dueDay) : '');
   const [programado, setProgramado] = useState(initial?.pending || false);
   const [showMore, setShowMore] = useState(mode === 'edit');
   const [pay, setPay] = useState(initial?.pay || 'debito');
@@ -6285,33 +6354,52 @@ function TxModal({
           )}
 
           {recurring && (
-            <div>
-              <Lbl>¿Cada cuánto se repite?</Lbl>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                {[
-                  ['mensual', 'Mensual'],
-                  ['semanal', 'Semanal'],
-                  ['quincenal', 'Quincenal'],
-                  ['anual', 'Anual'],
-                ].map(([id, l]) => (
-                  <button
-                    key={id}
-                    onClick={() => setFreq(id)}
-                    style={{
-                      background: freq === id ? P.ac : P.c2,
-                      border: `1px solid ${freq === id ? P.ac : P.bd}`,
-                      color: freq === id ? '#fff' : P.tx,
-                      padding: '6px 12px',
-                      borderRadius: 10,
-                      cursor: 'pointer',
-                      fontSize: 12,
-                      fontWeight: 500,
-                    }}
-                  >
-                    {l}
-                  </button>
-                ))}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div>
+                <Lbl>¿Cada cuánto se repite?</Lbl>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                  {[
+                    ['mensual', 'Mensual'],
+                    ['semanal', 'Semanal'],
+                    ['quincenal', 'Quincenal'],
+                    ['anual', 'Anual'],
+                  ].map(([id, l]) => (
+                    <button
+                      key={id}
+                      onClick={() => setFreq(id)}
+                      style={{
+                        background: freq === id ? P.ac : P.c2,
+                        border: `1px solid ${freq === id ? P.ac : P.bd}`,
+                        color: freq === id ? '#fff' : P.tx,
+                        padding: '6px 12px',
+                        borderRadius: 10,
+                        cursor: 'pointer',
+                        fontSize: 12,
+                        fontWeight: 500,
+                      }}
+                    >
+                      {l}
+                    </button>
+                  ))}
+                </div>
               </div>
+              {freq === 'mensual' && (
+                <div>
+                  <Lbl>Día de vencimiento aproximado</Lbl>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <input
+                      type="number"
+                      min="1"
+                      max="31"
+                      placeholder="Ej: 16"
+                      value={dueDay}
+                      onChange={(e) => setDueDay(e.target.value)}
+                      style={{ ...iS, width: 80, textAlign: 'center' }}
+                    />
+                    <span style={{ fontSize: 12, color: P.sb }}>de cada mes (opcional)</span>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -6425,6 +6513,7 @@ function TxModal({
                     recurring,
                     pending: programado,
                     freq: recurring ? freq : undefined,
+                    dueDay: recurring && freq === 'mensual' && dueDay ? Number(dueDay) : undefined,
                     serieId: recurring
                       ? initial?.serieId ||
                         'r' +

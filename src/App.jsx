@@ -1262,6 +1262,30 @@ function MainApp({ user, onLogout }) {
     return { imported: fresh.length, skipped };
   };
 
+  // ── Borrar todos los importados (personal) ──
+  const clearImported = async () => {
+    const items = tx.filter((t) => t.imported && t.scope !== 'grupo');
+    if (!items.length) {
+      notify('No hay movimientos importados para borrar.', 'info');
+      return;
+    }
+    if (!window.confirm(`¿Borrar ${items.length} movimiento(s) importados? Esta acción NO se puede deshacer.`))
+      return;
+    try {
+      let batch = writeBatch(db);
+      let n = 0;
+      for (const t of items) {
+        batch.delete(doc(db, 'users', user.uid, 'transactions', t.id));
+        n++;
+        if (n % 450 === 0) { await batch.commit(); batch = writeBatch(db); }
+      }
+      if (n % 450 !== 0) await batch.commit();
+      notify(`${items.length} importados borrados.`, 'success');
+    } catch (e) {
+      notify('Error al borrar: ' + (e?.message || e), 'error');
+    }
+  };
+
   // ── Vaciar mes: borra todos los movimientos del mes + espacio activos ──
   const clearMonth = async () => {
     const items = activeTx.filter((t) => mk(t.date) === month);
@@ -1965,6 +1989,24 @@ function MainApp({ user, onLogout }) {
             >
               🗑️ Vaciar mes
             </button>
+            {tx.some((t) => t.imported && t.scope !== 'grupo') && (
+              <button
+                onClick={clearImported}
+                title="Borrar todos los movimientos importados"
+                style={{
+                  background: 'transparent',
+                  border: `1px solid ${P.rd}44`,
+                  color: P.rd,
+                  borderRadius: 8,
+                  padding: mob ? '5px 9px' : '6px 11px',
+                  fontSize: mob ? 11 : 12,
+                  cursor: 'pointer',
+                  fontWeight: 500,
+                }}
+              >
+                ↩ Deshacer importación
+              </button>
+            )}
           </div>
         )}
         {tab === 'home' && (

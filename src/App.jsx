@@ -3705,6 +3705,13 @@ function HomeTab({
 }) {
   const maxC = byCat.length ? byCat[0][1] : 1;
   const [hoverMonth, setHoverMonth] = useState(null);
+  const [usdRates, setUsdRates] = useState(null);
+  useEffect(() => {
+    fetch('https://api.bluelytics.com.ar/v2/latest')
+      .then((r) => r.json())
+      .then((d) => setUsdRates({ compra: Math.round(d.oficial?.value_buy), venta: Math.round(d.oficial?.value_sell) }))
+      .catch(() => {});
+  }, []);
   const todayStr = (() => {
     const d = new Date();
     const p = (n) => String(n).padStart(2, '0');
@@ -4233,6 +4240,33 @@ function HomeTab({
             </div>
           </div>
         )}
+
+        {/* Pills de acción rápida */}
+        <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+          {[
+            { label: '+ Ingreso', type: 'ingreso', color: P.gn },
+            { label: '− Gasto', type: 'gasto', color: P.rd },
+            { label: '☰ Movimientos', type: null, color: P.ac },
+          ].map(({ label, type, color }) => (
+            <button
+              key={label}
+              onClick={() => type ? onAdd(type) : onSeeAll()}
+              style={{
+                flex: 1,
+                background: `${color}18`,
+                color,
+                border: `1px solid ${color}44`,
+                borderRadius: 10,
+                padding: '8px 4px',
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </Box>
 
       {/* Distribución del ingreso */}
@@ -4294,6 +4328,50 @@ function HomeTab({
             </div>
           </div>
         </Box>
+      )}
+
+      {/* Estado de Pagos */}
+      {recList.length > 0 && (() => {
+        const pagados = recList.filter((t) => doneThisMonth(t.serieId)).length;
+        const pendientes = recList.filter((t) => !doneThisMonth(t.serieId) && !t.paused).length;
+        return (
+          <Box>
+            <Lbl>Estado de pagos fijos</Lbl>
+            <div style={{ display: 'flex', gap: 0 }}>
+              {[
+                { label: 'Pagados', val: pagados, color: P.gn },
+                { label: 'Pendientes', val: pendientes, color: pendientes > 0 ? P.am : P.sb },
+                { label: 'Total', val: recList.length, color: P.tx },
+              ].map(({ label, val, color }) => (
+                <div key={label} style={{ flex: 1, textAlign: 'center', padding: '4px 0' }}>
+                  <div style={{ fontSize: mob ? 26 : 30, fontWeight: 700, color }}>{val}</div>
+                  <div style={{ fontSize: 11, color: P.sb, marginTop: 2 }}>{label}</div>
+                </div>
+              ))}
+            </div>
+          </Box>
+        );
+      })()}
+
+      {/* Dólar Oficial */}
+      {usdRates && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            background: P.cd,
+            border: `1px solid ${P.bd}`,
+            borderRadius: 12,
+            padding: '10px 14px',
+          }}
+        >
+          <span style={{ fontSize: 18 }}>💵</span>
+          <span style={{ fontSize: 13, fontWeight: 600, color: P.tx }}>Dólar Oficial</span>
+          <span style={{ fontSize: 12, color: P.sb, marginLeft: 'auto' }}>
+            Compra ${usdRates.compra.toLocaleString('es-AR')} · Venta ${usdRates.venta.toLocaleString('es-AR')}
+          </span>
+        </div>
       )}
 
       {/* Gastos fijos mensuales con vencimiento */}

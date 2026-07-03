@@ -1262,10 +1262,13 @@ function MainApp({ user, onLogout }) {
     return { imported: fresh.length, skipped };
   };
 
-  // ── Exportar transacciones del mes actual a CSV ──
-  const exportCSV = () => {
-    const rows = activeTx.filter((t) => mk(t.date) === month);
-    if (!rows.length) { notify('No hay movimientos para exportar este mes.', 'info'); return; }
+  // ── Exportar transacciones a CSV ──
+  const exportCSV = (onlyMonth = false) => {
+    const rows = onlyMonth
+      ? tx.filter((t) => t.scope !== 'grupo' && mk(t.date) === month)
+      : tx.filter((t) => t.scope !== 'grupo');
+    if (!rows.length) { notify('No hay movimientos para exportar.', 'info'); return; }
+    rows.sort((a, b) => String(b.date).localeCompare(String(a.date)));
     const headers = ['fecha','concepto','categoria','subcategoria','tipo','monto','moneda','medio_pago','recurrente','importado'];
     const lines = [headers.join(',')];
     rows.forEach((t) => {
@@ -1288,7 +1291,7 @@ function MainApp({ user, onLogout }) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `miplata_${month}.csv`;
+    a.download = onlyMonth ? `miplata_${month}.csv` : `miplata_todo.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -2258,7 +2261,7 @@ function MainApp({ user, onLogout }) {
               Comprar dólares
             </button>
             <button
-              onClick={() => { setFabOpen(false); exportCSV(); }}
+              onClick={() => { setFabOpen(false); exportCSV(false); }}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -2277,7 +2280,29 @@ function MainApp({ user, onLogout }) {
               <span style={{ width: 26, height: 26, borderRadius: 7, background: P.gn + '18', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13 }}>
                 📤
               </span>
-              Exportar mes
+              Exportar todo
+            </button>
+            <button
+              onClick={() => { setFabOpen(false); exportCSV(true); }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                background: P.cd,
+                border: `1px solid ${P.bd}`,
+                borderRadius: 12,
+                padding: '9px 14px',
+                cursor: 'pointer',
+                boxShadow: '0 8px 24px rgba(0,0,0,0.1)',
+                fontSize: 13,
+                fontWeight: 500,
+                color: P.tx,
+              }}
+            >
+              <span style={{ width: 26, height: 26, borderRadius: 7, background: P.gn + '18', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13 }}>
+                📤
+              </span>
+              Exportar este mes
             </button>
             <button
               onClick={() => {

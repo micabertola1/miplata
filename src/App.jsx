@@ -1275,7 +1275,7 @@ function MainApp({ user, onLogout }) {
       const tipo = t.type === 'ingreso' ? 'Ingreso' : t.type === 'ahorro' ? 'Ahorro' : 'Egreso';
       const cols = [
         t.date,
-        `"${(t.desc || '').replace(/"/g, '""')}"`,
+        `"${(t.desc || t.sub || t.cat || '').replace(/"/g, '""')}"`,
         `"${(t.cat || '').replace(/"/g, '""')}"`,
         `"${(t.sub || '').replace(/"/g, '""')}"`,
         tipo,

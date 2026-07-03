@@ -3125,10 +3125,43 @@ function ImportModal({ mob, onImport, onClose, groups = [], defaultDest }) {
           </div>
         ) : (
           <>
-            <p style={{ fontSize: 12, color: P.sb, margin: '6px 0 14px' }}>
+            <p style={{ fontSize: 12, color: P.sb, margin: '6px 0 8px' }}>
               Subí un <b>resumen bancario PDF</b> (Macro, Supervielle, Galicia)
               o un archivo <b>Excel / CSV</b> con columnas <b>fecha</b> y <b>monto</b>.
             </p>
+            <button
+              onClick={() => {
+                const csv = [
+                  'fecha,concepto,categoria,tipo,monto',
+                  '01/07/2026,Supermercado Dia,Supermercado,Egreso,15000',
+                  '01/07/2026,Sueldo julio,Trabajo,Ingreso,500000',
+                  '02/07/2026,Netflix,Entretenimiento,Egreso,8500',
+                  '02/07/2026,Nafta,Transporte,Egreso,20000',
+                ].join('\n');
+                const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'plantilla_miplata.csv';
+                a.click();
+                URL.revokeObjectURL(url);
+              }}
+              style={{
+                background: 'transparent',
+                border: `1px solid ${P.bd}`,
+                color: P.sb,
+                borderRadius: 8,
+                padding: '6px 12px',
+                fontSize: 11,
+                cursor: 'pointer',
+                marginBottom: 12,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+              }}
+            >
+              📋 Descargar plantilla CSV
+            </button>
 
             <label
               style={{

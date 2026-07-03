@@ -1106,6 +1106,24 @@ function MainApp({ user, onLogout }) {
     await addTx({ ...rest, date: newDate });
   };
 
+  // Quitar una serie recurrente: pone recurring=false en todas las txs de esa serieId
+  const removeRecurringSerie = async (serieId) => {
+    if (!serieId) return;
+    const txsWithSerie = activeTx.filter((t) => t.serieId === serieId);
+    if (txsWithSerie.length === 0) return;
+    const batch = writeBatch(db);
+    for (const t of txsWithSerie) {
+      const ref = doc(db, 'users', user.uid, 'transactions', t.id);
+      batch.update(ref, { recurring: false });
+      if (t.groupId) {
+        const gref = doc(db, 'groups', t.groupId, 'transactions', t.id);
+        batch.update(gref, { recurring: false });
+      }
+    }
+    await batch.commit();
+    notify('Recurrente eliminado', 'success');
+  };
+
   // Ubicaciones posibles del documento, ordenadas por probabilidad.
   // Tolera datos viejos inconsistentes (scope/groupId pegados).
   const txRefs = (t) => {
@@ -1959,6 +1977,7 @@ function MainApp({ user, onLogout }) {
             activeTx={activeTx}
             month={month}
             onRegister={registerRecurring}
+            onRemoveSerie={removeRecurringSerie}
             favorites={favorites}
             onUseFav={openPrefill}
             onRemoveFav={removeFavorite}
@@ -3496,6 +3515,7 @@ function HomeTab({
   onRemoveFav,
   pendingTx = [],
   onMarkPaid,
+  onRemoveSerie,
   onAdd,
   onSeeAll,
 }) {
@@ -3688,6 +3708,16 @@ function HomeTab({
     >
       {(() => {
         const recPending = recList.filter((t) => !doneThisMonth(t.serieId));
+        // Detectar duplicados por nombre normalizado
+        const nameCount = {};
+        recPending.forEach((t) => {
+          const k = (t.desc || t.sub || t.cat || '').toLowerCase().trim();
+          nameCount[k] = (nameCount[k] || 0) + 1;
+        });
+        const isDuplicate = (t) => {
+          const k = (t.desc || t.sub || t.cat || '').toLowerCase().trim();
+          return nameCount[k] > 1;
+        };
         const np = pendingTx.length;
         const nr = recPending.length;
         if (np === 0 && nr === 0) return null;
@@ -3796,37 +3826,74 @@ function HomeTab({
                     }}
                   >
                     <div style={{ minWidth: 0, flex: 1 }}>
-                      <div
-                        style={{
-                          fontSize: 13,
-                          fontWeight: 600,
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                        }}
-                      >
-                        {t.desc || t.sub || t.cat}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span
+                          style={{
+                            fontSize: 13,
+                            fontWeight: 600,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {t.desc || t.sub || t.cat}
+                        </span>
+                        {isDuplicate(t) && (
+                          <span
+                            style={{
+                              fontSize: 9,
+                              fontWeight: 700,
+                              color: P.am,
+                              background: `${P.am}22`,
+                              borderRadius: 4,
+                              padding: '1px 5px',
+                              flexShrink: 0,
+                            }}
+                          >
+                            duplicado
+                          </span>
+                        )}
                       </div>
                       <div style={{ fontSize: 10, color: P.sb }}>
                         {fmtS(t.amt, t.cur)} · {freqLabel[t.freq] || 'mensual'}
                       </div>
                     </div>
-                    <button
-                      onClick={() => onRegister(t)}
-                      style={{
-                        background: P.ac,
-                        color: '#fff',
-                        border: 'none',
-                        borderRadius: 9,
-                        padding: '6px 11px',
-                        fontSize: 11,
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                        flexShrink: 0,
-                      }}
-                    >
-                      Registrar
-                    </button>
+                    <div style={{ display: 'flex', gap: 6, flexShrink: 0, alignItems: 'center' }}>
+                      <button
+                        onClick={() => onRegister(t)}
+                        style={{
+                          background: P.ac,
+                          color: '#fff',
+                          border: 'none',
+                          borderRadius: 9,
+                          padding: '6px 11px',
+                          fontSize: 11,
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Registrar
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (window.confirm(`¿Eliminar "${t.desc || t.sub || t.cat}" como recurrente? El historial queda guardado.`))
+                            onRemoveSerie(t.serieId);
+                        }}
+                        title="Sacar recurrente"
+                        style={{
+                          background: 'transparent',
+                          color: P.sb,
+                          border: `1px solid ${P.bd}`,
+                          borderRadius: 9,
+                          padding: '5px 8px',
+                          fontSize: 13,
+                          cursor: 'pointer',
+                          lineHeight: 1,
+                        }}
+                      >
+                        ×
+                      </button>
+                    </div>
                   </div>
                 ))}
               </Box>
@@ -4072,25 +4139,44 @@ function HomeTab({
                       )}
                     </div>
                   </div>
-                  {!done && (
+                  <div style={{ display: 'flex', gap: 6, flexShrink: 0, alignItems: 'center', marginLeft: 8 }}>
+                    {!done && (
+                      <button
+                        onClick={() => onRegister(t)}
+                        style={{
+                          background: P.ac,
+                          color: '#fff',
+                          border: 'none',
+                          borderRadius: 9,
+                          padding: '6px 11px',
+                          fontSize: 11,
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Registrar
+                      </button>
+                    )}
                     <button
-                      onClick={() => onRegister(t)}
+                      onClick={() => {
+                        if (window.confirm(`¿Sacar "${t.desc || t.sub || t.cat}" de los recurrentes? El historial queda guardado.`))
+                          onRemoveSerie(t.serieId);
+                      }}
+                      title="Sacar recurrente"
                       style={{
-                        background: P.ac,
-                        color: '#fff',
-                        border: 'none',
+                        background: 'transparent',
+                        color: P.sb,
+                        border: `1px solid ${P.bd}`,
                         borderRadius: 9,
-                        padding: '6px 11px',
-                        fontSize: 11,
-                        fontWeight: 600,
+                        padding: '5px 8px',
+                        fontSize: 13,
                         cursor: 'pointer',
-                        flexShrink: 0,
-                        marginLeft: 8,
+                        lineHeight: 1,
                       }}
                     >
-                      Registrar
+                      ×
                     </button>
-                  )}
+                  </div>
                 </div>
               );
             })}

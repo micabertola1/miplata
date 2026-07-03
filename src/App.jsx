@@ -1269,7 +1269,7 @@ function MainApp({ user, onLogout }) {
       : activeTx;
     if (!rows.length) { notify('No hay movimientos para exportar.', 'info'); return; }
     const sorted = [...rows].sort((a, b) => String(b.date).localeCompare(String(a.date)));
-    const headers = ['fecha','concepto','categoria','subcategoria','tipo','monto','moneda','medio_pago','recurrente','importado'];
+    const headers = ['fecha','concepto','categoria','subcategoria','tipo','monto','moneda','medio_pago','quien_pago'];
     const lines = [headers.join(',')];
     sorted.forEach((t) => {
       const tipo = t.type === 'ingreso' ? 'Ingreso' : t.type === 'ahorro' ? 'Ahorro' : 'Egreso';
@@ -1282,8 +1282,7 @@ function MainApp({ user, onLogout }) {
         t.amt,
         t.cur || 'ARS',
         t.pay || '',
-        t.recurring ? 'si' : 'no',
-        t.imported ? 'si' : 'no',
+        `"${(t.member || t.createdByName || '').replace(/"/g, '""')}"`,
       ];
       lines.push(cols.join(','));
     });

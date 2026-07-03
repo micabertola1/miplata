@@ -1239,10 +1239,18 @@ function MainApp({ user, onLogout }) {
           createdByName: user.displayName || user.email,
         }
       : { scope: 'personal' };
+    // Deduplicate: skip rows that match an existing tx by date+monto+type
+    const existingKeys = new Set(
+      tx.map((t) => `${t.date}|${t.amt}|${t.type}`)
+    );
+    const fresh = rows.filter(
+      (r) => !existingKeys.has(`${r.date}|${r.amt}|${r.type}`)
+    );
+    const skipped = rows.length - fresh.length;
     const stamp = new Date().toISOString();
     let batch = writeBatch(db);
     let n = 0;
-    for (const t of rows) {
+    for (const t of fresh) {
       batch.set(doc(col), { ...t, ...extra, imported: true, createdAt: stamp });
       n++;
       if (n % 450 === 0) {
@@ -1251,7 +1259,7 @@ function MainApp({ user, onLogout }) {
       }
     }
     if (n % 450 !== 0) await batch.commit();
-    return rows.length;
+    return { imported: fresh.length, skipped };
   };
 
   // ── Vaciar mes: borra todos los movimientos del mes + espacio activos ──
@@ -2957,8 +2965,8 @@ function ImportModal({ mob, onImport, onClose, groups = [], defaultDest }) {
     if (!parsed || !parsed.valid.length) return;
     setBusy(true);
     try {
-      const n = await onImport(parsed.valid, dest);
-      setDone(n);
+      const result = await onImport(parsed.valid, dest);
+      setDone(result);
     } catch (err) {
       setError('Error al importar: ' + (err && (err.code || err.message)));
     }
@@ -3009,9 +3017,13 @@ function ImportModal({ mob, onImport, onClose, groups = [], defaultDest }) {
           <div style={{ textAlign: 'center', padding: '24px 0' }}>
             <div style={{ fontSize: 40 }}>✅</div>
             <div style={{ fontSize: 16, fontWeight: 600, margin: '10px 0' }}>
-              {done} movimiento{done === 1 ? '' : 's'} importado
-              {done === 1 ? '' : 's'}
+              {done.imported} movimiento{done.imported === 1 ? '' : 's'} importado{done.imported === 1 ? '' : 's'}
             </div>
+            {done.skipped > 0 && (
+              <div style={{ fontSize: 12, color: P.sb, marginBottom: 10 }}>
+                {done.skipped} ya existían y se saltaron
+              </div>
+            )}
             <button onClick={onClose} style={btn(P.ac, '#fff')}>
               Listo
             </button>

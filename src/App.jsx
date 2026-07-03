@@ -1262,6 +1262,37 @@ function MainApp({ user, onLogout }) {
     return { imported: fresh.length, skipped };
   };
 
+  // ── Exportar transacciones del mes actual a CSV ──
+  const exportCSV = () => {
+    const rows = activeTx.filter((t) => mk(t.date) === month);
+    if (!rows.length) { notify('No hay movimientos para exportar este mes.', 'info'); return; }
+    const headers = ['fecha','concepto','categoria','subcategoria','tipo','monto','moneda','medio_pago','recurrente','importado'];
+    const lines = [headers.join(',')];
+    rows.forEach((t) => {
+      const tipo = t.type === 'ingreso' ? 'Ingreso' : t.type === 'ahorro' ? 'Ahorro' : 'Egreso';
+      const cols = [
+        t.date,
+        `"${(t.desc || '').replace(/"/g, '""')}"`,
+        `"${(t.cat || '').replace(/"/g, '""')}"`,
+        `"${(t.sub || '').replace(/"/g, '""')}"`,
+        tipo,
+        t.amt,
+        t.cur || 'ARS',
+        t.pay || '',
+        t.recurring ? 'si' : 'no',
+        t.imported ? 'si' : 'no',
+      ];
+      lines.push(cols.join(','));
+    });
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `miplata_${month}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   // ── Borrar todos los importados (personal) ──
   const clearImported = async () => {
     const items = tx.filter((t) => t.imported && t.scope !== 'grupo');
@@ -2225,6 +2256,28 @@ function MainApp({ user, onLogout }) {
                 💱
               </span>
               Comprar dólares
+            </button>
+            <button
+              onClick={() => { setFabOpen(false); exportCSV(); }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                background: P.cd,
+                border: `1px solid ${P.bd}`,
+                borderRadius: 12,
+                padding: '9px 14px',
+                cursor: 'pointer',
+                boxShadow: '0 8px 24px rgba(0,0,0,0.1)',
+                fontSize: 13,
+                fontWeight: 500,
+                color: P.tx,
+              }}
+            >
+              <span style={{ width: 26, height: 26, borderRadius: 7, background: P.gn + '18', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13 }}>
+                📤
+              </span>
+              Exportar mes
             </button>
             <button
               onClick={() => {

@@ -3706,6 +3706,7 @@ function HomeTab({
   const maxC = byCat.length ? byCat[0][1] : 1;
   const [hoverMonth, setHoverMonth] = useState(null);
   const [usdRates, setUsdRates] = useState(null);
+  const [showDiarios, setShowDiarios] = useState(false);
   useEffect(() => {
     fetch('https://api.bluelytics.com.ar/v2/latest')
       .then((r) => r.json())
@@ -4246,11 +4247,11 @@ function HomeTab({
           {[
             { label: '+ Ingreso', type: 'ingreso', color: P.gn },
             { label: '− Gasto', type: 'gasto', color: P.rd },
-            { label: '☰ Movimientos', type: null, color: P.ac },
+            { label: '📅 Diarios', type: null, color: P.ac },
           ].map(({ label, type, color }) => (
             <button
               key={label}
-              onClick={() => type ? onAdd(type) : onSeeAll()}
+              onClick={() => type ? onAdd(type) : setShowDiarios((v) => !v)}
               style={{
                 flex: 1,
                 background: `${color}18`,
@@ -4268,6 +4269,86 @@ function HomeTab({
           ))}
         </div>
       </Box>
+
+      {/* ── DIARIOS: gastos del mes agrupados por día ── */}
+      {showDiarios && (() => {
+        const gastosMes = activeTx
+          .filter((t) => t.type !== 'ingreso' && t.type !== 'ahorro' && t.type !== 'cambio')
+          .sort((a, b) => String(b.date).localeCompare(String(a.date)));
+        const byDay = {};
+        gastosMes.forEach((t) => {
+          const d = String(t.date).slice(0, 10);
+          if (!byDay[d]) byDay[d] = [];
+          byDay[d].push(t);
+        });
+        const days = Object.keys(byDay).sort((a, b) => b.localeCompare(a));
+        const totalMes = gastosMes.reduce((s, t) => s + Number(t.amt || 0), 0);
+        const diasConGasto = days.length;
+        const promDia = diasConGasto > 0 ? totalMes / diasConGasto : 0;
+        return (
+          <Box>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+              <Lbl style={{ margin: 0 }}>📅 Diarios</Lbl>
+              <button onClick={() => setShowDiarios(false)} style={{ background: 'none', border: 'none', color: P.sb, cursor: 'pointer', fontSize: 13 }}>✕</button>
+            </div>
+            <div style={{ display: 'flex', gap: 0, marginBottom: 14 }}>
+              <div style={{ flex: 1, textAlign: 'center' }}>
+                <div style={{ fontSize: 18, fontWeight: 700, color: P.rd, fontVariantNumeric: 'tabular-nums' }}>{fmtS(totalMes, cur)}</div>
+                <div style={{ fontSize: 10, color: P.sb, marginTop: 2 }}>Este mes</div>
+              </div>
+              <div style={{ flex: 1, textAlign: 'center' }}>
+                <div style={{ fontSize: 18, fontWeight: 700, color: P.tx, fontVariantNumeric: 'tabular-nums' }}>{fmtS(promDia, cur)}</div>
+                <div style={{ fontSize: 10, color: P.sb, marginTop: 2 }}>Promedio / día</div>
+              </div>
+            </div>
+            {days.length === 0 ? (
+              <div style={{ textAlign: 'center', color: P.sb, fontSize: 13, padding: '12px 0' }}>Sin gastos este mes</div>
+            ) : days.map((d) => {
+              const dayTotal = byDay[d].reduce((s, t) => s + Number(t.amt || 0), 0);
+              const fecha = new Date(d + 'T00:00:00').toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short' });
+              return (
+                <div key={d} style={{ marginBottom: 10 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: P.sb, textTransform: 'capitalize' }}>{fecha}</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: P.rd }}>{fmtS(dayTotal, cur)}</span>
+                  </div>
+                  {byDay[d].map((t) => {
+                    const cd = getCats(t.type, customCats).find((c) => c.n === t.cat);
+                    return (
+                      <div
+                        key={t.id}
+                        onClick={() => onEdit(t)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 10,
+                          background: P.cd,
+                          border: `1px solid ${P.bd}`,
+                          borderRadius: 12,
+                          padding: '9px 12px',
+                          marginBottom: 6,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <div style={{ width: 32, height: 32, borderRadius: 9, background: P.rb, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, flexShrink: 0 }}>
+                          {cd?.i || '📌'}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {t.desc || t.sub || t.cat}
+                          </div>
+                          <div style={{ fontSize: 10, color: P.sb }}>{t.cat}</div>
+                        </div>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: P.rd, flexShrink: 0 }}>−{fmtS(t.amt, cur)}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </Box>
+        );
+      })()}
 
       {/* Distribución del ingreso */}
       {distSegments.length > 0 && (
@@ -4682,8 +4763,11 @@ function TxRow({ t, cur, mob, onClick, customCats }) {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        padding: mob ? '9px 4px' : '10px 8px',
-        borderRadius: 12,
+        padding: mob ? '10px 12px' : '11px 14px',
+        borderRadius: 14,
+        background: P.cd,
+        border: `1px solid ${P.bd}`,
+        marginBottom: 6,
         cursor: 'pointer',
       }}
     >

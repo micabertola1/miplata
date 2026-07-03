@@ -1124,6 +1124,24 @@ function MainApp({ user, onLogout }) {
     notify('Recurrente eliminado', 'success');
   };
 
+  // Pausar / activar una serie recurrente sin eliminarla
+  const pauseRecurringSerie = async (serieId, pause) => {
+    if (!serieId) return;
+    const txsWithSerie = activeTx.filter((t) => t.serieId === serieId);
+    if (txsWithSerie.length === 0) return;
+    const batch = writeBatch(db);
+    for (const t of txsWithSerie) {
+      const ref = doc(db, 'users', user.uid, 'transactions', t.id);
+      batch.update(ref, { paused: pause });
+      if (t.groupId) {
+        const gref = doc(db, 'groups', t.groupId, 'transactions', t.id);
+        batch.update(gref, { paused: pause });
+      }
+    }
+    await batch.commit();
+    notify(pause ? 'Recurrente pausado ⏸️' : 'Recurrente activado ▶️', 'success');
+  };
+
   // Ubicaciones posibles del documento, ordenadas por probabilidad.
   // Tolera datos viejos inconsistentes (scope/groupId pegados).
   const txRefs = (t) => {
@@ -2061,6 +2079,7 @@ function MainApp({ user, onLogout }) {
             month={month}
             onRegister={registerRecurring}
             onRemoveSerie={removeRecurringSerie}
+            onPauseSerie={pauseRecurringSerie}
             favorites={favorites}
             onUseFav={openPrefill}
             onRemoveFav={removeFavorite}
@@ -3680,6 +3699,7 @@ function HomeTab({
   pendingTx = [],
   onMarkPaid,
   onRemoveSerie,
+  onPauseSerie,
   onAdd,
   onSeeAll,
 }) {
@@ -3871,7 +3891,7 @@ function HomeTab({
       style={{ display: 'flex', flexDirection: 'column', gap: mob ? 10 : 14 }}
     >
       {(() => {
-        const recPending = recList.filter((t) => !doneThisMonth(t.serieId));
+        const recPending = recList.filter((t) => !doneThisMonth(t.serieId) && !t.paused);
         // Detectar duplicados por nombre normalizado
         const nameCount = {};
         recPending.forEach((t) => {
@@ -4037,6 +4057,22 @@ function HomeTab({
                         }}
                       >
                         Registrar
+                      </button>
+                      <button
+                        onClick={() => onPauseSerie(t.serieId, true)}
+                        title="Pausar recurrente"
+                        style={{
+                          background: 'transparent',
+                          color: P.sb,
+                          border: `1px solid ${P.bd}`,
+                          borderRadius: 9,
+                          padding: '5px 8px',
+                          fontSize: 13,
+                          cursor: 'pointer',
+                          lineHeight: 1,
+                        }}
+                      >
+                        ⏸
                       </button>
                       <button
                         onClick={() => {
@@ -4288,23 +4324,30 @@ function HomeTab({
                     alignItems: 'center',
                     padding: '8px 0',
                     borderBottom: `1px solid ${P.bd}`,
-                    opacity: done ? 0.6 : 1,
+                    opacity: done || t.paused ? 0.6 : 1,
                   }}
                 >
                   <div style={{ minWidth: 0, flex: 1 }}>
                     <div style={{ fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      <span style={{ color: done ? P.gn : P.ac, flexShrink: 0 }}>{done ? '✓' : '🔁'}</span>
+                      <span style={{ color: done ? P.gn : t.paused ? P.sb : P.ac, flexShrink: 0 }}>
+                        {done ? '✓' : t.paused ? '⏸' : '🔁'}
+                      </span>
                       {t.desc || t.sub || t.cat}
+                      {t.paused && (
+                        <span style={{ fontSize: 9, fontWeight: 700, color: P.sb, background: `${P.bd}`, borderRadius: 4, padding: '1px 5px', flexShrink: 0 }}>
+                          pausado
+                        </span>
+                      )}
                     </div>
                     <div style={{ fontSize: 11, color: P.sb, marginTop: 2, display: 'flex', gap: 8 }}>
                       <span>{fmtS(t.amt, t.cur)}</span>
-                      {dueInfo && (
+                      {!t.paused && dueInfo && (
                         <span style={{ color: dueInfo.color, fontWeight: 500 }}>{dueInfo.text}</span>
                       )}
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: 6, flexShrink: 0, alignItems: 'center', marginLeft: 8 }}>
-                    {!done && (
+                    {!done && !t.paused && (
                       <button
                         onClick={() => onRegister(t)}
                         style={{
@@ -4321,6 +4364,22 @@ function HomeTab({
                         Registrar
                       </button>
                     )}
+                    <button
+                      onClick={() => onPauseSerie(t.serieId, !t.paused)}
+                      title={t.paused ? 'Activar recurrente' : 'Pausar recurrente'}
+                      style={{
+                        background: 'transparent',
+                        color: P.sb,
+                        border: `1px solid ${P.bd}`,
+                        borderRadius: 9,
+                        padding: '5px 8px',
+                        fontSize: 13,
+                        cursor: 'pointer',
+                        lineHeight: 1,
+                      }}
+                    >
+                      {t.paused ? '▶' : '⏸'}
+                    </button>
                     <button
                       onClick={() => {
                         if (window.confirm(`¿Sacar "${t.desc || t.sub || t.cat}" de los recurrentes? El historial queda guardado.`))

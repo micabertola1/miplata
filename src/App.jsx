@@ -1265,13 +1265,13 @@ function MainApp({ user, onLogout }) {
   // ── Exportar transacciones a CSV ──
   const exportCSV = (onlyMonth = false) => {
     const rows = onlyMonth
-      ? tx.filter((t) => t.scope !== 'grupo' && mk(t.date) === month)
-      : tx.filter((t) => t.scope !== 'grupo');
+      ? activeTx.filter((t) => mk(t.date) === month)
+      : activeTx;
     if (!rows.length) { notify('No hay movimientos para exportar.', 'info'); return; }
-    rows.sort((a, b) => String(b.date).localeCompare(String(a.date)));
+    const sorted = [...rows].sort((a, b) => String(b.date).localeCompare(String(a.date)));
     const headers = ['fecha','concepto','categoria','subcategoria','tipo','monto','moneda','medio_pago','recurrente','importado'];
     const lines = [headers.join(',')];
-    rows.forEach((t) => {
+    sorted.forEach((t) => {
       const tipo = t.type === 'ingreso' ? 'Ingreso' : t.type === 'ahorro' ? 'Ahorro' : 'Egreso';
       const cols = [
         t.date,

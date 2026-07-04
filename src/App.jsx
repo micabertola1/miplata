@@ -2329,6 +2329,11 @@ function MainApp({ user, onLogout }) {
             ...new Set(allGroupTx.map((t) => t.member).filter(Boolean)),
           ]}
           savedCards={settings.cards || []}
+          onAddCard={(name) => {
+            const cs = settings.cards || [];
+            if (!name || cs.some((c) => c.name === name)) return;
+            saveSettings({ cards: [...cs, { id: String(Date.now()), name, cierre: '', vencimiento: '' }] });
+          }}
         />
       )}
 
@@ -6176,6 +6181,7 @@ function TxModal({
   knownCards = [],
   knownMembers = [],
   savedCards = [],
+  onAddCard,
 }) {
   const [type, setType] = useState(initial?.type || 'gasto');
   const cats = getCats(type, customCats);
@@ -6570,6 +6576,9 @@ function TxModal({
                     groupId: isGroupScope ? scope : undefined,
                     member: isGroupScope ? member || userName : undefined,
                   };
+                  if (isG && pay === 'credito' && card && onAddCard && !savedCards.some((c) => c.name === card)) {
+                    onAddCard(card);
+                  }
                   onSave(txData);
                 }}
                 style={{

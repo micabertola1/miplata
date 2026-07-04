@@ -2096,7 +2096,6 @@ function MainApp({ user, onLogout }) {
             activeTx={activeTx}
             totIn={totIn}
             month={month}
-            todayStr={todayStr}
             onAdd={openAdd}
             onEdit={openEdit}
             onRegister={registerRecurring}

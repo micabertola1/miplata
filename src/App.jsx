@@ -3594,7 +3594,7 @@ function PerfilTab({ onExportAll, onExportMonth, onImport, cards, onSaveCards, t
   const [mergeFrom, setMergeFrom] = useState('');
   const [mergeTo, setMergeTo] = useState('');
   const [showAddCard, setShowAddCard] = useState(false);
-  const [newCard, setNewCard] = useState({ name: '', cierre: '', vencimiento: '', expira: '' });
+  const [newCard, setNewCard] = useState({ name: '', cierre: '', vencimiento: '' });
   const [editingId, setEditingId] = useState(null);
   const [editCard, setEditCard] = useState(null);
 
@@ -3612,7 +3612,7 @@ function PerfilTab({ onExportAll, onExportMonth, onImport, cards, onSaveCards, t
   const handleAddCard = () => {
     if (!newCard.name.trim()) return;
     onSaveCards([...(cards || []), { id: String(Date.now()), ...newCard }]);
-    setNewCard({ name: '', cierre: '', vencimiento: '', expira: '' });
+    setNewCard({ name: '', cierre: '', vencimiento: '' });
     setShowAddCard(false);
   };
 
@@ -3626,7 +3626,7 @@ function PerfilTab({ onExportAll, onExportMonth, onImport, cards, onSaveCards, t
   const startEdit = (c) => {
     setShowAddCard(false);
     setEditingId(c.id);
-    setEditCard({ name: c.name, cierre: c.cierre, vencimiento: c.vencimiento, expira: c.expira || '' });
+    setEditCard({ name: c.name, cierre: c.cierre, vencimiento: c.vencimiento });
   };
 
   const inputStyle = { width: '100%', background: P.c2, border: `1px solid ${P.bd}`, borderRadius: 10, padding: '9px 12px', fontSize: 13, color: P.tx, boxSizing: 'border-box', outline: 'none', marginBottom: 8 };
@@ -3675,26 +3675,20 @@ function PerfilTab({ onExportAll, onExportMonth, onImport, cards, onSaveCards, t
               <input
                 style={{ ...inputStyle, marginBottom: 0 }}
                 type="text"
-                placeholder="Día de cierre (ej: 15)"
+                inputMode="numeric"
+                placeholder="Cierre MM/AA (ej: 08/28)"
                 value={newCard.cierre}
                 onChange={(e) => setNewCard((v) => ({ ...v, cierre: e.target.value }))}
               />
               <input
                 style={{ ...inputStyle, marginBottom: 0 }}
                 type="text"
-                placeholder="Día de vencimiento (ej: 22)"
+                inputMode="numeric"
+                placeholder="Vencimiento MM/AA (ej: 08/28)"
                 value={newCard.vencimiento}
                 onChange={(e) => setNewCard((v) => ({ ...v, vencimiento: e.target.value }))}
               />
             </div>
-            <input
-              style={{ ...inputStyle, marginTop: 8, marginBottom: 0 }}
-              type="text"
-              inputMode="numeric"
-              placeholder="Vencimiento tarjeta MM/AA (ej: 08/28)"
-              value={newCard.expira}
-              onChange={(e) => setNewCard((v) => ({ ...v, expira: e.target.value }))}
-            />
             <button
               onClick={handleAddCard}
               style={{ marginTop: 10, width: '100%', background: P.ac, color: '#fff', border: 'none', borderRadius: 10, padding: '10px 0', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
@@ -3720,26 +3714,20 @@ function PerfilTab({ onExportAll, onExportMonth, onImport, cards, onSaveCards, t
                   <input
                     style={{ ...inputStyle, marginBottom: 0 }}
                     type="text"
-                    placeholder="Día de cierre"
+                    inputMode="numeric"
+                    placeholder="Cierre MM/AA"
                     value={editCard.cierre}
                     onChange={(e) => setEditCard((v) => ({ ...v, cierre: e.target.value }))}
                   />
                   <input
                     style={{ ...inputStyle, marginBottom: 0 }}
                     type="text"
-                    placeholder="Día de vencimiento"
+                    inputMode="numeric"
+                    placeholder="Vencimiento MM/AA"
                     value={editCard.vencimiento}
                     onChange={(e) => setEditCard((v) => ({ ...v, vencimiento: e.target.value }))}
                   />
                 </div>
-                <input
-                  style={{ ...inputStyle, marginTop: 8, marginBottom: 0 }}
-                  type="text"
-                  inputMode="numeric"
-                  placeholder="Vencimiento tarjeta MM/AA (ej: 08/28)"
-                  value={editCard.expira}
-                  onChange={(e) => setEditCard((v) => ({ ...v, expira: e.target.value }))}
-                />
                 <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
                   <button
                     onClick={() => { setEditingId(null); setEditCard(null); }}
@@ -3769,7 +3757,7 @@ function PerfilTab({ onExportAll, onExportMonth, onImport, cards, onSaveCards, t
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 600, color: P.tx }}>💳 {c.name}</div>
                   <div style={{ fontSize: 11, color: P.sb, marginTop: 2 }}>
-                    Cierre: día {c.cierre} · Vence: día {c.vencimiento}{c.expira ? ` · Tarjeta hasta ${c.expira}` : ''}
+                    Cierre: {c.cierre || '—'} · Vence: {c.vencimiento || '—'}
                   </div>
                 </div>
                 <span style={{ fontSize: 12, color: P.sb }}>✏️</span>
@@ -6561,7 +6549,7 @@ function TxModal({
                     {savedCards.map((c) => {
                       const on = !addingCard && card === c.name;
                       return (
-                        <button key={c.id || c.name} onClick={() => { setCard(c.name); setCardDue(c.vencimiento ? String(c.vencimiento) : ''); setCardNet(''); setAddingCard(false); }} style={{ background: on ? P.ac : P.cd, border: `1px solid ${on ? P.ac : P.bd}`, color: on ? '#fff' : P.tx, padding: '8px 14px', borderRadius: 11, cursor: 'pointer', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <button key={c.id || c.name} onClick={() => { setCard(c.name); setCardDue(''); setCardNet(''); setAddingCard(false); }} style={{ background: on ? P.ac : P.cd, border: `1px solid ${on ? P.ac : P.bd}`, color: on ? '#fff' : P.tx, padding: '8px 14px', borderRadius: 11, cursor: 'pointer', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5 }}>
                           💳 {c.name}
                         </button>
                       );

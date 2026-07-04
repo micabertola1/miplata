@@ -3552,7 +3552,7 @@ function TxListTab({ mob, cur, activeTx, onEdit, customCats, onAdd }) {
 /* ── MES ── */
 function PerfilTab({ onExportAll, onExportMonth, onImport, cards, onSaveCards, theme, onToggleTheme }) {
   const [showAddCard, setShowAddCard] = useState(false);
-  const [newCard, setNewCard] = useState({ name: '', cierre: '', vencimiento: '' });
+  const [newCard, setNewCard] = useState({ name: '', cierre: '', vencimiento: '', expira: '' });
   const [editingId, setEditingId] = useState(null);
   const [editCard, setEditCard] = useState(null);
 
@@ -3570,7 +3570,7 @@ function PerfilTab({ onExportAll, onExportMonth, onImport, cards, onSaveCards, t
   const handleAddCard = () => {
     if (!newCard.name.trim()) return;
     onSaveCards([...(cards || []), { id: String(Date.now()), ...newCard }]);
-    setNewCard({ name: '', cierre: '', vencimiento: '' });
+    setNewCard({ name: '', cierre: '', vencimiento: '', expira: '' });
     setShowAddCard(false);
   };
 
@@ -3584,7 +3584,7 @@ function PerfilTab({ onExportAll, onExportMonth, onImport, cards, onSaveCards, t
   const startEdit = (c) => {
     setShowAddCard(false);
     setEditingId(c.id);
-    setEditCard({ name: c.name, cierre: c.cierre, vencimiento: c.vencimiento });
+    setEditCard({ name: c.name, cierre: c.cierre, vencimiento: c.vencimiento, expira: c.expira || '' });
   };
 
   const inputStyle = { width: '100%', background: P.c2, border: `1px solid ${P.bd}`, borderRadius: 10, padding: '9px 12px', fontSize: 13, color: P.tx, boxSizing: 'border-box', outline: 'none', marginBottom: 8 };
@@ -3645,6 +3645,14 @@ function PerfilTab({ onExportAll, onExportMonth, onImport, cards, onSaveCards, t
                 onChange={(e) => setNewCard((v) => ({ ...v, vencimiento: e.target.value }))}
               />
             </div>
+            <input
+              style={{ ...inputStyle, marginTop: 8, marginBottom: 0 }}
+              type="text"
+              inputMode="numeric"
+              placeholder="Vencimiento tarjeta MM/AA (ej: 08/28)"
+              value={newCard.expira}
+              onChange={(e) => setNewCard((v) => ({ ...v, expira: e.target.value }))}
+            />
             <button
               onClick={handleAddCard}
               style={{ marginTop: 10, width: '100%', background: P.ac, color: '#fff', border: 'none', borderRadius: 10, padding: '10px 0', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
@@ -3682,6 +3690,14 @@ function PerfilTab({ onExportAll, onExportMonth, onImport, cards, onSaveCards, t
                     onChange={(e) => setEditCard((v) => ({ ...v, vencimiento: e.target.value }))}
                   />
                 </div>
+                <input
+                  style={{ ...inputStyle, marginTop: 8, marginBottom: 0 }}
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="Vencimiento tarjeta MM/AA (ej: 08/28)"
+                  value={editCard.expira}
+                  onChange={(e) => setEditCard((v) => ({ ...v, expira: e.target.value }))}
+                />
                 <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
                   <button
                     onClick={() => { setEditingId(null); setEditCard(null); }}
@@ -3711,7 +3727,7 @@ function PerfilTab({ onExportAll, onExportMonth, onImport, cards, onSaveCards, t
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 600, color: P.tx }}>💳 {c.name}</div>
                   <div style={{ fontSize: 11, color: P.sb, marginTop: 2 }}>
-                    Cierre: día {c.cierre} · Vence: día {c.vencimiento}
+                    Cierre: día {c.cierre} · Vence: día {c.vencimiento}{c.expira ? ` · Tarjeta hasta ${c.expira}` : ''}
                   </div>
                 </div>
                 <span style={{ fontSize: 12, color: P.sb }}>✏️</span>

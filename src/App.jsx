@@ -4062,7 +4062,7 @@ function MesTab({
                 >
                   {done ? '✓' : ''}
                 </button>
-                <div style={{ flex: 1, minWidth: 0 }}>
+                <div onClick={() => onEdit(t)} style={{ flex: 1, minWidth: 0, cursor: 'pointer' }} title="Tocá para editar (monto, día, etc.)">
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                     <span style={{ fontSize: 13, fontWeight: 600, color: done ? P.sb : P.tx, textDecoration: done ? 'line-through' : 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 140 }}>
                       {t.paused ? '⏸ ' : ''}{t.desc || t.sub || t.cat}
@@ -4777,7 +4777,7 @@ function HomeTab({
                   </button>
 
                   {/* Info */}
-                  <div style={{ flex: 1, minWidth: 0 }}>
+                  <div onClick={() => onEdit(t)} style={{ flex: 1, minWidth: 0, cursor: 'pointer' }} title="Tocá para editar (monto, día, etc.)">
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                       <span style={{
                         fontSize: 13, fontWeight: 600, color: done ? P.sb : P.tx,

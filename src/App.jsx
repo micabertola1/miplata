@@ -6190,7 +6190,7 @@ function TxModal({
   const [dueDay, setDueDay] = useState(initial?.dueDay ? String(initial.dueDay) : '');
   const [programado, setProgramado] = useState(initial?.pending || false);
   const [showMore, setShowMore] = useState(initial?.type === 'gasto');
-  const [pay, setPay] = useState(initial?.pay || 'debito');
+  const [pay, setPay] = useState(initial?.pay || 'efectivo');
   const [cuotas, setCuotas] = useState(initial?.cuotas || 1);
   const [card, setCard] = useState(initial?.card || '');
   const [cardNet, setCardNet] = useState(initial?.cardNet || '');
@@ -6414,7 +6414,7 @@ function TxModal({
                 <div>
                   <Lbl>Método de pago</Lbl>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                    {[{ id: 'debito', i: '💳', l: 'Débito' }, { id: 'credito', i: '💳', l: 'Crédito' }, { id: 'transferencia', i: '🏦', l: 'Transf.' }, { id: 'efectivo', i: '💵', l: 'Efectivo' }].map((p) => (
+                    {[{ id: 'efectivo', i: '💵', l: 'Efectivo' }, { id: 'transferencia', i: '🏦', l: 'Transferencia' }, { id: 'credito', i: '💳', l: 'Crédito' }].map((p) => (
                       <button key={p.id} onClick={() => { setPay(p.id); if (p.id !== 'credito') setCuotas(1); }} style={{ background: pay === p.id ? P.ac : P.c2, border: `1px solid ${pay === p.id ? P.ac : P.bd}`, color: pay === p.id ? '#fff' : P.tx, padding: '6px 10px', borderRadius: 10, cursor: 'pointer', fontSize: 11, display: 'flex', alignItems: 'center', gap: 3 }}>
                         {p.i} {p.l}
                       </button>

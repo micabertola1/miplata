@@ -3605,7 +3605,7 @@ function MesTab({
   const doneThisMonth = (serieId) =>
     activeTx.some((t) => t.serieId === serieId && mk(t.date) === month);
 
-  const ingresos = activeTx.filter((t) => t.type === 'ingreso');
+  const ingresos = activeTx.filter((t) => t.type === 'ingreso' && mk(t.date) === month);
 
   const totalIngresos = ingresos.reduce((s, t) => s + (t.cur === 'USD' ? t.amt * ((usdRates?.venta) || 1200) : t.amt), 0);
   const totalFijos = recList.reduce((s, t) => s + (t.cur === 'USD' ? t.amt * ((usdRates?.venta) || 1200) : t.amt), 0);

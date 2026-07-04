@@ -1112,7 +1112,6 @@ function MainApp({ user, onLogout }) {
         });
       }
       setModal(null);
-      setFabOpen(false);
       notify('Movimiento guardado', 'success');
     } catch (e) {
       console.error('addTx error:', e);
@@ -1545,7 +1544,6 @@ function MainApp({ user, onLogout }) {
   const openAdd = (type) => {
     setEditItem({ type });
     setModal('add');
-    setFabOpen(false);
   };
   // Abrir el formulario PRE-CARGADO como nuevo (sin id, fecha hoy)
   const openPrefill = (data) => {
@@ -1553,7 +1551,6 @@ function MainApp({ user, onLogout }) {
     const { id, createdAt, imported, date, serieId, recurring, ...rest } = data;
     setEditItem({ ...rest });
     setModal('add');
-    setFabOpen(false);
   };
   const lastTx = useMemo(
     () =>

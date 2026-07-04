@@ -4314,7 +4314,7 @@ function HomeTab({
   // Resumen por persona (solo grupo)
   const byMember = {};
   if (isGroup) {
-    mtx.forEach((t) => {
+    mtx.filter((t) => !t.pending).forEach((t) => {
       const who = t.member || t.createdByName || '—';
       if (!byMember[who]) byMember[who] = { ingreso: 0, gasto: 0, ahorro: 0 };
       byMember[who][t.type] = (byMember[who][t.type] || 0) + t.amt;
@@ -4401,7 +4401,7 @@ function HomeTab({
         {isGroup && memberRows.length > 0 && (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 6 }}>
             {memberRows.map(([who, m]) => {
-              const q = m.ingreso - m.gasto - m.ahorro;
+              const q = m.ingreso - m.gasto;
               return (
                 <span key={who} style={{ fontSize: 11, color: P.sb }}>
                   {who.split(' ')[0]}: <b style={{ color: q >= 0 ? P.gn : P.rd }}>{fmtS(q, cur)}</b>
@@ -4715,14 +4715,16 @@ function HomeTab({
               const done = doneThisMonth(t.serieId);
               const todayD = Number(todayStr.slice(8, 10));
               const due = t.dueDay || (t.date ? Number(String(t.date).slice(8, 10)) : null);
+              const mesN = new Date().getMonth() + 1;
               const dueInfo = (() => {
                 if (!due) return null;
-                if (done) return { text: `Vence ${due}`, color: P.sb };
+                const fecha = `${due}/${mesN}`;
+                if (done) return { text: '✓ Pagado', color: P.gn, bg: P.gb };
                 const diff = due - todayD;
-                if (diff < 0) return { text: `Venció el ${due}`, color: P.rd };
-                if (diff === 0) return { text: 'Vence hoy', color: P.rd };
-                if (diff <= 3) return { text: `Vence en ${diff}d`, color: P.am };
-                return { text: `Vence ${due}/${new Date().getMonth() + 1}`, color: P.sb };
+                if (diff < 0) return { text: `⚠️ Venció ${fecha}`, color: P.rd, bg: P.rb };
+                if (diff === 0) return { text: '📅 Vence hoy', color: P.rd, bg: P.rb };
+                if (diff <= 3) return { text: `📅 Vence en ${diff}d · ${fecha}`, color: P.am, bg: P.am + '22' };
+                return { text: `📅 Vence ${fecha}`, color: P.sb, bg: P.c2 };
               })();
               const pctIncome = totIn > 0 ? ((t.cur === 'USD' ? t.amt * ((usdRates?.venta) || 1200) : t.amt) / totIn * 100).toFixed(0) : null;
               return (
@@ -4772,7 +4774,7 @@ function HomeTab({
                     <div style={{ fontSize: 11, color: P.sb, marginTop: 2, display: 'flex', gap: 8, alignItems: 'center' }}>
                       <span style={{ fontWeight: 500, color: done ? P.sb : P.tx }}>{fmtS(t.amt, t.cur)}</span>
                       {!t.paused && dueInfo && (
-                        <span style={{ color: dueInfo.color, fontWeight: 500 }}>{dueInfo.text}</span>
+                        <span style={{ color: dueInfo.color, fontWeight: 600, fontSize: 10, background: dueInfo.bg, borderRadius: 6, padding: '2px 7px' }}>{dueInfo.text}</span>
                       )}
                     </div>
                   </div>
@@ -5113,7 +5115,7 @@ function InsightsTab({
         {isGroup && memberRows.length > 0 && (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 6 }}>
             {memberRows.map(([who, m]) => {
-              const q = m.ingreso - m.gasto - m.ahorro;
+              const q = m.ingreso - m.gasto;
               return (
                 <span key={who} style={{ fontSize: 11, color: P.sb }}>
                   {who.split(' ')[0]}: <b style={{ color: q >= 0 ? P.gn : P.rd }}>{fmtS(q, cur)}</b>

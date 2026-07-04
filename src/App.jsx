@@ -938,7 +938,7 @@ function MainApp({ user, onLogout }) {
   const [editItem, setEditItem] = useState(null);
   const [month, setMonth] = useState(mk(new Date()));
   const [cur, setCur] = useState('ARS');
-  const [fabOpen, setFabOpen] = useState(false);
+
   const [showImport, setShowImport] = useState(false);
   const [showCats, setShowCats] = useState(false);
   const [showExchange, setShowExchange] = useState(false);
@@ -2089,6 +2089,22 @@ function MainApp({ user, onLogout }) {
             onSeeAll={() => setTab('movs')}
           />
         )}
+        {(tab === 'home' || tab === 'movs' || tab === 'diarios') && (
+          <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+            <button
+              onClick={() => openAdd('ingreso')}
+              style={{ flex: 1, background: P.gn + '18', border: `1px solid ${P.gn}40`, borderRadius: 10, padding: '9px 0', fontSize: 13, fontWeight: 700, color: P.gn, cursor: 'pointer' }}
+            >
+              + Ingreso
+            </button>
+            <button
+              onClick={() => openAdd('gasto')}
+              style={{ flex: 1, background: P.rd + '18', border: `1px solid ${P.rd}40`, borderRadius: 10, padding: '9px 0', fontSize: 13, fontWeight: 700, color: P.rd, cursor: 'pointer' }}
+            >
+              + Gasto
+            </button>
+          </div>
+        )}
         {tab === 'movs' && (
           <MesTab
             mob={mob}
@@ -2101,6 +2117,8 @@ function MainApp({ user, onLogout }) {
             onRegister={registerRecurring}
             onRemoveSerie={removeRecurringSerie}
             onPauseSerie={pauseRecurringSerie}
+            onExport={() => exportCSV(true)}
+            onExchange={() => setShowExchange(true)}
           />
         )}
         {tab === 'diarios' && (
@@ -2111,6 +2129,14 @@ function MainApp({ user, onLogout }) {
             month={month}
             onAdd={openAdd}
             onEdit={openEdit}
+            onExport={() => exportCSV(true)}
+          />
+        )}
+        {tab === 'perfil' && (
+          <PerfilTab
+            onExportAll={() => exportCSV(false)}
+            onExportMonth={() => exportCSV(true)}
+            onImport={() => setShowImport(true)}
           />
         )}
         {tab === 'insights' && (
@@ -2162,246 +2188,6 @@ function MainApp({ user, onLogout }) {
         )}
       </main>
 
-      {/* FAB */}
-      <div
-        style={{
-          position: 'fixed',
-          bottom: mob ? 72 : 80,
-          right: mob ? 14 : 22,
-          zIndex: 110,
-        }}
-      >
-        {fabOpen && (
-          <div
-            style={{
-              position: 'absolute',
-              bottom: 56,
-              right: 0,
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 6,
-            }}
-          >
-            {[
-              { t: 'gasto', ic: '📉', l: 'Gasto', c: P.rd },
-              { t: 'ingreso', ic: '📈', l: 'Ingreso', c: P.gn },
-            ].map((b) => (
-              <button
-                key={b.t}
-                onClick={() => openAdd(b.t)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  background: P.cd,
-                  border: `1px solid ${P.bd}`,
-                  borderRadius: 12,
-                  padding: '9px 14px',
-                  cursor: 'pointer',
-                  boxShadow: '0 8px 24px rgba(0,0,0,0.1)',
-                  fontSize: 13,
-                  fontWeight: 500,
-                  color: P.tx,
-                }}
-              >
-                <span
-                  style={{
-                    width: 26,
-                    height: 26,
-                    borderRadius: 7,
-                    background: b.c + '12',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: 13,
-                  }}
-                >
-                  {b.ic}
-                </span>
-                {b.l}
-              </button>
-            ))}
-            {lastTx && (
-              <button
-                onClick={() => openPrefill(lastTx)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  background: P.cd,
-                  border: `1px solid ${P.bd}`,
-                  borderRadius: 12,
-                  padding: '9px 14px',
-                  cursor: 'pointer',
-                  boxShadow: '0 8px 24px rgba(0,0,0,0.1)',
-                  fontSize: 13,
-                  fontWeight: 500,
-                  color: P.tx,
-                }}
-              >
-                <span
-                  style={{
-                    width: 26,
-                    height: 26,
-                    borderRadius: 7,
-                    background: P.ac + '12',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: 13,
-                  }}
-                >
-                  ↩️
-                </span>
-                Repetir último
-              </button>
-            )}
-            <button
-              onClick={() => {
-                setFabOpen(false);
-                setShowExchange(true);
-              }}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                background: P.cd,
-                border: `1px solid ${P.bd}`,
-                borderRadius: 12,
-                padding: '9px 14px',
-                cursor: 'pointer',
-                boxShadow: '0 8px 24px rgba(0,0,0,0.1)',
-                fontSize: 13,
-                fontWeight: 500,
-                color: P.tx,
-              }}
-            >
-              <span
-                style={{
-                  width: 26,
-                  height: 26,
-                  borderRadius: 7,
-                  background: P.ac + '12',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: 13,
-                }}
-              >
-                💱
-              </span>
-              Comprar dólares
-            </button>
-            <button
-              onClick={() => { setFabOpen(false); exportCSV(false); }}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                background: P.cd,
-                border: `1px solid ${P.bd}`,
-                borderRadius: 12,
-                padding: '9px 14px',
-                cursor: 'pointer',
-                boxShadow: '0 8px 24px rgba(0,0,0,0.1)',
-                fontSize: 13,
-                fontWeight: 500,
-                color: P.tx,
-              }}
-            >
-              <span style={{ width: 26, height: 26, borderRadius: 7, background: P.gn + '18', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13 }}>
-                📤
-              </span>
-              Exportar todo
-            </button>
-            <button
-              onClick={() => { setFabOpen(false); exportCSV(true); }}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                background: P.cd,
-                border: `1px solid ${P.bd}`,
-                borderRadius: 12,
-                padding: '9px 14px',
-                cursor: 'pointer',
-                boxShadow: '0 8px 24px rgba(0,0,0,0.1)',
-                fontSize: 13,
-                fontWeight: 500,
-                color: P.tx,
-              }}
-            >
-              <span style={{ width: 26, height: 26, borderRadius: 7, background: P.gn + '18', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13 }}>
-                📤
-              </span>
-              Exportar este mes
-            </button>
-            <button
-              onClick={() => {
-                setFabOpen(false);
-                setShowImport(true);
-              }}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                background: P.cd,
-                border: `1px solid ${P.bd}`,
-                borderRadius: 12,
-                padding: '9px 14px',
-                cursor: 'pointer',
-                boxShadow: '0 8px 24px rgba(0,0,0,0.1)',
-                fontSize: 13,
-                fontWeight: 500,
-                color: P.tx,
-              }}
-            >
-              <span
-                style={{
-                  width: 26,
-                  height: 26,
-                  borderRadius: 7,
-                  background: P.ac + '12',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: 13,
-                }}
-              >
-                📥
-              </span>
-              Importar datos
-            </button>
-          </div>
-        )}
-        <button
-          onClick={() => setFabOpen(!fabOpen)}
-          style={{
-            width: 50,
-            height: 50,
-            borderRadius: 15,
-            background: `linear-gradient(135deg,${P.ac},${P.al})`,
-            border: 'none',
-            color: '#fff',
-            fontSize: 24,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            boxShadow: `0 6px 20px ${P.ac}40`,
-            transform: fabOpen ? 'rotate(45deg)' : 'none',
-            transition: 'transform 0.2s',
-          }}
-        >
-          +
-        </button>
-      </div>
-      {fabOpen && (
-        <div
-          style={{ position: 'fixed', inset: 0, zIndex: 100 }}
-          onClick={() => setFabOpen(false)}
-        />
-      )}
 
       {/* Bottom nav */}
       <nav
@@ -2425,6 +2211,7 @@ function MainApp({ user, onLogout }) {
           { id: 'diarios', l: 'Diarios', e: '📝' },
           { id: 'insights', l: 'Análisis', e: '📊' },
           { id: 'goals', l: 'Metas', e: '🎯' },
+          { id: 'perfil', l: 'Perfil', e: '👤' },
         ].map((t) => (
           <button
             key={t.id}
@@ -3691,7 +3478,32 @@ function TxListTab({ mob, cur, activeTx, onEdit, customCats, onAdd }) {
 }
 
 /* ── MES ── */
-function DiariosTab({ mob, cur, activeTx, month, onAdd, onEdit }) {
+function PerfilTab({ onExportAll, onExportMonth, onImport }) {
+  const row = (icon, label, onClick, color) => (
+    <button
+      onClick={onClick}
+      style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', background: 'transparent', border: 'none', borderBottom: `1px solid ${P.bd}`, padding: '14px 4px', cursor: 'pointer', textAlign: 'left' }}
+    >
+      <span style={{ fontSize: 20 }}>{icon}</span>
+      <span style={{ fontSize: 14, fontWeight: 500, color: color || P.tx }}>{label}</span>
+    </button>
+  );
+  return (
+    <div style={{ paddingBottom: 80 }}>
+      <div style={{ background: P.cd, border: `1px solid ${P.bd}`, borderRadius: 16, padding: '4px 14px', marginBottom: 12 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: P.sb, textTransform: 'uppercase', letterSpacing: 1, padding: '10px 0 4px' }}>Exportar</div>
+        {row('📤', 'Exportar todo (CSV)', onExportAll)}
+        {row('📅', 'Exportar mes actual (CSV)', onExportMonth)}
+      </div>
+      <div style={{ background: P.cd, border: `1px solid ${P.bd}`, borderRadius: 16, padding: '4px 14px' }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: P.sb, textTransform: 'uppercase', letterSpacing: 1, padding: '10px 0 4px' }}>Datos</div>
+        {row('📥', 'Importar datos', onImport)}
+      </div>
+    </div>
+  );
+}
+
+function DiariosTab({ mob, cur, activeTx, month, onAdd, onEdit, onExport }) {
   const [usdRates, setUsdRates] = useState(null);
   useEffect(() => {
     fetch('https://api.bluelytics.com.ar/v2/latest')
@@ -3725,9 +3537,10 @@ function DiariosTab({ mob, cur, activeTx, month, onAdd, onEdit }) {
             </div>
             <div style={{ fontSize: 16, fontWeight: 700, color: P.rd, marginTop: 2 }}>{fmtS(totalGastos)}</div>
           </div>
-          <button onClick={() => onAdd('gasto')} style={{ background: P.ac, color: '#fff', border: 'none', borderRadius: 20, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
-            + Agregar
-          </button>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button onClick={onExport} style={{ background: 'transparent', color: P.sb, border: `1px solid ${P.bd}`, borderRadius: 20, padding: '7px 10px', fontSize: 12, cursor: 'pointer' }}>📤</button>
+            <button onClick={() => onAdd('gasto')} style={{ background: P.ac, color: '#fff', border: 'none', borderRadius: 20, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>+ Agregar</button>
+          </div>
         </div>
         {gastos.length === 0 ? (
           <div style={{ fontSize: 12, color: P.sb, textAlign: 'center', padding: '12px 0' }}>Sin gastos este mes</div>
@@ -3766,7 +3579,7 @@ function DiariosTab({ mob, cur, activeTx, month, onAdd, onEdit }) {
 }
 
 function MesTab({
-  mob, cur, activeTx, totIn, month, onAdd, onEdit, onRegister, onRemoveSerie, onPauseSerie,
+  mob, cur, activeTx, totIn, month, onAdd, onEdit, onRegister, onRemoveSerie, onPauseSerie, onExport, onExchange,
 }) {
   const [usdRates, setUsdRates] = useState(null);
   useEffect(() => {
@@ -3826,6 +3639,16 @@ function MesTab({
 
   return (
     <div style={{ paddingBottom: 80 }}>
+
+      {/* Utilidades del mes */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+        <button onClick={onExchange} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, background: P.cd, border: `1px solid ${P.bd}`, borderRadius: 10, padding: '9px 0', fontSize: 12, fontWeight: 600, color: P.tx, cursor: 'pointer' }}>
+          💱 Comprar dólares
+        </button>
+        <button onClick={onExport} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, background: P.cd, border: `1px solid ${P.bd}`, borderRadius: 10, padding: '9px 0', fontSize: 12, fontWeight: 600, color: P.tx, cursor: 'pointer' }}>
+          📤 Exportar mes
+        </button>
+      </div>
 
       {/* Ingresos */}
       <SectionCard icon="💰" label="Ingresos" total={totalIngresos} color={P.gn} onAgregar={() => onAdd('ingreso')}>

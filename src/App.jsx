@@ -3739,8 +3739,12 @@ function MesTab({
 
   const ingresos = activeTx.filter((t) => t.type === 'ingreso' && mk(t.date) === month);
 
-  // Suscripciones: gastos recurrentes ya registrados este mes
-  const suscripciones = activeTx.filter((t) => t.recurring && t.type === 'gasto' && mk(t.date) === month && t.cur === cur);
+  // Suscripciones: gastos con categoría o subcategoría "suscripción/suscripciones" registrados este mes
+  const isSusc = (t) => {
+    const s = (v) => (v || '').toLowerCase();
+    return s(t.cat).includes('suscripci') || s(t.sub).includes('suscripci');
+  };
+  const suscripciones = activeTx.filter((t) => t.type === 'gasto' && mk(t.date) === month && t.cur === cur && isSusc(t));
 
   // Cuotas: gastos en cuotas (credito, cuotas > 1) distribuidos al mes actual
   const cuotasMes = chargesForMonth(
@@ -6086,7 +6090,7 @@ function TxModal({
   const [freq, setFreq] = useState(initial?.freq || 'mensual');
   const [dueDay, setDueDay] = useState(initial?.dueDay ? String(initial.dueDay) : '');
   const [programado, setProgramado] = useState(initial?.pending || false);
-  const [showMore, setShowMore] = useState(false);
+  const [showMore, setShowMore] = useState(initial?.type === 'gasto');
   const [pay, setPay] = useState(initial?.pay || 'debito');
   const [cuotas, setCuotas] = useState(initial?.cuotas || 1);
   const [card, setCard] = useState(initial?.card || '');

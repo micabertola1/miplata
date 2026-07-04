@@ -3512,6 +3512,8 @@ function TxListTab({ mob, cur, activeTx, onEdit, customCats, onAdd }) {
 function PerfilTab({ onExportAll, onExportMonth, onImport, cards, onSaveCards, theme, onToggleTheme }) {
   const [showAddCard, setShowAddCard] = useState(false);
   const [newCard, setNewCard] = useState({ name: '', cierre: '', vencimiento: '' });
+  const [editingId, setEditingId] = useState(null);
+  const [editCard, setEditCard] = useState(null);
 
   const sectionStyle = { background: P.cd, border: `1px solid ${P.bd}`, borderRadius: 16, padding: '4px 14px', marginBottom: 12 };
   const sectionTitle = (label) => (
@@ -3529,6 +3531,19 @@ function PerfilTab({ onExportAll, onExportMonth, onImport, cards, onSaveCards, t
     onSaveCards([...(cards || []), { id: String(Date.now()), ...newCard }]);
     setNewCard({ name: '', cierre: '', vencimiento: '' });
     setShowAddCard(false);
+  };
+
+  const handleEditCard = () => {
+    if (!editCard?.name?.trim()) return;
+    onSaveCards((cards || []).map((c) => c.id === editingId ? { ...c, ...editCard } : c));
+    setEditingId(null);
+    setEditCard(null);
+  };
+
+  const startEdit = (c) => {
+    setShowAddCard(false);
+    setEditingId(c.id);
+    setEditCard({ name: c.name, cierre: c.cierre, vencimiento: c.vencimiento });
   };
 
   const inputStyle = { width: '100%', background: P.c2, border: `1px solid ${P.bd}`, borderRadius: 10, padding: '9px 12px', fontSize: 13, color: P.tx, boxSizing: 'border-box', outline: 'none', marginBottom: 8 };
@@ -3601,19 +3616,66 @@ function PerfilTab({ onExportAll, onExportMonth, onImport, cards, onSaveCards, t
         {(cards || []).length === 0 && !showAddCard ? (
           <div style={{ fontSize: 12, color: P.sb, textAlign: 'center', padding: '10px 0 14px' }}>Sin tarjetas agregadas</div>
         ) : (cards || []).map((c) => (
-          <div key={c.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 4px', borderTop: `1px solid ${P.bd}` }}>
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 600, color: P.tx }}>💳 {c.name}</div>
-              <div style={{ fontSize: 11, color: P.sb, marginTop: 2 }}>
-                Cierre: día {c.cierre} · Vence: día {c.vencimiento}
+          <div key={c.id} style={{ borderTop: `1px solid ${P.bd}` }}>
+            {editingId === c.id ? (
+              <div style={{ background: P.c2, borderRadius: 12, padding: 12, margin: '8px 0' }}>
+                <input
+                  style={inputStyle}
+                  placeholder="Nombre"
+                  value={editCard.name}
+                  onChange={(e) => setEditCard((v) => ({ ...v, name: e.target.value }))}
+                />
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input
+                    style={{ ...inputStyle, marginBottom: 0 }}
+                    type="text"
+                    placeholder="Día de cierre"
+                    value={editCard.cierre}
+                    onChange={(e) => setEditCard((v) => ({ ...v, cierre: e.target.value }))}
+                  />
+                  <input
+                    style={{ ...inputStyle, marginBottom: 0 }}
+                    type="text"
+                    placeholder="Día de vencimiento"
+                    value={editCard.vencimiento}
+                    onChange={(e) => setEditCard((v) => ({ ...v, vencimiento: e.target.value }))}
+                  />
+                </div>
+                <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                  <button
+                    onClick={() => { setEditingId(null); setEditCard(null); }}
+                    style={{ flex: 1, background: P.bd, border: 'none', borderRadius: 10, padding: '9px 0', fontSize: 13, fontWeight: 600, color: P.tx, cursor: 'pointer' }}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={handleEditCard}
+                    style={{ flex: 2, background: P.ac, border: 'none', borderRadius: 10, padding: '9px 0', fontSize: 13, fontWeight: 700, color: '#fff', cursor: 'pointer' }}
+                  >
+                    Guardar
+                  </button>
+                  <button
+                    onClick={() => { onSaveCards((cards || []).filter((x) => x.id !== c.id)); setEditingId(null); }}
+                    style={{ flex: 1, background: P.rb, border: 'none', borderRadius: 10, padding: '9px 0', fontSize: 13, fontWeight: 600, color: P.rd, cursor: 'pointer' }}
+                  >
+                    Borrar
+                  </button>
+                </div>
               </div>
-            </div>
-            <button
-              onClick={() => onSaveCards((cards || []).filter((x) => x.id !== c.id))}
-              style={{ background: 'transparent', border: 'none', color: P.sb, fontSize: 20, cursor: 'pointer', padding: '4px 6px', lineHeight: 1 }}
-            >
-              ×
-            </button>
+            ) : (
+              <div
+                onClick={() => startEdit(c)}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 4px', cursor: 'pointer' }}
+              >
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: P.tx }}>💳 {c.name}</div>
+                  <div style={{ fontSize: 11, color: P.sb, marginTop: 2 }}>
+                    Cierre: día {c.cierre} · Vence: día {c.vencimiento}
+                  </div>
+                </div>
+                <span style={{ fontSize: 12, color: P.sb }}>✏️</span>
+              </div>
+            )}
           </div>
         ))}
       </div>

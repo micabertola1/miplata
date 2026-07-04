@@ -2008,7 +2008,7 @@ function MainApp({ user, onLogout }) {
           padding: mob ? '12px 10px' : '20px 20px',
         }}
       >
-        {(tab === 'home' || tab === 'insights' || tab === 'movs') && (
+        {(tab === 'home' || tab === 'insights' || tab === 'movs' || tab === 'diarios') && (
           <div
             style={{
               display: 'flex',
@@ -2101,6 +2101,15 @@ function MainApp({ user, onLogout }) {
             onRegister={registerRecurring}
             onRemoveSerie={removeRecurringSerie}
             onPauseSerie={pauseRecurringSerie}
+          />
+        )}
+        {tab === 'diarios' && (
+          <DiariosTab
+            mob={mob}
+            cur={cur}
+            activeTx={activeTx}
+            onAdd={openAdd}
+            onEdit={openEdit}
           />
         )}
         {tab === 'insights' && (
@@ -2412,6 +2421,7 @@ function MainApp({ user, onLogout }) {
         {[
           { id: 'home', l: 'Inicio', e: '🏠' },
           { id: 'movs', l: 'Mes', e: '📅' },
+          { id: 'diarios', l: 'Diarios', e: '📝' },
           { id: 'insights', l: 'Análisis', e: '📊' },
           { id: 'goals', l: 'Metas', e: '🎯' },
         ].map((t) => (
@@ -3680,6 +3690,80 @@ function TxListTab({ mob, cur, activeTx, onEdit, customCats, onAdd }) {
 }
 
 /* ── MES ── */
+function DiariosTab({ mob, cur, activeTx, onAdd, onEdit }) {
+  const [usdRates, setUsdRates] = useState(null);
+  useEffect(() => {
+    fetch('https://api.bluelytics.com.ar/v2/latest')
+      .then((r) => r.json())
+      .then((d) => setUsdRates({ venta: Math.round(d.oficial?.value_sell) }))
+      .catch(() => {});
+  }, []);
+
+  const gastos = activeTx
+    .filter((t) => t.type === 'gasto' && !t.recurring)
+    .sort((a, b) => String(b.date).localeCompare(String(a.date)));
+
+  const totalGastos = gastos.reduce((s, t) => s + (t.cur === 'USD' ? t.amt * ((usdRates?.venta) || 1200) : t.amt), 0);
+
+  const byDay = {};
+  gastos.forEach((t) => {
+    const d = String(t.date).slice(0, 10);
+    if (!byDay[d]) byDay[d] = [];
+    byDay[d].push(t);
+  });
+  const days = Object.keys(byDay).sort((a, b) => b.localeCompare(a));
+
+  return (
+    <div style={{ paddingBottom: 80 }}>
+      <div style={{ background: P.cd, border: `1px solid ${P.bd}`, borderRadius: 16, padding: '14px 14px 6px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 16 }}>📝</span>
+              <span style={{ fontSize: 15, fontWeight: 700, color: P.tx }}>Gastos diarios</span>
+            </div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: P.rd, marginTop: 2 }}>{fmtS(totalGastos)}</div>
+          </div>
+          <button onClick={() => onAdd('gasto')} style={{ background: P.ac, color: '#fff', border: 'none', borderRadius: 20, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+            + Agregar
+          </button>
+        </div>
+        {gastos.length === 0 ? (
+          <div style={{ fontSize: 12, color: P.sb, textAlign: 'center', padding: '12px 0' }}>Sin gastos este mes</div>
+        ) : days.map((d) => {
+          const dayTxs = byDay[d];
+          const dayTotal = dayTxs.reduce((s, t) => s + (t.cur === 'USD' ? t.amt * ((usdRates?.venta) || 1200) : t.amt), 0);
+          const dayLabel = (() => {
+            const [y, m, dd] = d.split('-');
+            return `${Number(dd)}/${Number(m)}`;
+          })();
+          return (
+            <div key={d}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0 2px', borderTop: `1px solid ${P.bd}` }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: P.sb }}>{dayLabel}</span>
+                <span style={{ fontSize: 11, color: P.sb }}>{fmtS(dayTotal)}</span>
+              </div>
+              {dayTxs.map((t) => (
+                <div key={t.id} onClick={() => onEdit(t)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0 8px 8px', cursor: 'pointer' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                    <span style={{ fontSize: 15 }}>📤</span>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: P.tx, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: mob ? 150 : 260 }}>{t.desc || t.cat}</div>
+                      <div style={{ fontSize: 10, color: P.sb }}>{t.cat}{t.sub ? ` · ${t.sub}` : ''}</div>
+                    </div>
+                  </div>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: P.rd, flexShrink: 0 }}>{fmtS(t.amt, t.cur)}</span>
+                </div>
+              ))}
+            </div>
+          );
+        })}
+        <div style={{ fontSize: 10, color: P.sb, textAlign: 'center', padding: '8px 0 4px' }}>Tocá para editar</div>
+      </div>
+    </div>
+  );
+}
+
 function MesTab({
   mob, cur, activeTx, totIn, month, onAdd, onEdit, onRegister, onRemoveSerie, onPauseSerie,
 }) {
@@ -3708,13 +3792,9 @@ function MesTab({
     activeTx.some((t) => t.serieId === serieId && mk(t.date) === month);
 
   const ingresos = activeTx.filter((t) => t.type === 'ingreso');
-  const gastosLibres = activeTx
-    .filter((t) => t.type === 'gasto' && !t.recurring)
-    .sort((a, b) => String(b.date).localeCompare(String(a.date)));
 
   const totalIngresos = ingresos.reduce((s, t) => s + (t.cur === 'USD' ? t.amt * ((usdRates?.venta) || 1200) : t.amt), 0);
   const totalFijos = recList.reduce((s, t) => s + (t.cur === 'USD' ? t.amt * ((usdRates?.venta) || 1200) : t.amt), 0);
-  const totalGastos = gastosLibres.reduce((s, t) => s + (t.cur === 'USD' ? t.amt * ((usdRates?.venta) || 1200) : t.amt), 0);
 
   const todayD = Number(todayStr.slice(8, 10));
   const monthNum = Number(todayStr.slice(5, 7));
@@ -3823,44 +3903,6 @@ function MesTab({
           <div style={{ fontSize: 10, color: P.sb, textAlign: 'center', padding: '8px 0 4px' }}>Tocá para editar</div>
         </div>
       )}
-
-      {/* Gastos del mes */}
-      <SectionCard icon="💸" label="Gastos del mes" total={totalGastos} color={P.rd} onAgregar={() => onAdd('gasto')}>
-        {gastosLibres.length === 0 ? (
-          <div style={{ fontSize: 12, color: P.sb, textAlign: 'center', padding: '8px 0' }}>Sin gastos este mes</div>
-        ) : (() => {
-          const byDay = {};
-          gastosLibres.forEach((t) => {
-            const d = String(t.date).slice(8, 10);
-            if (!byDay[d]) byDay[d] = [];
-            byDay[d].push(t);
-          });
-          return Object.keys(byDay).sort((a, b) => b - a).map((d) => {
-            const dayTxs = byDay[d];
-            const dayTotal = dayTxs.reduce((s, t) => s + (t.cur === 'USD' ? t.amt * ((usdRates?.venta) || 1200) : t.amt), 0);
-            return (
-              <div key={d}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0 2px', borderTop: `1px solid ${P.bd}` }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: P.sb }}>Día {d}</span>
-                  <span style={{ fontSize: 11, color: P.sb }}>{fmtS(dayTotal)}</span>
-                </div>
-                {dayTxs.map((t) => (
-                  <div key={t.id} onClick={() => onEdit(t)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 0 7px 10px', cursor: 'pointer' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-                      <span style={{ fontSize: 16 }}>📤</span>
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: P.tx, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 150 }}>{t.desc || t.cat}</div>
-                        <div style={{ fontSize: 10, color: P.sb }}>{t.cat}</div>
-                      </div>
-                    </div>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: P.rd, flexShrink: 0 }}>{fmtS(t.amt, t.cur)}</span>
-                  </div>
-                ))}
-              </div>
-            );
-          });
-        })()}
-      </SectionCard>
 
     </div>
   );

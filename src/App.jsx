@@ -4520,7 +4520,7 @@ function HomeTab({
           <Box>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
               <div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: P.sb, textTransform: 'uppercase', letterSpacing: 1 }}>Gastos fijos</div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: P.sb, textTransform: 'uppercase', letterSpacing: 1 }}>Recurrentes</div>
                 <div style={{ fontSize: 18, fontWeight: 700, color: P.tx }}>{fmtS(totalFijos)}</div>
               </div>
               <button
@@ -4590,6 +4590,11 @@ function HomeTab({
                     </div>
                     <div style={{ fontSize: 11, color: P.sb, marginTop: 2, display: 'flex', gap: 8, alignItems: 'center' }}>
                       <span style={{ fontWeight: 500, color: done ? P.sb : P.tx }}>{fmtS(t.amt, t.cur)}</span>
+                      {t.date && (
+                        <span style={{ color: P.sb }}>
+                          {String(t.date).slice(8, 10)}/{String(t.date).slice(5, 7)}
+                        </span>
+                      )}
                       {!t.paused && dueInfo && (
                         <span style={{ color: dueInfo.color }}>{dueInfo.text}</span>
                       )}

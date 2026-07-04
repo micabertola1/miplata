@@ -4323,6 +4323,19 @@ function HomeTab({
             : 'Este mes gastaste más de lo que ingresó'}
         </div>
 
+        {isGroup && memberRows.length > 0 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 6 }}>
+            {memberRows.map(([who, m]) => {
+              const q = m.ingreso - m.gasto - m.ahorro;
+              return (
+                <span key={who} style={{ fontSize: 11, color: P.sb }}>
+                  {who.split(' ')[0]}: <b style={{ color: q >= 0 ? P.gn : P.rd }}>{fmtS(q, cur)}</b>
+                </span>
+              );
+            })}
+          </div>
+        )}
+
         <div
           style={{
             display: 'flex',
@@ -5025,6 +5038,18 @@ function InsightsTab({
           <div style={{ fontSize: 12, color: P.sb, marginTop: 3 }}>
             venías con <b style={{ color: carry >= 0 ? P.gn : P.rd }}>{fmtS(carry, cur)}</b>
             {' · '}disponible total <b style={{ color: cBal + carry >= 0 ? P.gn : P.rd }}>{fmtS(cBal + carry, cur)}</b>
+          </div>
+        )}
+        {isGroup && memberRows.length > 0 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 6 }}>
+            {memberRows.map(([who, m]) => {
+              const q = m.ingreso - m.gasto - m.ahorro;
+              return (
+                <span key={who} style={{ fontSize: 11, color: P.sb }}>
+                  {who.split(' ')[0]}: <b style={{ color: q >= 0 ? P.gn : P.rd }}>{fmtS(q, cur)}</b>
+                </span>
+              );
+            })}
           </div>
         )}
         <div style={{ display: 'flex', gap: 8, marginTop: 14, borderTop: `1px solid ${P.bd}`, paddingTop: 12 }}>

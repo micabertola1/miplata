@@ -2410,7 +2410,8 @@ function ExchangeModal({ mob, onSave, onClose }) {
           <div>
             <Lbl>Dólares (US$)</Lbl>
             <input
-              type="number"
+              type="text"
+              inputMode="decimal"
               placeholder="0"
               value={usd}
               onChange={(e) => setUsd(e.target.value)}
@@ -2421,7 +2422,8 @@ function ExchangeModal({ mob, onSave, onClose }) {
           <div>
             <Lbl>Cotización ($ por dólar)</Lbl>
             <input
-              type="number"
+              type="text"
+              inputMode="decimal"
               placeholder="0"
               value={rate}
               onChange={(e) => setRate(e.target.value)}
@@ -3577,17 +3579,15 @@ function PerfilTab({ onExportAll, onExportMonth, onImport, cards, onSaveCards, t
             <div style={{ display: 'flex', gap: 8 }}>
               <input
                 style={{ ...inputStyle, marginBottom: 0 }}
-                type="number"
-                placeholder="Día de cierre"
-                min={1} max={31}
+                type="text"
+                placeholder="Día de cierre (ej: 15)"
                 value={newCard.cierre}
                 onChange={(e) => setNewCard((v) => ({ ...v, cierre: e.target.value }))}
               />
               <input
                 style={{ ...inputStyle, marginBottom: 0 }}
-                type="number"
-                placeholder="Día de vencimiento"
-                min={1} max={31}
+                type="text"
+                placeholder="Día de vencimiento (ej: 22)"
                 value={newCard.vencimiento}
                 onChange={(e) => setNewCard((v) => ({ ...v, vencimiento: e.target.value }))}
               />

@@ -634,6 +634,41 @@ function Lbl({ children }) {
     </div>
   );
 }
+function Switch({ on, onClick, color }) {
+  const c = color || P.ac;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        width: 46,
+        height: 27,
+        borderRadius: 27,
+        border: 'none',
+        background: on ? c : P.bd,
+        position: 'relative',
+        cursor: 'pointer',
+        padding: 0,
+        flexShrink: 0,
+        transition: 'background .18s',
+      }}
+    >
+      <span
+        style={{
+          position: 'absolute',
+          top: 3,
+          left: on ? 22 : 3,
+          width: 21,
+          height: 21,
+          borderRadius: '50%',
+          background: '#fff',
+          boxShadow: '0 1px 3px rgba(0,0,0,.3)',
+          transition: 'left .18s',
+        }}
+      />
+    </button>
+  );
+}
 function Bar({ pct, color, h }) {
   return (
     <div style={{ height: h || 5, borderRadius: h || 5, background: P.c2 }}>
@@ -6266,101 +6301,100 @@ function TxModal({
           ))}
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+          {/* Moneda */}
+          <div style={{ display: 'flex', background: P.c2, borderRadius: 14, padding: 4, border: `1px solid ${P.bd}` }}>
+            {[['ARS', '$ ARS'], ['USD', 'US$ USD']].map(([c, l]) => (
+              <button key={c} onClick={() => setCurSel(c)} style={{ flex: 1, background: curSel === c ? P.ac : 'transparent', color: curSel === c ? '#fff' : P.sb, border: 'none', padding: '11px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'background .15s' }}>{l}</button>
+            ))}
+          </div>
 
           {/* Monto */}
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-              <Lbl>Monto</Lbl>
-              <div style={{ display: 'flex', background: P.c2, borderRadius: 8, border: `1px solid ${P.bd}`, overflow: 'hidden' }}>
-                {[['ARS', '$ Pesos'], ['USD', 'US$ Dólares']].map(([c, l]) => (
-                  <button key={c} onClick={() => setCurSel(c)} style={{ background: curSel === c ? P.ac : 'transparent', color: curSel === c ? '#fff' : P.sb, border: 'none', padding: '5px 11px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>{l}</button>
+          <div style={{ background: P.bg, border: `1px solid ${P.bd}`, borderRadius: 18, padding: '18px 16px' }}>
+            <div style={{ textAlign: 'center' }}><Lbl>Monto</Lbl></div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+              <span style={{ fontSize: 26, fontWeight: 700, color: P.sb }}>{curSel === 'USD' ? 'US$' : '$'}</span>
+              <input type="number" placeholder="0" value={amt} onChange={(e) => setAmt(e.target.value)} autoFocus style={{ background: 'transparent', border: 'none', color: P.tx, fontSize: 38, fontWeight: 800, textAlign: 'center', width: '100%', outline: 'none', padding: 0, minWidth: 0 }} />
+            </div>
+          </div>
+
+          {/* Detalle */}
+          <div style={{ background: P.bg, border: `1px solid ${P.bd}`, borderRadius: 18, padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div>
+              <Lbl>📝 Detalle</Lbl>
+              <input type="text" placeholder="Ej: Sueldo, Super, Alquiler..." value={desc} onChange={(e) => setDesc(e.target.value)} style={{ ...iS, background: P.cd }} />
+            </div>
+            <div>
+              <Lbl>Categoría</Lbl>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {cats.map((c) => (
+                  <button key={c.n} onClick={() => { setCat(c.n); setSub(''); }} style={{ background: cat === c.n ? P.ac : P.cd, border: `1px solid ${cat === c.n ? P.ac : P.bd}`, color: cat === c.n ? '#fff' : P.tx, padding: '8px 12px', borderRadius: 11, cursor: 'pointer', fontSize: 12, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    {c.i} {c.n}
+                  </button>
                 ))}
               </div>
             </div>
-            <input type="number" placeholder="0" value={amt} onChange={(e) => setAmt(e.target.value)} autoFocus style={{ ...iS, fontSize: 28, fontWeight: 700, textAlign: 'center', padding: '16px', background: P.bg }} />
-          </div>
-
-          {/* Categoría */}
-          <div>
-            <Lbl>Categoría</Lbl>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-              {cats.map((c) => (
-                <button key={c.n} onClick={() => { setCat(c.n); setSub(''); }} style={{ background: cat === c.n ? P.ac : P.c2, border: `1px solid ${cat === c.n ? P.ac : P.bd}`, color: cat === c.n ? '#fff' : P.tx, padding: '6px 10px', borderRadius: 10, cursor: 'pointer', fontSize: 11, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 3 }}>
-                  {c.i} {c.n}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Fecha y Nota */}
-          <div style={{ display: 'flex', gap: 8 }}>
-            <div style={{ flex: 1 }}>
+            <div>
               <Lbl>Fecha</Lbl>
-              <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={iS} />
+              <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={{ ...iS, background: P.cd }} />
             </div>
-            <div style={{ flex: 1 }}>
-              <Lbl>Nota</Lbl>
-              <input type="text" placeholder="Opcional" value={desc} onChange={(e) => setDesc(e.target.value)} style={iS} />
+            {cc && cc.s && cc.s.length > 0 && (
+              <div>
+                <Lbl>Subcategoría</Lbl>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                  {cc.s.map((s2) => (
+                    <button key={s2} onClick={() => setSub(sub === s2 ? '' : s2)} style={{ background: sub === s2 ? `${P.ac}18` : P.cd, border: `1px solid ${sub === s2 ? P.ac : P.bd}`, color: sub === s2 ? P.ac : P.sb, padding: '6px 11px', borderRadius: 9, cursor: 'pointer', fontSize: 11 }}>
+                      {s2}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Opciones */}
+          <div style={{ background: P.bg, border: `1px solid ${P.bd}`, borderRadius: 18, padding: '6px 16px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0' }}>
+              <span style={{ fontSize: 14, fontWeight: 600, color: P.tx }}>🔄 {type === 'ingreso' ? 'Ingreso' : type === 'ahorro' ? 'Ahorro' : 'Gasto'} recurrente</span>
+              <Switch on={recurring} onClick={() => setRecurring(!recurring)} />
             </div>
+            {recurring && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, borderTop: `1px solid ${P.bd}`, padding: '12px 0' }}>
+                <div>
+                  <Lbl>¿Cada cuánto?</Lbl>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                    {[['mensual', 'Mensual'], ['semanal', 'Semanal'], ['quincenal', 'Quincenal'], ['anual', 'Anual']].map(([id, l]) => (
+                      <button key={id} onClick={() => setFreq(id)} style={{ background: freq === id ? P.ac : P.cd, border: `1px solid ${freq === id ? P.ac : P.bd}`, color: freq === id ? '#fff' : P.tx, padding: '6px 12px', borderRadius: 10, cursor: 'pointer', fontSize: 12, fontWeight: 500 }}>{l}</button>
+                    ))}
+                  </div>
+                </div>
+                {freq === 'mensual' && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <input type="number" min="1" max="31" placeholder="Día venc." value={dueDay} onChange={(e) => setDueDay(e.target.value)} style={{ ...iS, background: P.cd, width: 120 }} />
+                    <span style={{ fontSize: 11, color: P.sb }}>de cada mes (opcional)</span>
+                  </div>
+                )}
+              </div>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderTop: `1px solid ${P.bd}` }}>
+              <span style={{ fontSize: 14, fontWeight: 600, color: P.tx }}>📅 Programado / pendiente</span>
+              <Switch on={programado} onClick={() => setProgramado(!programado)} color={P.am} />
+            </div>
+            {programado && (
+              <div style={{ fontSize: 11, color: P.sb, background: P.am + '14', borderRadius: 10, padding: '8px 11px', marginBottom: 12 }}>
+                📅 Queda <b>pendiente</b> y no baja el presupuesto hasta que lo marques como pagado.
+              </div>
+            )}
           </div>
 
           {/* Más opciones toggle */}
           <button type="button" onClick={() => setShowMore((v) => !v)} style={{ alignSelf: 'flex-start', background: 'transparent', border: 'none', color: P.ac, fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: '2px 0' }}>
-            {showMore ? '▴ Menos opciones' : '▾ Más opciones'}
+            {showMore ? '▴ Menos opciones' : '▾ Más opciones (pago, espacio)'}
           </button>
 
           {showMore && (
             <>
-              {/* Subcategoría */}
-              {cc && cc.s && cc.s.length > 0 && (
-                <div>
-                  <Lbl>Subcategoría</Lbl>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
-                    {cc.s.map((s2) => (
-                      <button key={s2} onClick={() => setSub(s2)} style={{ background: sub === s2 ? `${P.ac}12` : P.c2, border: `1px solid ${sub === s2 ? P.ac : P.bd}`, color: sub === s2 ? P.ac : P.sb, padding: '5px 10px', borderRadius: 8, cursor: 'pointer', fontSize: 10 }}>
-                        {s2}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Recurrente + Programado */}
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button onClick={() => setRecurring(!recurring)} style={{ flex: 1, background: recurring ? P.ab : P.c2, border: `1px solid ${recurring ? P.ac : P.bd}`, color: recurring ? P.ac : P.sb, padding: '10px 12px', borderRadius: 12, cursor: 'pointer', fontSize: 12, fontWeight: 500 }}>
-                  🔄 Recurrente
-                </button>
-                <button onClick={() => setProgramado(!programado)} style={{ flex: 1, background: programado ? P.am + '22' : P.c2, border: `1px solid ${programado ? P.am : P.bd}`, color: programado ? P.am : P.sb, padding: '10px 12px', borderRadius: 12, cursor: 'pointer', fontSize: 12, fontWeight: 500 }}>
-                  📅 Programado
-                </button>
-              </div>
-
-              {programado && (
-                <div style={{ fontSize: 11, color: P.sb, background: P.am + '14', borderRadius: 10, padding: '8px 11px' }}>
-                  📅 Este gasto queda <b>pendiente</b> y no baja el presupuesto hasta que lo marques como pagado.
-                </div>
-              )}
-
-              {recurring && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, background: P.bg, borderRadius: 12, padding: 12, border: `1px solid ${P.bd}` }}>
-                  <div>
-                    <Lbl>¿Cada cuánto?</Lbl>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                      {[['mensual', 'Mensual'], ['semanal', 'Semanal'], ['quincenal', 'Quincenal'], ['anual', 'Anual']].map(([id, l]) => (
-                        <button key={id} onClick={() => setFreq(id)} style={{ background: freq === id ? P.ac : P.c2, border: `1px solid ${freq === id ? P.ac : P.bd}`, color: freq === id ? '#fff' : P.tx, padding: '6px 12px', borderRadius: 10, cursor: 'pointer', fontSize: 12, fontWeight: 500 }}>{l}</button>
-                      ))}
-                    </div>
-                  </div>
-                  {freq === 'mensual' && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <input type="number" min="1" max="31" placeholder="Día vencimiento" value={dueDay} onChange={(e) => setDueDay(e.target.value)} style={{ ...iS, width: 130 }} />
-                      <span style={{ fontSize: 11, color: P.sb }}>de cada mes (opcional)</span>
-                    </div>
-                  )}
-                </div>
-              )}
-
               {/* Método de pago */}
               {isG && (
                 <div>
@@ -6459,10 +6493,10 @@ function TxModal({
                   background: P.c2,
                   border: `1px solid ${P.bd}`,
                   color: P.sb,
-                  padding: '12px',
+                  padding: '15px',
                   borderRadius: 14,
                   cursor: 'pointer',
-                  fontSize: 13,
+                  fontSize: 14,
                   fontWeight: 500,
                   flex: 1,
                 }}
@@ -6515,17 +6549,17 @@ function TxModal({
                 }}
                 style={{
                   flex: 2,
-                  background: type === 'ingreso' ? P.gn : P.rd,
+                  background: type === 'ingreso' ? P.gn : type === 'ahorro' ? P.ac : P.rd,
                   border: 'none',
                   color: '#fff',
-                  padding: '12px',
+                  padding: '15px',
                   borderRadius: 14,
                   cursor: 'pointer',
-                  fontSize: 13,
-                  fontWeight: 600,
+                  fontSize: 15,
+                  fontWeight: 700,
                 }}
               >
-                {mode === 'edit' ? 'Actualizar' : 'Guardar'}
+                {mode === 'edit' ? 'Actualizar' : `Guardar ${type}`}
               </button>
             )}
           </div>

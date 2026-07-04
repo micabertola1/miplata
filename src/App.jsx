@@ -6328,7 +6328,7 @@ function TxModal({
   const [freq, setFreq] = useState(initial?.freq || 'mensual');
   const [dueDay, setDueDay] = useState(initial?.dueDay ? String(initial.dueDay) : '');
   const [programado, setProgramado] = useState(initial?.pending || false);
-  const [showMore, setShowMore] = useState(true);
+  const [showMore, setShowMore] = useState(false);
   const [pay, setPay] = useState(initial?.pay || 'debito');
   const [cuotas, setCuotas] = useState(initial?.cuotas || 1);
   const [card, setCard] = useState(initial?.card || '');
@@ -6442,555 +6442,173 @@ function TxModal({
           ))}
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {showMore && (
-            <>
-          {/* 1. Scope */}
-          <div
-            style={{
-              background: P.bg,
-              borderRadius: 14,
-              padding: mob ? 12 : 14,
-              border: `1px solid ${P.bd}`,
-            }}
-          >
-            <Lbl>Guardar en</Lbl>
-            <div
-              style={{
-                display: 'flex',
-                flexWrap: 'wrap',
-                gap: 4,
-                marginTop: 4,
-              }}
-            >
-              <button
-                onClick={() => setScope('personal')}
-                style={{
-                  background: scope === 'personal' ? P.ac : P.cd,
-                  border: `1px solid ${scope === 'personal' ? P.ac : P.bd}`,
-                  color: scope === 'personal' ? '#fff' : P.tx,
-                  padding: '6px 14px',
-                  borderRadius: 10,
-                  cursor: 'pointer',
-                  fontSize: 12,
-                  fontWeight: 500,
-                }}
-              >
-                👤 Personal
-              </button>
-              {myGroups.map((g) => (
-                <button
-                  key={g.id}
-                  onClick={() => setScope(g.id)}
-                  style={{
-                    background: scope === g.id ? P.pu : P.cd,
-                    border: `1px solid ${scope === g.id ? P.pu : P.bd}`,
-                    color: scope === g.id ? '#fff' : P.tx,
-                    padding: '6px 14px',
-                    borderRadius: 10,
-                    cursor: 'pointer',
-                    fontSize: 12,
-                    fontWeight: 500,
-                  }}
-                >
-                  👥 {g.name}
-                </button>
-              ))}
-            </div>
-          </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
 
-          {/* 1b. Quién pagó / a quién ingresó (solo grupo) */}
-          {scope !== 'personal' && (
-            <div>
-              <Lbl>
-                {type === 'ingreso' ? '¿A quién ingresó?' : '¿Quién pagó?'}
-              </Lbl>
-              <div
-                style={{
-                  display: 'flex',
-                  flexWrap: 'wrap',
-                  gap: 4,
-                  marginBottom: 6,
-                }}
-              >
-                {Array.from(
-                  new Set(
-                    [
-                      userName,
-                      ...((myGroups.find((g) => g.id === scope) || {})
-                        .memberNames || []),
-                      ...knownMembers,
-                    ].filter(Boolean)
-                  )
-                ).map((nm) => (
-                  <button
-                    key={nm}
-                    onClick={() => setMember(nm)}
-                    style={{
-                      background: member === nm ? P.pu : P.c2,
-                      border: `1px solid ${member === nm ? P.pu : P.bd}`,
-                      color: member === nm ? '#fff' : P.tx,
-                      padding: '6px 12px',
-                      borderRadius: 10,
-                      cursor: 'pointer',
-                      fontSize: 12,
-                      fontWeight: 500,
-                    }}
-                  >
-                    {nm}
-                  </button>
+          {/* Monto */}
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <Lbl>Monto</Lbl>
+              <div style={{ display: 'flex', background: P.c2, borderRadius: 8, border: `1px solid ${P.bd}`, overflow: 'hidden' }}>
+                {[['ARS', '$ Pesos'], ['USD', 'US$ Dólares']].map(([c, l]) => (
+                  <button key={c} onClick={() => setCurSel(c)} style={{ background: curSel === c ? P.ac : 'transparent', color: curSel === c ? '#fff' : P.sb, border: 'none', padding: '5px 11px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>{l}</button>
                 ))}
               </div>
             </div>
-          )}
-            </>
-          )}
-
-          {/* 2. Amount */}
-          <div style={{ order: -3 }}>
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                marginBottom: 5,
-              }}
-            >
-              <span
-                style={{
-                  fontSize: 10,
-                  color: P.sb,
-                  fontWeight: 500,
-                  textTransform: 'uppercase',
-                  letterSpacing: 0.7,
-                }}
-              >
-                Monto
-              </span>
-              <div
-                style={{
-                  display: 'flex',
-                  background: P.c2,
-                  borderRadius: 8,
-                  border: `1px solid ${P.bd}`,
-                  overflow: 'hidden',
-                }}
-              >
-                {[
-                  ['ARS', '$ Pesos'],
-                  ['USD', 'US$ Dólares'],
-                ].map(([c, l]) => (
-                  <button
-                    key={c}
-                    onClick={() => setCurSel(c)}
-                    style={{
-                      background: curSel === c ? P.ac : 'transparent',
-                      color: curSel === c ? '#fff' : P.sb,
-                      border: 'none',
-                      padding: '5px 11px',
-                      fontSize: 11,
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    {l}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <input
-              type="number"
-              placeholder="0"
-              value={amt}
-              onChange={(e) => setAmt(e.target.value)}
-              autoFocus
-              style={{
-                ...iS,
-                fontSize: 24,
-                fontWeight: 700,
-                textAlign: 'center',
-                padding: '14px',
-                background: P.bg,
-              }}
-            />
+            <input type="number" placeholder="0" value={amt} onChange={(e) => setAmt(e.target.value)} autoFocus style={{ ...iS, fontSize: 28, fontWeight: 700, textAlign: 'center', padding: '16px', background: P.bg }} />
           </div>
 
-          {/* 3. Category */}
-          <div style={{ order: -2 }}>
+          {/* Categoría */}
+          <div>
             <Lbl>Categoría</Lbl>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
               {cats.map((c) => (
-                <button
-                  key={c.n}
-                  onClick={() => {
-                    setCat(c.n);
-                    setSub('');
-                  }}
-                  style={{
-                    background: cat === c.n ? P.ac : P.c2,
-                    border: `1px solid ${cat === c.n ? P.ac : P.bd}`,
-                    color: cat === c.n ? '#fff' : P.tx,
-                    padding: '6px 10px',
-                    borderRadius: 10,
-                    cursor: 'pointer',
-                    fontSize: 11,
-                    fontWeight: 500,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 3,
-                  }}
-                >
+                <button key={c.n} onClick={() => { setCat(c.n); setSub(''); }} style={{ background: cat === c.n ? P.ac : P.c2, border: `1px solid ${cat === c.n ? P.ac : P.bd}`, color: cat === c.n ? '#fff' : P.tx, padding: '6px 10px', borderRadius: 10, cursor: 'pointer', fontSize: 11, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 3 }}>
                   {c.i} {c.n}
                 </button>
               ))}
             </div>
           </div>
-          {showMore && (
-            <>
-          {cc && (
-            <div>
-              <Lbl>Subcategoría</Lbl>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
-                {cc.s.map((s2) => (
-                  <button
-                    key={s2}
-                    onClick={() => setSub(s2)}
-                    style={{
-                      background: sub === s2 ? `${P.ac}12` : P.c2,
-                      border: `1px solid ${sub === s2 ? P.ac : P.bd}`,
-                      color: sub === s2 ? P.ac : P.sb,
-                      padding: '5px 10px',
-                      borderRadius: 8,
-                      cursor: 'pointer',
-                      fontSize: 10,
-                    }}
-                  >
-                    {s2}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
 
-          {/* 4. Payment */}
-          {isG && (
-            <div>
-              <Lbl>Método de pago</Lbl>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                {[
-                  { id: 'debito', i: '💳', l: 'Débito' },
-                  { id: 'credito', i: '💳', l: 'Crédito' },
-                  { id: 'transferencia', i: '🏦', l: 'Transf.' },
-                  { id: 'efectivo', i: '💵', l: 'Efectivo' },
-                ].map((p) => (
-                  <button
-                    key={p.id}
-                    onClick={() => {
-                      setPay(p.id);
-                      if (p.id !== 'credito') setCuotas(1);
-                    }}
-                    style={{
-                      background: pay === p.id ? P.ac : P.c2,
-                      border: `1px solid ${pay === p.id ? P.ac : P.bd}`,
-                      color: pay === p.id ? '#fff' : P.tx,
-                      padding: '6px 10px',
-                      borderRadius: 10,
-                      cursor: 'pointer',
-                      fontSize: 11,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 3,
-                    }}
-                  >
-                    {p.i} {p.l}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-          {isG && pay === 'credito' && (
-            <div>
-              <Lbl>Cuotas</Lbl>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
-                {[1, 2, 3, 6, 12, 18].map((c) => (
-                  <button
-                    key={c}
-                    onClick={() => setCuotas(c)}
-                    style={{
-                      background: cuotas === c ? P.ac : P.c2,
-                      border: `1px solid ${cuotas === c ? P.ac : P.bd}`,
-                      color: cuotas === c ? '#fff' : P.tx,
-                      padding: '7px 12px',
-                      borderRadius: 10,
-                      cursor: 'pointer',
-                      fontSize: 12,
-                      fontWeight: 600,
-                    }}
-                  >
-                    {c === 1 ? '1 pago' : `${c}x`}
-                  </button>
-                ))}
-              </div>
-              {cuotas > 1 && amt && (
-                <div
-                  style={{
-                    marginTop: 5,
-                    fontSize: 11,
-                    color: P.ac,
-                    background: P.ab,
-                    padding: '4px 8px',
-                    borderRadius: 8,
-                  }}
-                >
-                  {cuotas} cuotas de{' '}
-                  {fmt(Math.ceil(Number(amt) / cuotas), curSel)}
-                </div>
-              )}
-            </div>
-          )}
-
-          {isG && pay === 'credito' && (
-            <div>
-              <Lbl>¿Con qué tarjeta?</Lbl>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                {[
-                  { id: 'Visa', c: '#1A1F71' },
-                  { id: 'Mastercard', c: '#EB001B' },
-                  { id: 'Amex', c: '#2E77BC' },
-                  { id: 'Mercado Pago', c: '#00AEEF' },
-                  { id: 'Naranja', c: '#FF6A00' },
-                  { id: 'Otra', c: P.sb },
-                ].map((n) => (
-                  <button
-                    key={n.id}
-                    onClick={() => setCardNet(cardNet === n.id ? '' : n.id)}
-                    style={{
-                      background: cardNet === n.id ? n.c : P.c2,
-                      border: `1px solid ${cardNet === n.id ? n.c : P.bd}`,
-                      color: cardNet === n.id ? '#fff' : P.tx,
-                      padding: '6px 12px',
-                      borderRadius: 10,
-                      cursor: 'pointer',
-                      fontSize: 12,
-                      fontWeight: 600,
-                    }}
-                  >
-                    💳 {n.id}
-                  </button>
-                ))}
-              </div>
-              <input
-                list="known-cards"
-                placeholder="Nombre de la tarjeta (ej: Galicia, BBVA negra)"
-                value={card}
-                onChange={(e) => setCard(e.target.value)}
-                style={{ ...iS, marginTop: 6 }}
-              />
-              <datalist id="known-cards">
-                {knownCards.filter(Boolean).map((nm) => (
-                  <option key={nm} value={nm} />
-                ))}
-              </datalist>
-              <div style={{ marginTop: 6 }}>
-                <Lbl>Día de vencimiento (pago del resumen)</Lbl>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <input
-                    type="number"
-                    min="1"
-                    max="31"
-                    placeholder="Día"
-                    value={cardDue}
-                    onChange={(e) => setCardDue(e.target.value)}
-                    style={{ ...iS, width: 90 }}
-                  />
-                  <span style={{ fontSize: 11, color: P.sb }}>
-                    {cardDue
-                      ? `Vence el ${cardDue} de cada mes · te aviso en Inicio`
-                      : 'Opcional — para verlo en "Tarjetas a pagar"'}
-                  </span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* 5. Date */}
+          {/* Fecha y Nota */}
           <div style={{ display: 'flex', gap: 8 }}>
             <div style={{ flex: 1 }}>
               <Lbl>Fecha</Lbl>
-              <input
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                style={iS}
-              />
+              <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={iS} />
             </div>
-            <div
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'flex-end',
-              }}
-            >
-              <button
-                onClick={() => setRecurring(!recurring)}
-                style={{
-                  background: recurring ? P.ab : P.c2,
-                  border: `1px solid ${recurring ? P.ac : P.bd}`,
-                  color: recurring ? P.ac : P.sb,
-                  padding: '11px 12px',
-                  borderRadius: 12,
-                  cursor: 'pointer',
-                  fontSize: 11,
-                  fontWeight: 500,
-                }}
-              >
-                🔄 Recurrente
-              </button>
-            </div>
-            <div
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'flex-end',
-              }}
-            >
-              <button
-                onClick={() => setProgramado(!programado)}
-                title="No cuenta en el presupuesto hasta marcarlo pagado"
-                style={{
-                  background: programado ? P.am + '22' : P.c2,
-                  border: `1px solid ${programado ? P.am : P.bd}`,
-                  color: programado ? P.am : P.sb,
-                  padding: '11px 12px',
-                  borderRadius: 12,
-                  cursor: 'pointer',
-                  fontSize: 11,
-                  fontWeight: 500,
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                📅 Programado
-              </button>
+            <div style={{ flex: 1 }}>
+              <Lbl>Nota</Lbl>
+              <input type="text" placeholder="Opcional" value={desc} onChange={(e) => setDesc(e.target.value)} style={iS} />
             </div>
           </div>
-          {programado && (
-            <div
-              style={{
-                fontSize: 11,
-                color: P.sb,
-                background: P.am + '14',
-                borderRadius: 10,
-                padding: '8px 11px',
-              }}
-            >
-              📅 Este gasto queda <b>pendiente</b> y no baja el presupuesto
-              hasta que lo marques como pagado (en la tarjeta "Por pagar" de
-              Inicio).
-            </div>
-          )}
 
-          {recurring && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div>
-                <Lbl>¿Cada cuánto se repite?</Lbl>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                  {[
-                    ['mensual', 'Mensual'],
-                    ['semanal', 'Semanal'],
-                    ['quincenal', 'Quincenal'],
-                    ['anual', 'Anual'],
-                  ].map(([id, l]) => (
-                    <button
-                      key={id}
-                      onClick={() => setFreq(id)}
-                      style={{
-                        background: freq === id ? P.ac : P.c2,
-                        border: `1px solid ${freq === id ? P.ac : P.bd}`,
-                        color: freq === id ? '#fff' : P.tx,
-                        padding: '6px 12px',
-                        borderRadius: 10,
-                        cursor: 'pointer',
-                        fontSize: 12,
-                        fontWeight: 500,
-                      }}
-                    >
-                      {l}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              {freq === 'mensual' && (
+          {/* Más opciones toggle */}
+          <button type="button" onClick={() => setShowMore((v) => !v)} style={{ alignSelf: 'flex-start', background: 'transparent', border: 'none', color: P.ac, fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: '2px 0' }}>
+            {showMore ? '▴ Menos opciones' : '▾ Más opciones'}
+          </button>
+
+          {showMore && (
+            <>
+              {/* Subcategoría */}
+              {cc && cc.s && cc.s.length > 0 && (
                 <div>
-                  <Lbl>Día de vencimiento aproximado</Lbl>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <input
-                      type="number"
-                      min="1"
-                      max="31"
-                      placeholder="Ej: 16"
-                      value={dueDay}
-                      onChange={(e) => setDueDay(e.target.value)}
-                      style={{ ...iS, width: 80, textAlign: 'center' }}
-                    />
-                    <span style={{ fontSize: 12, color: P.sb }}>de cada mes (opcional)</span>
+                  <Lbl>Subcategoría</Lbl>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+                    {cc.s.map((s2) => (
+                      <button key={s2} onClick={() => setSub(s2)} style={{ background: sub === s2 ? `${P.ac}12` : P.c2, border: `1px solid ${sub === s2 ? P.ac : P.bd}`, color: sub === s2 ? P.ac : P.sb, padding: '5px 10px', borderRadius: 8, cursor: 'pointer', fontSize: 10 }}>
+                        {s2}
+                      </button>
+                    ))}
                   </div>
                 </div>
               )}
-            </div>
-          )}
 
-          {/* 6. Note */}
-          <div>
-            <Lbl>Nota</Lbl>
-            <input
-              type="text"
-              placeholder="Opcional"
-              value={desc}
-              onChange={(e) => setDesc(e.target.value)}
-              style={iS}
-            />
-          </div>
+              {/* Recurrente + Programado */}
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={() => setRecurring(!recurring)} style={{ flex: 1, background: recurring ? P.ab : P.c2, border: `1px solid ${recurring ? P.ac : P.bd}`, color: recurring ? P.ac : P.sb, padding: '10px 12px', borderRadius: 12, cursor: 'pointer', fontSize: 12, fontWeight: 500 }}>
+                  🔄 Recurrente
+                </button>
+                <button onClick={() => setProgramado(!programado)} style={{ flex: 1, background: programado ? P.am + '22' : P.c2, border: `1px solid ${programado ? P.am : P.bd}`, color: programado ? P.am : P.sb, padding: '10px 12px', borderRadius: 12, cursor: 'pointer', fontSize: 12, fontWeight: 500 }}>
+                  📅 Programado
+                </button>
+              </div>
+
+              {programado && (
+                <div style={{ fontSize: 11, color: P.sb, background: P.am + '14', borderRadius: 10, padding: '8px 11px' }}>
+                  📅 Este gasto queda <b>pendiente</b> y no baja el presupuesto hasta que lo marques como pagado.
+                </div>
+              )}
+
+              {recurring && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, background: P.bg, borderRadius: 12, padding: 12, border: `1px solid ${P.bd}` }}>
+                  <div>
+                    <Lbl>¿Cada cuánto?</Lbl>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                      {[['mensual', 'Mensual'], ['semanal', 'Semanal'], ['quincenal', 'Quincenal'], ['anual', 'Anual']].map(([id, l]) => (
+                        <button key={id} onClick={() => setFreq(id)} style={{ background: freq === id ? P.ac : P.c2, border: `1px solid ${freq === id ? P.ac : P.bd}`, color: freq === id ? '#fff' : P.tx, padding: '6px 12px', borderRadius: 10, cursor: 'pointer', fontSize: 12, fontWeight: 500 }}>{l}</button>
+                      ))}
+                    </div>
+                  </div>
+                  {freq === 'mensual' && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <input type="number" min="1" max="31" placeholder="Día vencimiento" value={dueDay} onChange={(e) => setDueDay(e.target.value)} style={{ ...iS, width: 130 }} />
+                      <span style={{ fontSize: 11, color: P.sb }}>de cada mes (opcional)</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Método de pago */}
+              {isG && (
+                <div>
+                  <Lbl>Método de pago</Lbl>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                    {[{ id: 'debito', i: '💳', l: 'Débito' }, { id: 'credito', i: '💳', l: 'Crédito' }, { id: 'transferencia', i: '🏦', l: 'Transf.' }, { id: 'efectivo', i: '💵', l: 'Efectivo' }].map((p) => (
+                      <button key={p.id} onClick={() => { setPay(p.id); if (p.id !== 'credito') setCuotas(1); }} style={{ background: pay === p.id ? P.ac : P.c2, border: `1px solid ${pay === p.id ? P.ac : P.bd}`, color: pay === p.id ? '#fff' : P.tx, padding: '6px 10px', borderRadius: 10, cursor: 'pointer', fontSize: 11, display: 'flex', alignItems: 'center', gap: 3 }}>
+                        {p.i} {p.l}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {isG && pay === 'credito' && (
+                <div>
+                  <Lbl>Cuotas</Lbl>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+                    {[1, 2, 3, 6, 12, 18].map((c) => (
+                      <button key={c} onClick={() => setCuotas(c)} style={{ background: cuotas === c ? P.ac : P.c2, border: `1px solid ${cuotas === c ? P.ac : P.bd}`, color: cuotas === c ? '#fff' : P.tx, padding: '7px 12px', borderRadius: 10, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+                        {c === 1 ? '1 pago' : `${c}x`}
+                      </button>
+                    ))}
+                  </div>
+                  {cuotas > 1 && amt && <div style={{ marginTop: 5, fontSize: 11, color: P.ac, background: P.ab, padding: '4px 8px', borderRadius: 8 }}>{cuotas} cuotas de {fmt(Math.ceil(Number(amt) / cuotas), curSel)}</div>}
+                </div>
+              )}
+              {isG && pay === 'credito' && (
+                <div>
+                  <Lbl>¿Con qué tarjeta?</Lbl>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                    {[{ id: 'Visa', c: '#1A1F71' }, { id: 'Mastercard', c: '#EB001B' }, { id: 'Amex', c: '#2E77BC' }, { id: 'Mercado Pago', c: '#00AEEF' }, { id: 'Naranja', c: '#FF6A00' }, { id: 'Otra', c: P.sb }].map((n) => (
+                      <button key={n.id} onClick={() => setCardNet(cardNet === n.id ? '' : n.id)} style={{ background: cardNet === n.id ? n.c : P.c2, border: `1px solid ${cardNet === n.id ? n.c : P.bd}`, color: cardNet === n.id ? '#fff' : P.tx, padding: '6px 12px', borderRadius: 10, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+                        💳 {n.id}
+                      </button>
+                    ))}
+                  </div>
+                  <input list="known-cards" placeholder="Nombre de la tarjeta" value={card} onChange={(e) => setCard(e.target.value)} style={{ ...iS, marginTop: 6 }} />
+                  <datalist id="known-cards">{knownCards.filter(Boolean).map((nm) => <option key={nm} value={nm} />)}</datalist>
+                  <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <input type="number" min="1" max="31" placeholder="Día venc. resumen" value={cardDue} onChange={(e) => setCardDue(e.target.value)} style={{ ...iS, width: 140 }} />
+                    <span style={{ fontSize: 11, color: P.sb }}>{cardDue ? `Vence el ${cardDue} de cada mes` : 'Opcional'}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Scope */}
+              <div style={{ background: P.bg, borderRadius: 14, padding: 12, border: `1px solid ${P.bd}` }}>
+                <Lbl>Guardar en</Lbl>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
+                  <button onClick={() => setScope('personal')} style={{ background: scope === 'personal' ? P.ac : P.cd, border: `1px solid ${scope === 'personal' ? P.ac : P.bd}`, color: scope === 'personal' ? '#fff' : P.tx, padding: '6px 14px', borderRadius: 10, cursor: 'pointer', fontSize: 12, fontWeight: 500 }}>👤 Personal</button>
+                  {myGroups.map((g) => (
+                    <button key={g.id} onClick={() => setScope(g.id)} style={{ background: scope === g.id ? P.pu : P.cd, border: `1px solid ${scope === g.id ? P.pu : P.bd}`, color: scope === g.id ? '#fff' : P.tx, padding: '6px 14px', borderRadius: 10, cursor: 'pointer', fontSize: 12, fontWeight: 500 }}>👥 {g.name}</button>
+                  ))}
+                </div>
+              </div>
+              {scope !== 'personal' && (
+                <div>
+                  <Lbl>{type === 'ingreso' ? '¿A quién ingresó?' : '¿Quién pagó?'}</Lbl>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                    {Array.from(new Set([userName, ...((myGroups.find((g) => g.id === scope) || {}).memberNames || []), ...knownMembers].filter(Boolean))).map((nm) => (
+                      <button key={nm} onClick={() => setMember(nm)} style={{ background: member === nm ? P.pu : P.c2, border: `1px solid ${member === nm ? P.pu : P.bd}`, color: member === nm ? '#fff' : P.tx, padding: '6px 12px', borderRadius: 10, cursor: 'pointer', fontSize: 12, fontWeight: 500 }}>{nm}</button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </>
           )}
 
-          <button
-            type="button"
-            onClick={() => setShowMore((v) => !v)}
-            style={{
-              order: -1,
-              alignSelf: 'flex-start',
-              background: 'transparent',
-              border: 'none',
-              color: P.ac,
-              fontSize: 12,
-              fontWeight: 600,
-              cursor: 'pointer',
-              padding: '2px 0',
-            }}
-          >
-            {showMore
-              ? '▴ Menos opciones'
-              : '▾ Más opciones (espacio, fecha, medio de pago, recurrente…)'}
-          </button>
-
-          {/* Save */}
-          <div style={{ display: 'flex', gap: 6, marginTop: 2, order: 10 }}>
+          {/* Save / Cancel / Delete */}
+          <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
             {mode === 'edit' && !confirmDel && (
-              <button
-                onClick={() => setConfirmDel(true)}
-                style={{
-                  background: P.rb,
-                  border: `1px solid ${P.rd}20`,
-                  color: P.rd,
-                  padding: '12px',
-                  borderRadius: 14,
-                  cursor: 'pointer',
-                  fontSize: 12,
-                  fontWeight: 600,
-                }}
-              >
-                🗑️
-              </button>
+              <button onClick={() => setConfirmDel(true)} style={{ background: P.rb, border: `1px solid ${P.rd}20`, color: P.rd, padding: '12px', borderRadius: 14, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>🗑️</button>
             )}
             {mode === 'edit' && confirmDel && (
               <button

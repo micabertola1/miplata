@@ -1162,22 +1162,26 @@ function MainApp({ user, onLogout }) {
     await addTx({ ...rest, date: newDate });
   };
 
+  // Ref correcta según dónde vive la tx (grupo o personal)
+  const txRefFor = (t) =>
+    t.groupId
+      ? doc(db, 'groups', t.groupId, 'transactions', t.id)
+      : doc(db, 'users', user.uid, 'transactions', t.id);
+
   // Quitar una serie recurrente: pone recurring=false en todas las txs de esa serieId
   const removeRecurringSerie = async (serieId) => {
     if (!serieId) return;
     const txsWithSerie = activeTx.filter((t) => t.serieId === serieId);
     if (txsWithSerie.length === 0) return;
-    const batch = writeBatch(db);
-    for (const t of txsWithSerie) {
-      const ref = doc(db, 'users', user.uid, 'transactions', t.id);
-      batch.update(ref, { recurring: false });
-      if (t.groupId) {
-        const gref = doc(db, 'groups', t.groupId, 'transactions', t.id);
-        batch.update(gref, { recurring: false });
-      }
+    try {
+      const batch = writeBatch(db);
+      for (const t of txsWithSerie) batch.update(txRefFor(t), { recurring: false });
+      await batch.commit();
+      notify('Recurrente eliminado', 'success');
+    } catch (e) {
+      console.error('removeRecurringSerie error:', e);
+      notify('No pudimos eliminar el recurrente. Probá de nuevo.', 'error');
     }
-    await batch.commit();
-    notify('Recurrente eliminado', 'success');
   };
 
   // Pausar / activar una serie recurrente sin eliminarla
@@ -1185,17 +1189,31 @@ function MainApp({ user, onLogout }) {
     if (!serieId) return;
     const txsWithSerie = activeTx.filter((t) => t.serieId === serieId);
     if (txsWithSerie.length === 0) return;
-    const batch = writeBatch(db);
-    for (const t of txsWithSerie) {
-      const ref = doc(db, 'users', user.uid, 'transactions', t.id);
-      batch.update(ref, { paused: pause });
-      if (t.groupId) {
-        const gref = doc(db, 'groups', t.groupId, 'transactions', t.id);
-        batch.update(gref, { paused: pause });
-      }
+    try {
+      const batch = writeBatch(db);
+      for (const t of txsWithSerie) batch.update(txRefFor(t), { paused: pause });
+      await batch.commit();
+      notify(pause ? 'Recurrente pausado ⏸️' : 'Recurrente activado ▶️', 'success');
+    } catch (e) {
+      console.error('pauseRecurringSerie error:', e);
+      notify('No pudimos pausar el recurrente. Probá de nuevo.', 'error');
     }
-    await batch.commit();
-    notify(pause ? 'Recurrente pausado ⏸️' : 'Recurrente activado ▶️', 'success');
+  };
+
+  // Destildar: borra la(s) instancia(s) de esta serie en el mes visto
+  const unregisterRecurring = async (template) => {
+    if (!template?.serieId) return;
+    const insts = activeTx.filter((t) => t.serieId === template.serieId && mk(t.date) === month);
+    if (insts.length === 0) return;
+    try {
+      const batch = writeBatch(db);
+      for (const t of insts) batch.delete(txRefFor(t));
+      await batch.commit();
+      notify('Quitamos el pago de este mes', 'success');
+    } catch (e) {
+      console.error('unregisterRecurring error:', e);
+      notify('No pudimos quitar el pago. Probá de nuevo.', 'error');
+    }
   };
 
   // Ubicaciones posibles del documento, ordenadas por probabilidad.
@@ -2170,6 +2188,7 @@ function MainApp({ user, onLogout }) {
             activeTx={activeTx}
             month={month}
             onRegister={registerRecurring}
+            onUnregister={unregisterRecurring}
             onRemoveSerie={removeRecurringSerie}
             onPauseSerie={pauseRecurringSerie}
             favorites={favorites}
@@ -2209,6 +2228,7 @@ function MainApp({ user, onLogout }) {
             onAdd={openAdd}
             onEdit={openEdit}
             onRegister={registerRecurring}
+            onUnregister={unregisterRecurring}
             onRemoveSerie={removeRecurringSerie}
             onPauseSerie={pauseRecurringSerie}
             onExport={() => exportCSV(true)}
@@ -3893,7 +3913,7 @@ function DiariosTab({ mob, cur, activeTx, month, onAdd, onEdit, onExport }) {
 }
 
 function MesTab({
-  mob, cur, activeTx, totIn, month, onAdd, onEdit, onRegister, onRemoveSerie, onPauseSerie, onExport, onExchange,
+  mob, cur, activeTx, totIn, month, onAdd, onEdit, onRegister, onUnregister, onRemoveSerie, onPauseSerie, onExport, onExchange,
 }) {
   const [usdRates, setUsdRates] = useState(null);
   useEffect(() => {
@@ -4011,22 +4031,24 @@ function MesTab({
           </div>
           {recList.map((t) => {
             const done = doneThisMonth(t.serieId);
-            const due = t.dueDay;
+            const due = t.dueDay || (t.date ? Number(String(t.date).slice(8, 10)) : null);
             const dueInfo = (() => {
               if (!due) return null;
-              if (done) return { text: `Vence ${due}`, color: P.sb };
+              const fecha = `${due}/${monthNum}`;
+              if (done) return { text: '✓ Pagado', color: P.gn, bg: P.gb };
               const diff = due - todayD;
-              if (diff < 0) return { text: `Venció el ${due}`, color: P.rd };
-              if (diff === 0) return { text: 'Vence hoy', color: P.rd };
-              if (diff <= 3) return { text: `Vence en ${diff}d`, color: P.am };
-              return { text: `Vence ${due}/${monthNum}`, color: P.sb };
+              if (diff < 0) return { text: `⚠️ Venció ${fecha}`, color: P.rd, bg: P.rb };
+              if (diff === 0) return { text: '📅 Vence hoy', color: P.rd, bg: P.rb };
+              if (diff <= 3) return { text: `📅 Vence en ${diff}d · ${fecha}`, color: P.am, bg: P.am + '22' };
+              return { text: `📅 Vence ${fecha}`, color: P.sb, bg: P.c2 };
             })();
             const pctIncome = totIn > 0 ? ((t.cur === 'USD' ? t.amt * ((usdRates?.venta) || 1200) : t.amt) / totIn * 100).toFixed(0) : null;
             return (
               <div key={t.serieId} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderTop: `1px solid ${P.bd}`, opacity: t.paused ? 0.5 : 1 }}>
                 <button
-                  onClick={() => !done && !t.paused && onRegister(t)}
-                  style={{ width: 24, height: 24, borderRadius: '50%', flexShrink: 0, border: `2px solid ${done ? P.gn : P.bd}`, background: done ? P.gn : 'transparent', cursor: done ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 13, fontWeight: 700 }}
+                  onClick={() => { if (t.paused) return; done ? onUnregister(t) : onRegister(t); }}
+                  title={done ? 'Tocá para destildar (quitar el pago de este mes)' : 'Marcar como pagado este mes'}
+                  style={{ width: 24, height: 24, borderRadius: '50%', flexShrink: 0, border: `2px solid ${done ? P.gn : P.bd}`, background: done ? P.gn : 'transparent', cursor: t.paused ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 13, fontWeight: 700 }}
                 >
                   {done ? '✓' : ''}
                 </button>
@@ -4039,9 +4061,9 @@ function MesTab({
                       <span style={{ fontSize: 10, color: P.sb, background: P.bd, borderRadius: 6, padding: '1px 5px', flexShrink: 0 }}>{pctIncome}%</span>
                     )}
                   </div>
-                  <div style={{ fontSize: 11, color: P.sb, marginTop: 2, display: 'flex', gap: 8 }}>
+                  <div style={{ fontSize: 11, color: P.sb, marginTop: 2, display: 'flex', gap: 8, alignItems: 'center' }}>
                     <span style={{ fontWeight: 500, color: done ? P.sb : P.tx }}>{fmtS(t.amt, t.cur)}</span>
-                    {!t.paused && dueInfo && <span style={{ color: dueInfo.color }}>{dueInfo.text}</span>}
+                    {!t.paused && dueInfo && <span style={{ color: dueInfo.color, fontWeight: 600, fontSize: 10, background: dueInfo.bg, borderRadius: 6, padding: '2px 7px' }}>{dueInfo.text}</span>}
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
@@ -4138,6 +4160,7 @@ function HomeTab({
   activeTx = [],
   month,
   onRegister,
+  onUnregister,
   favorites = [],
   onUseFav,
   onRemoveFav,
@@ -4729,13 +4752,13 @@ function HomeTab({
                 >
                   {/* Checkbox */}
                   <button
-                    onClick={() => !done && !t.paused && onRegister(t)}
-                    title={done ? 'Ya registrado' : 'Marcar como pagado'}
+                    onClick={() => { if (t.paused) return; done ? onUnregister && onUnregister(t) : onRegister(t); }}
+                    title={done ? 'Tocá para destildar (quitar el pago de este mes)' : 'Marcar como pagado'}
                     style={{
                       width: 24, height: 24, borderRadius: '50%', flexShrink: 0,
                       border: `2px solid ${done ? P.gn : P.bd}`,
                       background: done ? P.gn : 'transparent',
-                      cursor: done ? 'default' : 'pointer',
+                      cursor: t.paused ? 'default' : 'pointer',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       color: '#fff', fontSize: 13, fontWeight: 700,
                     }}

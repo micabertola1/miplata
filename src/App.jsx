@@ -2108,6 +2108,7 @@ function MainApp({ user, onLogout }) {
             mob={mob}
             cur={cur}
             activeTx={activeTx}
+            month={month}
             onAdd={openAdd}
             onEdit={openEdit}
           />
@@ -3690,7 +3691,7 @@ function TxListTab({ mob, cur, activeTx, onEdit, customCats, onAdd }) {
 }
 
 /* ── MES ── */
-function DiariosTab({ mob, cur, activeTx, onAdd, onEdit }) {
+function DiariosTab({ mob, cur, activeTx, month, onAdd, onEdit }) {
   const [usdRates, setUsdRates] = useState(null);
   useEffect(() => {
     fetch('https://api.bluelytics.com.ar/v2/latest')
@@ -3700,7 +3701,7 @@ function DiariosTab({ mob, cur, activeTx, onAdd, onEdit }) {
   }, []);
 
   const gastos = activeTx
-    .filter((t) => t.type === 'gasto' && !t.recurring)
+    .filter((t) => t.type === 'gasto' && !t.recurring && mk(t.date) === month)
     .sort((a, b) => String(b.date).localeCompare(String(a.date)));
 
   const totalGastos = gastos.reduce((s, t) => s + (t.cur === 'USD' ? t.amt * ((usdRates?.venta) || 1200) : t.amt), 0);

@@ -198,6 +198,16 @@ function fmtS(a, c) {
 function td() {
   return new Date().toISOString().slice(0, 10);
 }
+// Autoformatea a DD/MM mientras se escribe (solo números, inserta la barra sola)
+function fmtDDMM(raw, prev) {
+  let digits = raw.replace(/\D/g, '').slice(0, 4);
+  // Si borró la barra, no la reponemos de más (evita loop al borrar)
+  if (raw.length < (prev || '').length && (prev || '').includes('/') && !raw.includes('/')) {
+    return digits.slice(0, 2);
+  }
+  if (digits.length <= 2) return digits;
+  return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+}
 
 // Cargos de un mes: las compras en cuotas se reparten (una cuota por mes)
 function chargesForMonth(txs, monthKey) {
@@ -3696,17 +3706,17 @@ function PerfilTab({ onExportAll, onExportMonth, onImport, cards, onSaveCards, t
                 style={{ ...inputStyle, marginBottom: 0 }}
                 type="text"
                 inputMode="numeric"
-                placeholder="Cierre MM/AA (ej: 08/28)"
+                placeholder="Cierre DD/MM (ej: 08/03)"
                 value={newCard.cierre}
-                onChange={(e) => setNewCard((v) => ({ ...v, cierre: e.target.value }))}
+                onChange={(e) => setNewCard((v) => ({ ...v, cierre: fmtDDMM(e.target.value, v.cierre) }))}
               />
               <input
                 style={{ ...inputStyle, marginBottom: 0 }}
                 type="text"
                 inputMode="numeric"
-                placeholder="Vencimiento MM/AA (ej: 08/28)"
+                placeholder="Vencimiento DD/MM (ej: 15/03)"
                 value={newCard.vencimiento}
-                onChange={(e) => setNewCard((v) => ({ ...v, vencimiento: e.target.value }))}
+                onChange={(e) => setNewCard((v) => ({ ...v, vencimiento: fmtDDMM(e.target.value, v.vencimiento) }))}
               />
             </div>
             <button
@@ -3735,17 +3745,17 @@ function PerfilTab({ onExportAll, onExportMonth, onImport, cards, onSaveCards, t
                     style={{ ...inputStyle, marginBottom: 0 }}
                     type="text"
                     inputMode="numeric"
-                    placeholder="Cierre MM/AA"
+                    placeholder="Cierre DD/MM"
                     value={editCard.cierre}
-                    onChange={(e) => setEditCard((v) => ({ ...v, cierre: e.target.value }))}
+                    onChange={(e) => setEditCard((v) => ({ ...v, cierre: fmtDDMM(e.target.value, v.cierre) }))}
                   />
                   <input
                     style={{ ...inputStyle, marginBottom: 0 }}
                     type="text"
                     inputMode="numeric"
-                    placeholder="Vencimiento MM/AA"
+                    placeholder="Vencimiento DD/MM"
                     value={editCard.vencimiento}
-                    onChange={(e) => setEditCard((v) => ({ ...v, vencimiento: e.target.value }))}
+                    onChange={(e) => setEditCard((v) => ({ ...v, vencimiento: fmtDDMM(e.target.value, v.vencimiento) }))}
                   />
                 </div>
                 <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>

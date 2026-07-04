@@ -2091,12 +2091,14 @@ function MainApp({ user, onLogout }) {
         )}
         {(tab === 'home' || tab === 'movs' || tab === 'diarios') && (
           <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-            <button
-              onClick={() => openAdd('ingreso')}
-              style={{ flex: 1, background: P.gn + '18', border: `1px solid ${P.gn}40`, borderRadius: 10, padding: '9px 0', fontSize: 13, fontWeight: 700, color: P.gn, cursor: 'pointer' }}
-            >
-              + Ingreso
-            </button>
+            {tab !== 'diarios' && (
+              <button
+                onClick={() => openAdd('ingreso')}
+                style={{ flex: 1, background: P.gn + '18', border: `1px solid ${P.gn}40`, borderRadius: 10, padding: '9px 0', fontSize: 13, fontWeight: 700, color: P.gn, cursor: 'pointer' }}
+              >
+                + Ingreso
+              </button>
+            )}
             <button
               onClick={() => openAdd('gasto')}
               style={{ flex: 1, background: P.rd + '18', border: `1px solid ${P.rd}40`, borderRadius: 10, padding: '9px 0', fontSize: 13, fontWeight: 700, color: P.rd, cursor: 'pointer' }}

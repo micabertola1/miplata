@@ -2089,7 +2089,7 @@ function MainApp({ user, onLogout }) {
             onSeeAll={() => setTab('movs')}
           />
         )}
-        {(tab === 'home' || tab === 'movs' || tab === 'diarios') && (
+        {(tab === 'movs' || tab === 'diarios') && (
           <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
             {tab !== 'diarios' && (
               <button

@@ -3814,7 +3814,7 @@ function DiariosTab({ mob, cur, activeTx, month, onAdd, onEdit, onExport }) {
                     <span style={{ fontSize: 15 }}>📤</span>
                     <div style={{ minWidth: 0 }}>
                       <div style={{ fontSize: 13, fontWeight: 600, color: P.tx, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: mob ? 150 : 260 }}>{t.desc || t.cat}</div>
-                      <div style={{ fontSize: 10, color: P.sb }}>{t.cat}{t.sub ? ` · ${t.sub}` : ''}</div>
+                      <div style={{ fontSize: 10, color: P.sb }}>{t.cat}{t.sub ? ` · ${t.sub}` : ''}{t.member ? ` · 👤 ${t.member.split(' ')[0]}` : ''}</div>
                     </div>
                   </div>
                   <span style={{ fontSize: 13, fontWeight: 600, color: P.rd, flexShrink: 0 }}>{fmtS(t.amt, t.cur)}</span>
@@ -4639,7 +4639,7 @@ function HomeTab({
             {recMensuales.map((t) => {
               const done = doneThisMonth(t.serieId);
               const todayD = Number(todayStr.slice(8, 10));
-              const due = t.dueDay;
+              const due = t.dueDay || (t.date ? Number(String(t.date).slice(8, 10)) : null);
               const dueInfo = (() => {
                 if (!due) return null;
                 if (done) return { text: `Vence ${due}`, color: P.sb };
@@ -4696,13 +4696,8 @@ function HomeTab({
                     </div>
                     <div style={{ fontSize: 11, color: P.sb, marginTop: 2, display: 'flex', gap: 8, alignItems: 'center' }}>
                       <span style={{ fontWeight: 500, color: done ? P.sb : P.tx }}>{fmtS(t.amt, t.cur)}</span>
-                      {t.date && (
-                        <span style={{ color: P.sb }}>
-                          {String(t.date).slice(8, 10)}/{String(t.date).slice(5, 7)}
-                        </span>
-                      )}
                       {!t.paused && dueInfo && (
-                        <span style={{ color: dueInfo.color }}>{dueInfo.text}</span>
+                        <span style={{ color: dueInfo.color, fontWeight: 500 }}>{dueInfo.text}</span>
                       )}
                     </div>
                   </div>

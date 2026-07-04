@@ -2328,6 +2328,7 @@ function MainApp({ user, onLogout }) {
           knownMembers={[
             ...new Set(allGroupTx.map((t) => t.member).filter(Boolean)),
           ]}
+          savedCards={settings.cards || []}
         />
       )}
 
@@ -3839,7 +3840,7 @@ function MesTab({
   // Suscripciones: gastos con categoría o subcategoría "suscripción/suscripciones" registrados este mes
   const isSusc = (t) => {
     const s = (v) => (v || '').toLowerCase();
-    return s(t.cat).includes('suscripci') || s(t.sub).includes('suscripci');
+    return t.susc === true || s(t.cat).includes('suscripci') || s(t.sub).includes('suscripci');
   };
   const suscripciones = activeTx.filter((t) => t.type === 'gasto' && mk(t.date) === month && t.cur === cur && isSusc(t));
 
@@ -6174,6 +6175,7 @@ function TxModal({
   onSaveFav,
   knownCards = [],
   knownMembers = [],
+  savedCards = [],
 }) {
   const [type, setType] = useState(initial?.type || 'gasto');
   const cats = getCats(type, customCats);
@@ -6195,6 +6197,8 @@ function TxModal({
   const [cardDue, setCardDue] = useState(
     initial?.cardDue ? String(initial.cardDue) : ''
   );
+  const [susc, setSusc] = useState(initial?.susc || false);
+  const [addingCard, setAddingCard] = useState(false);
   const isG = type === 'gasto';
 
   // Scope: personal or a group.
@@ -6361,6 +6365,16 @@ function TxModal({
             </div>
             {recurring && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10, borderTop: `1px solid ${P.bd}`, padding: '12px 0' }}>
+                {isG && (
+                  <div>
+                    <Lbl>Tipo</Lbl>
+                    <div style={{ display: 'flex', background: P.cd, borderRadius: 12, padding: 3, border: `1px solid ${P.bd}` }}>
+                      {[[false, '🔄 Recurrente'], [true, '💳 Suscripción']].map(([v, l]) => (
+                        <button key={String(v)} onClick={() => setSusc(v)} style={{ flex: 1, background: susc === v ? P.ac : 'transparent', color: susc === v ? '#fff' : P.sb, border: 'none', padding: '9px', borderRadius: 9, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>{l}</button>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <div>
                   <Lbl>¿Cada cuánto?</Lbl>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
@@ -6423,20 +6437,30 @@ function TxModal({
               )}
               {isG && pay === 'credito' && (
                 <div>
-                  <Lbl>¿Con qué tarjeta?</Lbl>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                    {[{ id: 'Visa', c: '#1A1F71' }, { id: 'Mastercard', c: '#EB001B' }, { id: 'Amex', c: '#2E77BC' }, { id: 'Mercado Pago', c: '#00AEEF' }, { id: 'Naranja', c: '#FF6A00' }, { id: 'Otra', c: P.sb }].map((n) => (
-                      <button key={n.id} onClick={() => setCardNet(cardNet === n.id ? '' : n.id)} style={{ background: cardNet === n.id ? n.c : P.c2, border: `1px solid ${cardNet === n.id ? n.c : P.bd}`, color: cardNet === n.id ? '#fff' : P.tx, padding: '6px 12px', borderRadius: 10, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
-                        💳 {n.id}
-                      </button>
-                    ))}
+                  <Lbl>Tarjeta de crédito</Lbl>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {savedCards.map((c) => {
+                      const on = !addingCard && card === c.name;
+                      return (
+                        <button key={c.id || c.name} onClick={() => { setCard(c.name); setCardDue(c.vencimiento ? String(c.vencimiento) : ''); setCardNet(''); setAddingCard(false); }} style={{ background: on ? P.ac : P.cd, border: `1px solid ${on ? P.ac : P.bd}`, color: on ? '#fff' : P.tx, padding: '8px 14px', borderRadius: 11, cursor: 'pointer', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5 }}>
+                          💳 {c.name}
+                        </button>
+                      );
+                    })}
+                    <button onClick={() => { setAddingCard(true); setCard(''); setCardDue(''); setCardNet(''); }} style={{ background: addingCard ? `${P.ac}18` : 'transparent', border: `1px dashed ${P.ac}`, color: P.ac, padding: '8px 14px', borderRadius: 11, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+                      + Nueva
+                    </button>
                   </div>
-                  <input list="known-cards" placeholder="Nombre de la tarjeta" value={card} onChange={(e) => setCard(e.target.value)} style={{ ...iS, marginTop: 6 }} />
-                  <datalist id="known-cards">{knownCards.filter(Boolean).map((nm) => <option key={nm} value={nm} />)}</datalist>
-                  <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <input type="number" min="1" max="31" placeholder="Día venc. resumen" value={cardDue} onChange={(e) => setCardDue(e.target.value)} style={{ ...iS, width: 140 }} />
-                    <span style={{ fontSize: 11, color: P.sb }}>{cardDue ? `Vence el ${cardDue} de cada mes` : 'Opcional'}</span>
-                  </div>
+                  {addingCard && (
+                    <input placeholder="Nombre de la tarjeta" value={card} onChange={(e) => setCard(e.target.value)} style={{ ...iS, background: P.cd, marginTop: 8 }} />
+                  )}
+                  {(() => {
+                    const sel = savedCards.find((c) => c.name === card);
+                    if (!addingCard && card && sel && !sel.cierre) {
+                      return <div style={{ marginTop: 8, fontSize: 11, color: P.am, fontWeight: 600 }}>⚠️ Sin fecha de cierre para esta tarjeta. Configurala en ⚙️ Config.</div>;
+                    }
+                    return null;
+                  })()}
                 </div>
               )}
 
@@ -6541,6 +6565,7 @@ function TxModal({
                       isG && pay === 'credito' && cardDue
                         ? Number(cardDue)
                         : undefined,
+                    susc: isG && recurring && susc ? true : undefined,
                     scope: isGroupScope ? 'grupo' : 'personal',
                     groupId: isGroupScope ? scope : undefined,
                     member: isGroupScope ? member || userName : undefined,

@@ -487,7 +487,7 @@ async function parseBankPDF(arrayBuffer) {
 }
 
 /* ── Palette ── */
-const P = {
+const P_LIGHT = {
   bg: '#F8F6F3',
   cd: '#FFFFFF',
   c2: '#F2EFEA',
@@ -506,6 +506,26 @@ const P = {
   pu: '#7B6BA5',
   pb: 'rgba(123,107,165,0.07)',
 };
+const P_DARK = {
+  bg: '#1A1815',
+  cd: '#242220',
+  c2: '#2C2926',
+  bd: '#3A3630',
+  tx: '#F0ECE6',
+  sb: '#7A7268',
+  ac: '#5A8BBF',
+  al: '#7AAFD6',
+  ab: 'rgba(90,139,191,0.12)',
+  gn: '#4EA882',
+  gb: 'rgba(78,168,130,0.10)',
+  rd: '#D97070',
+  rb: 'rgba(217,112,112,0.10)',
+  am: '#C9A030',
+  amb: 'rgba(201,160,48,0.10)',
+  pu: '#9B8EC0',
+  pb: 'rgba(155,142,192,0.10)',
+};
+let P = { ...P_LIGHT };
 const pal = [
   '#3D6B9B',
   '#3E8A6E',
@@ -1064,6 +1084,8 @@ function MainApp({ user, onLogout }) {
           customCats: merged.customCats || {},
           favorites: merged.favorites || [],
           savings: merged.savings || [],
+          cards: merged.cards || [],
+          theme: merged.theme || 'light',
           name: user.displayName,
           email: user.email,
         },
@@ -1438,6 +1460,9 @@ function MainApp({ user, onLogout }) {
       return (groupTx[grp.id] || []).map((t) => ({ ...t, groupId: grp.id }));
     return [];
   }, [viewScope, tx, myGroups, groupTx]);
+
+  // Aplicar tema antes de renderizar
+  Object.assign(P, (settings.theme || 'light') === 'dark' ? P_DARK : P_LIGHT);
 
   const mtx = chargesForMonth(activeTx, month).filter((t) => t.cur === cur);
   // Los gastos PROGRAMADOS (pendientes de pago) no cuentan hasta marcarse pagados
@@ -2139,6 +2164,10 @@ function MainApp({ user, onLogout }) {
             onExportAll={() => exportCSV(false)}
             onExportMonth={() => exportCSV(true)}
             onImport={() => setShowImport(true)}
+            cards={settings.cards || []}
+            onSaveCards={(c) => saveSettings({ cards: c })}
+            theme={settings.theme || 'light'}
+            onToggleTheme={() => saveSettings({ theme: settings.theme === 'dark' ? 'light' : 'dark' })}
           />
         )}
         {tab === 'insights' && (
@@ -2214,7 +2243,7 @@ function MainApp({ user, onLogout }) {
           { id: 'diarios', l: 'Diarios', e: '📝' },
           { id: 'insights', l: 'Análisis', e: '📊' },
           { id: 'goals', l: 'Metas', e: '🎯' },
-          { id: 'perfil', l: 'Perfil', e: '👤' },
+          { id: 'perfil', l: 'Config', e: '⚙️' },
         ].map((t) => (
           <button
             key={t.id}
@@ -3481,27 +3510,130 @@ function TxListTab({ mob, cur, activeTx, onEdit, customCats, onAdd }) {
 }
 
 /* ── MES ── */
-function PerfilTab({ onExportAll, onExportMonth, onImport }) {
+function PerfilTab({ onExportAll, onExportMonth, onImport, cards, onSaveCards, theme, onToggleTheme }) {
+  const [showAddCard, setShowAddCard] = useState(false);
+  const [newCard, setNewCard] = useState({ name: '', cierre: '', vencimiento: '' });
+
+  const sectionStyle = { background: P.cd, border: `1px solid ${P.bd}`, borderRadius: 16, padding: '4px 14px', marginBottom: 12 };
+  const sectionTitle = (label) => (
+    <div style={{ fontSize: 11, fontWeight: 700, color: P.sb, textTransform: 'uppercase', letterSpacing: 1, padding: '10px 0 4px' }}>{label}</div>
+  );
   const row = (icon, label, onClick, color) => (
-    <button
-      onClick={onClick}
-      style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', background: 'transparent', border: 'none', borderBottom: `1px solid ${P.bd}`, padding: '14px 4px', cursor: 'pointer', textAlign: 'left' }}
-    >
+    <button onClick={onClick} style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', background: 'transparent', border: 'none', borderBottom: `1px solid ${P.bd}`, padding: '14px 4px', cursor: 'pointer', textAlign: 'left' }}>
       <span style={{ fontSize: 20 }}>{icon}</span>
       <span style={{ fontSize: 14, fontWeight: 500, color: color || P.tx }}>{label}</span>
     </button>
   );
+
+  const handleAddCard = () => {
+    if (!newCard.name.trim()) return;
+    onSaveCards([...(cards || []), { id: String(Date.now()), ...newCard }]);
+    setNewCard({ name: '', cierre: '', vencimiento: '' });
+    setShowAddCard(false);
+  };
+
+  const inputStyle = { width: '100%', background: P.c2, border: `1px solid ${P.bd}`, borderRadius: 10, padding: '9px 12px', fontSize: 13, color: P.tx, boxSizing: 'border-box', outline: 'none', marginBottom: 8 };
+
   return (
     <div style={{ paddingBottom: 80 }}>
-      <div style={{ background: P.cd, border: `1px solid ${P.bd}`, borderRadius: 16, padding: '4px 14px', marginBottom: 12 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: P.sb, textTransform: 'uppercase', letterSpacing: 1, padding: '10px 0 4px' }}>Exportar</div>
+
+      {/* Apariencia */}
+      <div style={sectionStyle}>
+        {sectionTitle('Apariencia')}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 4px 14px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 20 }}>{theme === 'dark' ? '🌙' : '☀️'}</span>
+            <span style={{ fontSize: 14, fontWeight: 500, color: P.tx }}>Modo {theme === 'dark' ? 'oscuro' : 'claro'}</span>
+          </div>
+          <div
+            onClick={onToggleTheme}
+            style={{ width: 50, height: 28, borderRadius: 14, background: theme === 'dark' ? P.ac : P.bd, cursor: 'pointer', position: 'relative', flexShrink: 0, transition: 'background 0.2s' }}
+          >
+            <div style={{ width: 22, height: 22, borderRadius: '50%', background: '#fff', position: 'absolute', top: 3, left: theme === 'dark' ? 25 : 3, transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
+          </div>
+        </div>
+      </div>
+
+      {/* Tarjetas de crédito */}
+      <div style={sectionStyle}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          {sectionTitle('Tarjetas de crédito')}
+          <button
+            onClick={() => setShowAddCard((v) => !v)}
+            style={{ background: 'transparent', border: 'none', color: P.ac, fontSize: 13, fontWeight: 700, cursor: 'pointer', padding: '4px 0' }}
+          >
+            {showAddCard ? 'Cancelar' : '+ Agregar'}
+          </button>
+        </div>
+
+        {showAddCard && (
+          <div style={{ background: P.c2, borderRadius: 12, padding: 12, marginBottom: 10 }}>
+            <input
+              style={inputStyle}
+              placeholder="Nombre (ej: Visa Macro)"
+              value={newCard.name}
+              onChange={(e) => setNewCard((v) => ({ ...v, name: e.target.value }))}
+            />
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input
+                style={{ ...inputStyle, marginBottom: 0 }}
+                type="number"
+                placeholder="Día de cierre"
+                min={1} max={31}
+                value={newCard.cierre}
+                onChange={(e) => setNewCard((v) => ({ ...v, cierre: e.target.value }))}
+              />
+              <input
+                style={{ ...inputStyle, marginBottom: 0 }}
+                type="number"
+                placeholder="Día de vencimiento"
+                min={1} max={31}
+                value={newCard.vencimiento}
+                onChange={(e) => setNewCard((v) => ({ ...v, vencimiento: e.target.value }))}
+              />
+            </div>
+            <button
+              onClick={handleAddCard}
+              style={{ marginTop: 10, width: '100%', background: P.ac, color: '#fff', border: 'none', borderRadius: 10, padding: '10px 0', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+            >
+              Agregar tarjeta
+            </button>
+          </div>
+        )}
+
+        {(cards || []).length === 0 && !showAddCard ? (
+          <div style={{ fontSize: 12, color: P.sb, textAlign: 'center', padding: '10px 0 14px' }}>Sin tarjetas agregadas</div>
+        ) : (cards || []).map((c) => (
+          <div key={c.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 4px', borderTop: `1px solid ${P.bd}` }}>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: P.tx }}>💳 {c.name}</div>
+              <div style={{ fontSize: 11, color: P.sb, marginTop: 2 }}>
+                Cierre: día {c.cierre} · Vence: día {c.vencimiento}
+              </div>
+            </div>
+            <button
+              onClick={() => onSaveCards((cards || []).filter((x) => x.id !== c.id))}
+              style={{ background: 'transparent', border: 'none', color: P.sb, fontSize: 20, cursor: 'pointer', padding: '4px 6px', lineHeight: 1 }}
+            >
+              ×
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {/* Exportar */}
+      <div style={sectionStyle}>
+        {sectionTitle('Exportar')}
         {row('📤', 'Exportar todo (CSV)', onExportAll)}
         {row('📅', 'Exportar mes actual (CSV)', onExportMonth)}
       </div>
-      <div style={{ background: P.cd, border: `1px solid ${P.bd}`, borderRadius: 16, padding: '4px 14px' }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: P.sb, textTransform: 'uppercase', letterSpacing: 1, padding: '10px 0 4px' }}>Datos</div>
+
+      {/* Importar */}
+      <div style={{ ...sectionStyle, marginBottom: 0 }}>
+        {sectionTitle('Datos')}
         {row('📥', 'Importar datos', onImport)}
       </div>
+
     </div>
   );
 }
@@ -3610,8 +3742,19 @@ function MesTab({
 
   const ingresos = activeTx.filter((t) => t.type === 'ingreso' && mk(t.date) === month);
 
+  // Suscripciones: gastos recurrentes ya registrados este mes
+  const suscripciones = activeTx.filter((t) => t.recurring && t.type === 'gasto' && mk(t.date) === month && t.cur === cur);
+
+  // Cuotas: gastos en cuotas (credito, cuotas > 1) distribuidos al mes actual
+  const cuotasMes = chargesForMonth(
+    activeTx.filter((t) => t.type === 'gasto' && t.pay === 'credito' && t.cuotas > 1 && t.cur === cur),
+    month
+  );
+
   const totalIngresos = ingresos.reduce((s, t) => s + (t.cur === 'USD' ? t.amt * ((usdRates?.venta) || 1200) : t.amt), 0);
   const totalFijos = recList.reduce((s, t) => s + (t.cur === 'USD' ? t.amt * ((usdRates?.venta) || 1200) : t.amt), 0);
+  const totalSusc = suscripciones.reduce((s, t) => s + t.amt, 0);
+  const totalCuotas = cuotasMes.reduce((s, t) => s + t.amt, 0);
 
   const todayD = Number(todayStr.slice(8, 10));
   const monthNum = Number(todayStr.slice(5, 7));
@@ -3727,6 +3870,65 @@ function MesTab({
               </div>
             );
           })}
+          <div style={{ fontSize: 10, color: P.sb, textAlign: 'center', padding: '8px 0 4px' }}>Tocá para editar</div>
+        </div>
+      )}
+
+      {/* Suscripciones */}
+      {suscripciones.length > 0 && (
+        <div style={{ background: P.cd, border: `1px solid ${P.bd}`, borderRadius: 16, padding: '14px 14px 6px', marginBottom: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontSize: 16 }}>📲</span>
+                <span style={{ fontSize: 15, fontWeight: 700, color: P.tx }}>Suscripciones</span>
+              </div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: P.rd, marginTop: 2 }}>{fmtS(totalSusc, cur)}</div>
+            </div>
+          </div>
+          {suscripciones.map((t) => (
+            <div key={t.id} onClick={() => onEdit(t)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 0', borderTop: `1px solid ${P.bd}`, cursor: 'pointer' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                <span style={{ fontSize: 18 }}>🔁</span>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: P.tx, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 170 }}>{t.desc || t.sub || t.cat}</div>
+                  <div style={{ fontSize: 11, color: P.sb }}>{t.cat}</div>
+                </div>
+              </div>
+              <span style={{ fontSize: 14, fontWeight: 700, color: P.rd, flexShrink: 0 }}>{fmtS(t.amt, t.cur)}</span>
+            </div>
+          ))}
+          <div style={{ fontSize: 10, color: P.sb, textAlign: 'center', padding: '8px 0 4px' }}>Tocá para editar</div>
+        </div>
+      )}
+
+      {/* Cuotas */}
+      {cuotasMes.length > 0 && (
+        <div style={{ background: P.cd, border: `1px solid ${P.bd}`, borderRadius: 16, padding: '14px 14px 6px', marginBottom: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontSize: 16 }}>💳</span>
+                <span style={{ fontSize: 15, fontWeight: 700, color: P.tx }}>Cuotas</span>
+              </div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: P.rd, marginTop: 2 }}>{fmtS(totalCuotas, cur)}</div>
+            </div>
+            <button onClick={() => onAdd('gasto')} style={{ background: P.ac, color: '#fff', border: 'none', borderRadius: 20, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+              + Agregar
+            </button>
+          </div>
+          {cuotasMes.map((t) => (
+            <div key={t.id} onClick={() => onEdit(t)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 0', borderTop: `1px solid ${P.bd}`, cursor: 'pointer' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                <span style={{ fontSize: 18 }}>💳</span>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: P.tx, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 170 }}>{t.desc || t.sub || t.cat}</div>
+                  <div style={{ fontSize: 11, color: P.sb }}>Cuota {t.cuotaInfo} · {t.card || 'Tarjeta'}</div>
+                </div>
+              </div>
+              <span style={{ fontSize: 14, fontWeight: 700, color: P.rd, flexShrink: 0 }}>{fmtS(t.amt, cur)}</span>
+            </div>
+          ))}
           <div style={{ fontSize: 10, color: P.sb, textAlign: 'center', padding: '8px 0 4px' }}>Tocá para editar</div>
         </div>
       )}

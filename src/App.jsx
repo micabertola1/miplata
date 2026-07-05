@@ -498,52 +498,56 @@ async function parseBankPDF(arrayBuffer) {
 
 /* ── Palette ── */
 const P_LIGHT = {
-  bg: '#F8F6F3',
+  bg: '#F5F4EF',
   cd: '#FFFFFF',
-  c2: '#F2EFEA',
-  bd: '#E8E3DB',
-  tx: '#2A2621',
-  sb: '#9A9389',
-  ac: '#3D6B9B',
-  al: '#5A8BBF',
-  ab: 'rgba(61,107,155,0.07)',
-  gn: '#3E8A6E',
-  gb: 'rgba(62,138,110,0.07)',
-  rd: '#C05650',
-  rb: 'rgba(192,86,80,0.07)',
+  c2: '#EFEFEA',
+  bd: '#E0DDD5',
+  tx: '#1A1A18',
+  sb: '#7A7A72',
+  ac: '#014641',
+  al: '#3A7BD5',
+  ab: '#E4EDEC',
+  gn: '#1A7A5E',
+  gb: '#E6F5F0',
+  rd: '#C0392B',
+  rb: '#FDECEA',
   am: '#B58A1B',
-  amb: 'rgba(181,138,27,0.07)',
-  pu: '#7B6BA5',
-  pb: 'rgba(123,107,165,0.07)',
+  amb: 'rgba(181,138,27,0.09)',
+  pu: '#8B5CF6',
+  pb: 'rgba(139,92,246,0.09)',
+  bal: '#014641',
+  ar: '#C9B89A',
 };
 const P_DARK = {
-  bg: '#1A1815',
-  cd: '#242220',
-  c2: '#2C2926',
-  bd: '#3A3630',
-  tx: '#F0ECE6',
-  sb: '#7A7268',
-  ac: '#5A8BBF',
-  al: '#7AAFD6',
-  ab: 'rgba(90,139,191,0.12)',
-  gn: '#4EA882',
-  gb: 'rgba(78,168,130,0.10)',
-  rd: '#D97070',
-  rb: 'rgba(217,112,112,0.10)',
+  bg: '#111C1B',
+  cd: '#1A2826',
+  c2: '#213330',
+  bd: '#1F3330',
+  tx: '#F0EFEA',
+  sb: '#8AA8A6',
+  ac: '#02685F',
+  al: '#3A7BD5',
+  ab: '#012E2B',
+  gn: '#2EC4A0',
+  gb: '#0A2E25',
+  rd: '#E8715E',
+  rb: '#2E1410',
   am: '#C9A030',
-  amb: 'rgba(201,160,48,0.10)',
+  amb: 'rgba(201,160,48,0.12)',
   pu: '#9B8EC0',
-  pb: 'rgba(155,142,192,0.10)',
+  pb: 'rgba(155,142,192,0.12)',
+  bal: '#013D38',
+  ar: '#8A7A65',
 };
 let P = { ...P_LIGHT };
 const pal = [
-  '#3D6B9B',
-  '#3E8A6E',
-  '#C05650',
-  '#B58A1B',
-  '#7B6BA5',
-  '#5A9E8F',
-  '#C47B5A',
+  '#E07840',
+  '#3A7BD5',
+  '#1A7A5E',
+  '#8B5CF6',
+  '#D4678A',
+  '#014641',
+  '#C9B89A',
 ];
 
 /* ── Shared UI ── */
@@ -553,7 +557,7 @@ function Box({ children, style }) {
       style={{
         background: P.cd,
         border: `1px solid ${P.bd}`,
-        borderRadius: 18,
+        borderRadius: 22,
         padding: 18,
         boxShadow: '0 1px 4px rgba(42,38,33,0.05)',
         ...style,
@@ -830,11 +834,11 @@ export default function App() {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          fontFamily: "'Poppins',sans-serif",
+          fontFamily: "'Plus Jakarta Sans',sans-serif",
         }}
       >
         <link
-          href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
           rel="stylesheet"
         />
         <div style={{ textAlign: 'center' }}>
@@ -885,12 +889,12 @@ function LoginScreen({ onLogin }) {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        fontFamily: "'Poppins',sans-serif",
+        fontFamily: "'Plus Jakarta Sans',sans-serif",
         padding: 20,
       }}
     >
       <link
-        href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
         rel="stylesheet"
       />
       <div
@@ -1675,12 +1679,12 @@ function MainApp({ user, onLogout }) {
         background: P.bg,
         minHeight: '100vh',
         color: P.tx,
-        fontFamily: "'Poppins',system-ui,sans-serif",
+        fontFamily: "'Plus Jakarta Sans',system-ui,sans-serif",
         paddingBottom: 76,
       }}
     >
       <link
-        href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
         rel="stylesheet"
       />
 
@@ -4396,24 +4400,26 @@ function HomeTab({
       {/* ── HÉROE: balance del mes (order:-1 = primero) ── */}
       <Box
         style={{
-          background: `linear-gradient(135deg,${P.ac}0E,${P.gn}0A)`,
-          padding: mob ? 18 : 22,
+          background: P.bal,
+          padding: mob ? 20 : 22,
           order: -1,
         }}
       >
-        <Lbl>Balance de {MOF[Number(month.slice(5, 7)) - 1]}</Lbl>
+        <div style={{ fontSize: 11, fontWeight: 500, color: 'rgba(255,255,255,.5)', textTransform: 'uppercase', letterSpacing: 0.7, marginBottom: 4 }}>
+          Balance de {MOF[Number(month.slice(5, 7)) - 1]}
+        </div>
         <div
           style={{
-            fontSize: mob ? 34 : 42,
-            fontWeight: 700,
-            color: bal >= 0 ? P.gn : P.rd,
+            fontSize: mob ? 34 : 46,
+            fontWeight: 800,
+            color: '#fff',
             lineHeight: 1.05,
             fontVariantNumeric: 'tabular-nums',
           }}
         >
           {fmt(bal, cur)}
         </div>
-        <div style={{ fontSize: 12, color: P.sb, marginTop: 3 }}>
+        <div style={{ fontSize: 12, color: 'rgba(255,255,255,.55)', marginTop: 3 }}>
           {bal >= 0
             ? 'Disponible este mes'
             : 'Este mes gastaste más de lo que ingresó'}
@@ -4424,8 +4430,8 @@ function HomeTab({
             {memberRows.map(([who, m]) => {
               const q = m.ingreso - m.gasto;
               return (
-                <span key={who} style={{ fontSize: 11, color: P.sb }}>
-                  {who.split(' ')[0]}: <b style={{ color: q >= 0 ? P.gn : P.rd }}>{fmtS(q, cur)}</b>
+                <span key={who} style={{ fontSize: 11, color: 'rgba(255,255,255,.55)' }}>
+                  {who.split(' ')[0]}: <b style={{ color: q >= 0 ? '#4DDDB5' : '#F08878' }}>{fmtS(q, cur)}</b>
                 </span>
               );
             })}
@@ -4437,23 +4443,21 @@ function HomeTab({
             display: 'flex',
             gap: 8,
             marginTop: 14,
-            borderTop: `1px solid ${P.bd}`,
-            paddingTop: 12,
+            borderTop: '1px solid rgba(255,255,255,.12)',
+            paddingTop: 14,
           }}
         >
           {[
-            ['Ingresos', totIn, P.gn],
-            ['Gastos', totOut, P.rd],
-            ['Ahorro', totSav, P.ac],
+            ['Ingresos', totIn, '#4DDDB5'],
+            ['Gastos', totOut, '#F08878'],
+            ['Ahorro', totSav, 'rgba(255,255,255,.9)'],
           ].map(([l, v, c]) => (
             <div key={l} style={{ flex: 1, minWidth: 0 }}>
               <div
                 style={{
-                  fontSize: 10,
-                  color: P.sb,
-                  textTransform: 'uppercase',
-                  letterSpacing: 0.4,
-                  fontWeight: 600,
+                  fontSize: 11,
+                  color: 'rgba(255,255,255,.45)',
+                  fontWeight: 500,
                 }}
               >
                 {l}
@@ -4476,11 +4480,11 @@ function HomeTab({
           <div
             style={{
               marginTop: 12,
-              background: P.cd,
+              background: 'rgba(255,255,255,.1)',
               borderRadius: 12,
               padding: '10px 12px',
               fontSize: 12,
-              color: P.tx,
+              color: '#fff',
             }}
           >
             🔔 Te quedan <b>{fmtS(bal, cur)}</b> para {daysLeft} día
@@ -4490,11 +4494,10 @@ function HomeTab({
 
         {hasBudgets && (
           <div style={{ marginTop: 12 }}>
-            <Bar
-              pct={totIn > 0 ? (totOut / totIn) * 100 : 0}
-              color={totOut / totIn > 0.8 ? P.rd : P.ac}
-            />
-            <div style={{ fontSize: 11, color: P.sb, marginTop: 5 }}>
+            <div style={{ height: 7, borderRadius: 4, background: 'rgba(255,255,255,.15)' }}>
+              <div style={{ height: '100%', borderRadius: 4, width: `${Math.min(100, totIn > 0 ? (totOut / totIn) * 100 : 0)}%`, background: totOut / totIn > 0.8 ? '#F08878' : '#4DDDB5', transition: 'width .4s ease' }} />
+            </div>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,.55)', marginTop: 5 }}>
               Gastaste el {totIn > 0 ? Math.round((totOut / totIn) * 100) : 0}%
               de lo que ingresó
             </div>
@@ -4504,18 +4507,18 @@ function HomeTab({
         {/* Pills de acción rápida */}
         <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
           {[
-            { label: '+ Ingreso', type: 'ingreso', color: P.gn },
-            { label: '− Gasto', type: 'gasto', color: P.rd },
-            { label: '📅 Diarios', type: 'gasto', color: P.ac },
-          ].map(({ label, type, color }) => (
+            { label: '+ Ingreso', type: 'ingreso' },
+            { label: '− Gasto', type: 'gasto' },
+            { label: '📅 Diarios', type: 'gasto' },
+          ].map(({ label, type }) => (
             <button
               key={label}
               onClick={() => type ? onAdd(type) : setShowDiarios((v) => !v)}
               style={{
                 flex: 1,
-                background: `${color}18`,
-                color,
-                border: `1px solid ${color}44`,
+                background: 'rgba(255,255,255,.12)',
+                color: '#fff',
+                border: '1px solid rgba(255,255,255,.18)',
                 borderRadius: 10,
                 padding: '8px 4px',
                 fontSize: 12,
@@ -5122,15 +5125,17 @@ function InsightsTab({
       style={{ display: 'flex', flexDirection: 'column', gap: mob ? 10 : 14 }}
     >
       {/* Hero compacto */}
-      <Box style={{ background: `linear-gradient(135deg,${P.ac}0E,${P.gn}0A)`, padding: mob ? 18 : 22 }}>
-        <Lbl>Balance de {MOF[Number(month.slice(5, 7)) - 1]}</Lbl>
-        <div style={{ fontSize: mob ? 34 : 42, fontWeight: 700, color: cBal >= 0 ? P.gn : P.rd, lineHeight: 1.05, fontVariantNumeric: 'tabular-nums' }}>
+      <Box style={{ background: P.bal, padding: mob ? 20 : 22 }}>
+        <div style={{ fontSize: 11, fontWeight: 500, color: 'rgba(255,255,255,.5)', textTransform: 'uppercase', letterSpacing: 0.7, marginBottom: 4 }}>
+          Balance de {MOF[Number(month.slice(5, 7)) - 1]}
+        </div>
+        <div style={{ fontSize: mob ? 34 : 46, fontWeight: 800, color: '#fff', lineHeight: 1.05, fontVariantNumeric: 'tabular-nums' }}>
           {fmtS(cBal, cur)}
         </div>
         {carry !== 0 && (
-          <div style={{ fontSize: 12, color: P.sb, marginTop: 3 }}>
-            venías con <b style={{ color: carry >= 0 ? P.gn : P.rd }}>{fmtS(carry, cur)}</b>
-            {' · '}disponible total <b style={{ color: cBal + carry >= 0 ? P.gn : P.rd }}>{fmtS(cBal + carry, cur)}</b>
+          <div style={{ fontSize: 12, color: 'rgba(255,255,255,.55)', marginTop: 3 }}>
+            venías con <b style={{ color: carry >= 0 ? '#4DDDB5' : '#F08878' }}>{fmtS(carry, cur)}</b>
+            {' · '}disponible total <b style={{ color: cBal + carry >= 0 ? '#4DDDB5' : '#F08878' }}>{fmtS(cBal + carry, cur)}</b>
           </div>
         )}
         {isGroup && memberRows.length > 0 && (
@@ -5138,17 +5143,17 @@ function InsightsTab({
             {memberRows.map(([who, m]) => {
               const q = m.ingreso - m.gasto;
               return (
-                <span key={who} style={{ fontSize: 11, color: P.sb }}>
-                  {who.split(' ')[0]}: <b style={{ color: q >= 0 ? P.gn : P.rd }}>{fmtS(q, cur)}</b>
+                <span key={who} style={{ fontSize: 11, color: 'rgba(255,255,255,.55)' }}>
+                  {who.split(' ')[0]}: <b style={{ color: q >= 0 ? '#4DDDB5' : '#F08878' }}>{fmtS(q, cur)}</b>
                 </span>
               );
             })}
           </div>
         )}
-        <div style={{ display: 'flex', gap: 8, marginTop: 14, borderTop: `1px solid ${P.bd}`, paddingTop: 12 }}>
-          {[['Ingresos', cIn, P.gn], ['Gastos', cOut, P.rd], ['Ahorro', cSav, P.ac]].map(([l, v, c]) => (
+        <div style={{ display: 'flex', gap: 8, marginTop: 14, borderTop: '1px solid rgba(255,255,255,.12)', paddingTop: 14 }}>
+          {[['Ingresos', cIn, '#4DDDB5'], ['Gastos', cOut, '#F08878'], ['Ahorro', cSav, 'rgba(255,255,255,.9)']].map(([l, v, c]) => (
             <div key={l} style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 10, color: P.sb, textTransform: 'uppercase', letterSpacing: 0.4, fontWeight: 600 }}>{l}</div>
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,.45)', fontWeight: 500 }}>{l}</div>
               <div style={{ fontSize: mob ? 15 : 18, fontWeight: 700, color: c, fontVariantNumeric: 'tabular-nums', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {fmtS(Math.round(v), cur)}
               </div>

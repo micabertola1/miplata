@@ -5875,13 +5875,13 @@ function GoalsTab({
           <button
             onClick={addSaving}
             style={{
-              background: P.ac,
-              color: '#fff',
-              border: 'none',
+              background: P.gb,
+              color: P.gn,
+              border: `1px solid ${P.gn}25`,
               borderRadius: 10,
               padding: '0 16px',
               fontSize: 13,
-              fontWeight: 600,
+              fontWeight: 700,
               cursor: 'pointer',
             }}
           >
@@ -6141,9 +6141,9 @@ function GoalsTab({
             width: 38,
             height: 38,
             borderRadius: 12,
-            background: P.ac,
-            border: 'none',
-            color: '#fff',
+            background: P.gb,
+            border: `1px solid ${P.gn}25`,
+            color: P.gn,
             cursor: 'pointer',
             fontSize: 18,
             fontWeight: 700,
@@ -6228,14 +6228,14 @@ function GoalsTab({
                   }
                 }}
                 style={{
-                  background: P.ac,
-                  border: 'none',
-                  color: '#fff',
+                  background: P.gb,
+                  border: `1px solid ${P.gn}25`,
+                  color: P.gn,
                   padding: '10px 16px',
                   borderRadius: 10,
                   cursor: 'pointer',
                   fontSize: 12,
-                  fontWeight: 600,
+                  fontWeight: 700,
                 }}
               >
                 Crear

@@ -6141,32 +6141,29 @@ function GoalsTab({
         )}
       </Box>
 
-      <Box>
-        <div
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+        <span style={{ fontSize: 24, fontWeight: 800, color: P.tx }}>Metas</span>
+        <button
+          onClick={() => setShowAdd(!showAdd)}
           style={{
+            width: 38,
+            height: 38,
+            borderRadius: 12,
+            background: P.ac,
+            border: 'none',
+            color: '#fff',
+            cursor: 'pointer',
+            fontSize: 18,
+            fontWeight: 700,
             display: 'flex',
-            justifyContent: 'space-between',
             alignItems: 'center',
-            marginBottom: 10,
+            justifyContent: 'center',
           }}
         >
-          <Lbl>Metas</Lbl>
-          <button
-            onClick={() => setShowAdd(!showAdd)}
-            style={{
-              background: P.ab,
-              border: `1px solid ${P.ac}18`,
-              color: P.ac,
-              padding: '5px 12px',
-              borderRadius: 10,
-              cursor: 'pointer',
-              fontSize: 11,
-              fontWeight: 500,
-            }}
-          >
-            {showAdd ? 'Cancelar' : '+ Meta'}
-          </button>
-        </div>
+          {showAdd ? '✕' : '+'}
+        </button>
+      </div>
+      <Box>
         {showAdd && (
           <div
             style={{
@@ -6261,75 +6258,53 @@ function GoalsTab({
             sub="Poné un nombre y un monto objetivo arriba para crear tu primera meta."
           />
         ) : (
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: mob ? '1fr' : '1fr 1fr',
-              gap: 8,
-            }}
-          >
-            {goals.map((g) => {
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {goals.map((g, i) => {
               const pct = g.target > 0 ? (g.saved / g.target) * 100 : 0;
               const done = pct >= 100;
+              const isDark = P.bg === P_DARK.bg;
+              const iconColor = pal[i % pal.length];
+              const pctColor = done ? P.gn : pct >= 50 ? P.ac : P.am;
+              const remaining = Math.max(0, g.target - (g.saved || 0));
               return (
                 <div
                   key={g.id}
                   style={{
-                    background: P.c2,
-                    borderRadius: 14,
-                    padding: mob ? 12 : 16,
-                    border: done ? `2px solid ${P.gn}35` : `1px solid ${P.bd}`,
+                    background: P.cd,
+                    border: `1px solid ${P.bd}`,
+                    borderRadius: 20,
+                    padding: '18px 20px',
                   }}
                 >
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                      marginBottom: 8,
-                    }}
-                  >
-                    <span style={{ fontSize: 18 }}>{g.icon}</span>
-                    <span style={{ fontWeight: 600, fontSize: 13, flex: 1 }}>
-                      {g.name}
-                    </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                    <div style={{ width: 44, height: 44, borderRadius: 14, background: `${iconColor}1c`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 19, flexShrink: 0 }}>
+                      {g.icon}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: P.tx, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.name}</div>
+                      <div style={{ fontSize: 12, fontWeight: 500, color: P.sb, marginTop: 1 }}>
+                        Meta: {fmtS(g.target, g.currency || cur)}
+                      </div>
+                    </div>
+                    <span style={{ fontSize: 18, fontWeight: 800, color: pctColor, flexShrink: 0 }}>{Math.round(pct)}%</span>
                     <button
                       onClick={() => delGoal(g.id)}
-                      style={{
-                        background: 'transparent',
-                        border: 'none',
-                        color: P.sb,
-                        cursor: 'pointer',
-                        fontSize: 10,
-                      }}
+                      style={{ background: 'transparent', border: 'none', color: P.sb, cursor: 'pointer', fontSize: 12, flexShrink: 0, padding: 2 }}
                     >
                       ✕
                     </button>
                   </div>
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      marginBottom: 3,
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontSize: 15,
-                        fontWeight: 700,
-                        color: done ? P.gn : P.ac,
-                      }}
-                    >
-                      {fmtS(g.saved || 0, g.currency || cur)}
-                    </span>
-                    <span style={{ fontSize: 11, color: P.sb }}>
-                      de {fmtS(g.target, g.currency || cur)} · {Math.round(pct)}
-                      %
+                  <div style={{ height: 8, borderRadius: 4, background: isDark ? 'rgba(255,255,255,.07)' : '#EDE9E2', overflow: 'hidden' }}>
+                    <div style={{ width: `${Math.min(100, pct)}%`, height: '100%', borderRadius: 4, background: pctColor, transition: 'width .4s ease' }} />
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8 }}>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: P.gn }}>{fmtS(g.saved || 0, g.currency || cur)} guardados</span>
+                    <span style={{ fontSize: 12, fontWeight: 500, color: done ? P.gn : P.sb }}>
+                      {done ? '¡Completado! 🎉' : `faltan ${fmtS(remaining, g.currency || cur)}`}
                     </span>
                   </div>
-                  <Bar pct={pct} color={done ? P.gn : P.ac} />
                   {!done && (
-                    <div style={{ display: 'flex', gap: 4, marginTop: 8 }}>
+                    <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
                       <input
                         type="number"
                         placeholder="$"
@@ -6340,8 +6315,8 @@ function GoalsTab({
                         style={{
                           ...iS,
                           flex: 1,
-                          padding: '7px 9px',
-                          fontSize: 11,
+                          padding: '8px 10px',
+                          fontSize: 12,
                         }}
                       />
                       <button
@@ -6356,14 +6331,14 @@ function GoalsTab({
                           background: P.gb,
                           border: `1px solid ${P.gn}25`,
                           color: P.gn,
-                          padding: '7px 10px',
-                          borderRadius: 8,
+                          padding: '8px 12px',
+                          borderRadius: 10,
                           cursor: 'pointer',
-                          fontSize: 10,
-                          fontWeight: 600,
+                          fontSize: 12,
+                          fontWeight: 700,
                         }}
                       >
-                        +
+                        + Agregar
                       </button>
                     </div>
                   )}

@@ -1465,41 +1465,6 @@ function MainApp({ user, onLogout }) {
     }
   };
 
-  // ── Unificar dos personas (renombra "member" en todos los movimientos) ──
-  const mergeMembers = async (from, to) => {
-    if (!from || !to || from === to) return;
-    if (!window.confirm(`¿Unificar "${from}" dentro de "${to}"? Todos los movimientos de "${from}" pasarán a "${to}". Esta acción no se puede deshacer.`))
-      return;
-    try {
-      let batch = writeBatch(db);
-      let n = 0;
-      const bump = async () => { n++; if (n % 400 === 0) { await batch.commit(); batch = writeBatch(db); } };
-      // Personal
-      for (const t of tx) {
-        if (t.member === from) { batch.update(doc(db, 'users', user.uid, 'transactions', t.id), { member: to }); await bump(); }
-      }
-      // Grupos
-      for (const gid of Object.keys(groupTx)) {
-        for (const t of (groupTx[gid] || [])) {
-          if (t.member === from) { batch.update(doc(db, 'groups', gid, 'transactions', t.id), { member: to }); await bump(); }
-        }
-      }
-      if (n % 400 !== 0 || n === 0) await batch.commit();
-      // Nombres de miembros del grupo (la UI deduplica con Set)
-      for (const g of myGroups) {
-        if ((g.memberNames || []).includes(from)) {
-          await updateDoc(doc(db, 'groups', g.id), {
-            memberNames: (g.memberNames || []).map((nm) => (nm === from ? to : nm)),
-          });
-        }
-      }
-      notify(`Listo, unificamos "${from}" en "${to}" (${n} movimiento(s)).`, 'success');
-    } catch (e) {
-      console.error('mergeMembers error:', e);
-      notify('No pudimos unificar las personas. Probá de nuevo.', 'error');
-    }
-  };
-
   // ── Goals CRUD ──
   const addGoalFn = async (g) => {
     await addDoc(collection(db, 'users', user.uid, 'goals'), g);
@@ -2269,11 +2234,6 @@ function MainApp({ user, onLogout }) {
             onSaveCards={(c) => saveSettings({ cards: c })}
             theme={settings.theme || 'light'}
             onToggleTheme={() => saveSettings({ theme: settings.theme === 'dark' ? 'light' : 'dark' })}
-            members={[...new Set([
-              ...[...tx, ...allGroupTx].map((t) => t.member).filter(Boolean),
-              ...myGroups.flatMap((g) => g.memberNames || []),
-            ])]}
-            onMergeMembers={mergeMembers}
           />
         )}
         {tab === 'insights' && (
@@ -3624,9 +3584,7 @@ function TxListTab({ mob, cur, activeTx, onEdit, customCats, onAdd }) {
 }
 
 /* ── MES ── */
-function PerfilTab({ onExportAll, onExportMonth, onImport, cards, onSaveCards, theme, onToggleTheme, members = [], onMergeMembers }) {
-  const [mergeFrom, setMergeFrom] = useState('');
-  const [mergeTo, setMergeTo] = useState('');
+function PerfilTab({ onExportAll, onExportMonth, onImport, cards, onSaveCards, theme, onToggleTheme }) {
   const [showAddCard, setShowAddCard] = useState(false);
   const [newCard, setNewCard] = useState({ name: '', cierre: '', vencimiento: '' });
   const [editingId, setEditingId] = useState(null);
@@ -3800,39 +3758,6 @@ function PerfilTab({ onExportAll, onExportMonth, onImport, cards, onSaveCards, t
           </div>
         ))}
       </div>
-
-      {/* Personas */}
-      {members.length > 1 && (
-        <div style={sectionStyle}>
-          {sectionTitle('Personas')}
-          <div style={{ fontSize: 11, color: P.sb, padding: '2px 0 10px' }}>
-            Si una persona quedó duplicada, unificala: todos los movimientos de una pasan a la otra.
-          </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, paddingBottom: 10 }}>
-            {members.map((m) => (
-              <span key={m} style={{ fontSize: 12, background: P.c2, border: `1px solid ${P.bd}`, borderRadius: 8, padding: '4px 10px', color: P.tx }}>👤 {m}</span>
-            ))}
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', paddingBottom: 12 }}>
-            <select value={mergeFrom} onChange={(e) => setMergeFrom(e.target.value)} style={{ flex: 1, minWidth: 110, background: P.c2, border: `1px solid ${P.bd}`, borderRadius: 10, padding: '9px 10px', fontSize: 13, color: P.tx }}>
-              <option value="">Unificar…</option>
-              {members.map((m) => <option key={m} value={m}>{m}</option>)}
-            </select>
-            <span style={{ fontSize: 12, color: P.sb }}>→ dentro de</span>
-            <select value={mergeTo} onChange={(e) => setMergeTo(e.target.value)} style={{ flex: 1, minWidth: 110, background: P.c2, border: `1px solid ${P.bd}`, borderRadius: 10, padding: '9px 10px', fontSize: 13, color: P.tx }}>
-              <option value="">…mantener</option>
-              {members.filter((m) => m !== mergeFrom).map((m) => <option key={m} value={m}>{m}</option>)}
-            </select>
-            <button
-              disabled={!mergeFrom || !mergeTo || mergeFrom === mergeTo}
-              onClick={() => { onMergeMembers && onMergeMembers(mergeFrom, mergeTo); setMergeFrom(''); setMergeTo(''); }}
-              style={{ background: mergeFrom && mergeTo && mergeFrom !== mergeTo ? P.ac : P.bd, color: '#fff', border: 'none', borderRadius: 10, padding: '9px 14px', fontSize: 13, fontWeight: 700, cursor: mergeFrom && mergeTo ? 'pointer' : 'default' }}
-            >
-              Unificar
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Exportar */}
       <div style={sectionStyle}>

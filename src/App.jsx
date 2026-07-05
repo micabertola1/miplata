@@ -6483,6 +6483,7 @@ function TxModal({
   const [member, setMember] = useState(initial?.member || userName || '');
   const [confirmDel, setConfirmDel] = useState(false);
   const cc = cats.find((c) => c.n === cat);
+  const dateInputRef = useRef(null);
   const iS = {
     width: '100%',
     background: P.c2,
@@ -6492,6 +6493,14 @@ function TxModal({
     borderRadius: 12,
     fontSize: 14,
   };
+  const dateLabel = (() => {
+    const [y, m, d] = date.split('-').map(Number);
+    if (!y) return date;
+    const monAbbr = MO[m - 1];
+    return date === td() ? `Hoy, ${d} ${monAbbr}` : `${d} ${monAbbr} ${y}`;
+  })();
+  const amountHint = type === 'ingreso' ? '¿Cuánto ingresó?' : type === 'ahorro' ? '¿Cuánto ahorraste?' : '¿Cuánto gastaste?';
+  const quickFieldStyle = { background: P.cd, border: `1px solid ${P.bd}`, borderRadius: 14, padding: '12px 14px' };
 
   return (
     <div
@@ -6519,34 +6528,26 @@ function TxModal({
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        {mob && (
-          <div
-            style={{
-              width: 36,
-              height: 4,
-              borderRadius: 2,
-              background: P.bd,
-              margin: '0 auto 14px',
-            }}
-          />
-        )}
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', marginBottom: 16 }}>
+          <button
+            onClick={onClose}
+            style={{ position: 'absolute', left: 0, width: 36, height: 36, borderRadius: 10, background: P.cd, border: `1px solid ${P.bd}`, color: P.sb, fontSize: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          >
+            ✕
+          </button>
+          <span style={{ fontSize: 17, fontWeight: 700, color: P.tx }}>
+            {mode === 'edit' ? 'Editar movimiento' : 'Nuevo movimiento'}
+          </span>
+        </div>
 
         {/* Type */}
-        <div
-          style={{
-            display: 'flex',
-            background: P.c2,
-            borderRadius: 12,
-            padding: 3,
-            marginBottom: 14,
-            border: `1px solid ${P.bd}`,
-          }}
-        >
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 16 }}>
           {[
-            ['ingreso', '📈 Ingreso', P.gn],
-            ['gasto', '📉 Gasto', P.rd],
-            ['ahorro', '🏦 Ahorro', P.ac],
-          ].map(([id, l, color]) => (
+            ['gasto', 'Gasto', P.rd, P.rb],
+            ['ingreso', 'Ingreso', P.gn, P.gb],
+            ['ahorro', 'Ahorro', P.ac, P.ab],
+          ].map(([id, l, color, bg]) => (
             <button
               key={id}
               onClick={() => {
@@ -6555,14 +6556,13 @@ function TxModal({
                 setSub('');
               }}
               style={{
-                flex: 1,
-                background: type === id ? color : 'transparent',
-                border: 'none',
-                color: type === id ? '#fff' : P.sb,
-                padding: '9px',
-                borderRadius: 10,
+                background: type === id ? bg : P.cd,
+                border: `1.5px solid ${type === id ? color : P.bd}`,
+                color: type === id ? color : P.sb,
+                padding: '10px 8px',
+                borderRadius: 14,
                 cursor: 'pointer',
-                fontSize: mob ? 12 : 13,
+                fontSize: 13,
                 fontWeight: 600,
               }}
             >
@@ -6571,54 +6571,119 @@ function TxModal({
           ))}
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
           {/* Moneda */}
-          <div style={{ display: 'flex', background: P.c2, borderRadius: 14, padding: 4, border: `1px solid ${P.bd}` }}>
+          <div style={{ display: 'flex', background: P.c2, borderRadius: 10, padding: 3, border: `1px solid ${P.bd}`, alignSelf: 'center' }}>
             {[['ARS', '$ ARS'], ['USD', 'US$ USD']].map(([c, l]) => (
-              <button key={c} onClick={() => setCurSel(c)} style={{ flex: 1, background: curSel === c ? P.ac : 'transparent', color: curSel === c ? '#fff' : P.sb, border: 'none', padding: '11px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'background .15s' }}>{l}</button>
+              <button key={c} onClick={() => setCurSel(c)} style={{ background: curSel === c ? P.ac : 'transparent', color: curSel === c ? '#fff' : P.sb, border: 'none', padding: '5px 12px', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer', transition: 'background .15s' }}>{l}</button>
             ))}
           </div>
 
           {/* Monto */}
-          <div style={{ background: P.bg, border: `1px solid ${P.bd}`, borderRadius: 18, padding: '18px 16px' }}>
-            <div style={{ textAlign: 'center' }}><Lbl>Monto</Lbl></div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-              <span style={{ fontSize: 26, fontWeight: 700, color: P.sb }}>{curSel === 'USD' ? 'US$' : '$'}</span>
-              <input type="number" placeholder="0" value={amt} onChange={(e) => setAmt(e.target.value)} autoFocus style={{ background: 'transparent', border: 'none', color: P.tx, fontSize: 38, fontWeight: 800, textAlign: 'center', width: '100%', outline: 'none', padding: 0, minWidth: 0 }} />
+          <div style={{ borderBottom: `1px solid ${P.bd}`, padding: '0 0 20px', textAlign: 'center' }}>
+            <div style={{ fontSize: 16, fontWeight: 500, color: P.sb, marginBottom: 8 }}>{amountHint}</div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+              <span style={{ fontSize: 40, fontWeight: 800, color: P.tx }}>{curSel === 'USD' ? 'US$' : '$'}</span>
+              <input
+                type="number"
+                placeholder="0"
+                value={amt}
+                onChange={(e) => setAmt(e.target.value)}
+                autoFocus
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: P.tx,
+                  fontSize: 52,
+                  fontWeight: 800,
+                  textAlign: 'left',
+                  width: '100%',
+                  maxWidth: 200,
+                  outline: 'none',
+                  padding: 0,
+                  minWidth: 0,
+                  caretColor: P.bg === P_DARK.bg ? P.gn : P.ac,
+                }}
+              />
             </div>
+            <div style={{ fontSize: 12, fontWeight: 500, color: P.sb, marginTop: 8 }}>Tocá para escribir el monto</div>
           </div>
 
-          {/* Detalle */}
-          <div style={{ background: P.bg, border: `1px solid ${P.bd}`, borderRadius: 18, padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div>
-              <Lbl>📝 Detalle</Lbl>
-              <input type="text" placeholder="Ej: Sueldo, Super, Alquiler..." value={desc} onChange={(e) => setDesc(e.target.value)} style={{ ...iS, background: P.cd }} />
+          {/* Categoría */}
+          <div>
+            <Lbl>Categoría</Lbl>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+              {cats.map((c) => {
+                const { c: iconColor, bg: iconBg } = catRowStyle(c.n);
+                const selected = cat === c.n;
+                return (
+                  <button
+                    key={c.n}
+                    onClick={() => { setCat(c.n); setSub(''); }}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      cursor: 'pointer',
+                      padding: 0,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: 5,
+                    }}
+                  >
+                    <div style={{ width: 48, height: 48, borderRadius: 15, background: iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, boxShadow: selected ? `0 0 0 2px ${iconColor}` : 'none' }}>
+                      {c.i}
+                    </div>
+                    <span style={{ fontSize: 11, fontWeight: 500, color: P.tx, textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }}>
+                      {c.n}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
-            <div>
-              <Lbl>Categoría</Lbl>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {cats.map((c) => (
-                  <button key={c.n} onClick={() => { setCat(c.n); setSub(''); }} style={{ background: cat === c.n ? P.ac : P.cd, border: `1px solid ${cat === c.n ? P.ac : P.bd}`, color: cat === c.n ? '#fff' : P.tx, padding: '8px 12px', borderRadius: 11, cursor: 'pointer', fontSize: 12, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 4 }}>
-                    {c.i} {c.n}
+            {cc && cc.s && cc.s.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 12 }}>
+                {cc.s.map((s2) => (
+                  <button key={s2} onClick={() => setSub(sub === s2 ? '' : s2)} style={{ background: sub === s2 ? `${P.ac}18` : P.cd, border: `1px solid ${sub === s2 ? P.ac : P.bd}`, color: sub === s2 ? P.ac : P.sb, padding: '6px 11px', borderRadius: 9, cursor: 'pointer', fontSize: 11 }}>
+                    {s2}
                   </button>
                 ))}
               </div>
-            </div>
-            <div>
+            )}
+          </div>
+
+          {/* Nota */}
+          <div style={quickFieldStyle}>
+            <Lbl>Nota</Lbl>
+            <input type="text" placeholder="Ej: Sueldo, Super, Alquiler..." value={desc} onChange={(e) => setDesc(e.target.value)} style={{ background: 'transparent', border: 'none', color: P.tx, fontSize: 13, fontWeight: 600, width: '100%', padding: 0, outline: 'none' }} />
+          </div>
+
+          {/* Campos rápidos */}
+          <div style={{ display: 'grid', gridTemplateColumns: isG ? '1fr 1fr' : '1fr', gap: 10 }}>
+            <div style={{ ...quickFieldStyle, position: 'relative', cursor: 'pointer' }} onClick={() => dateInputRef.current?.showPicker?.() || dateInputRef.current?.click()}>
               <Lbl>Fecha</Lbl>
-              <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={{ ...iS, background: P.cd }} />
+              <div style={{ fontSize: 13, fontWeight: 600, color: P.tx }}>{dateLabel}</div>
+              <input
+                ref={dateInputRef}
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer', width: '100%', height: '100%' }}
+              />
             </div>
-            {cc && cc.s && cc.s.length > 0 && (
-              <div>
-                <Lbl>Subcategoría</Lbl>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                  {cc.s.map((s2) => (
-                    <button key={s2} onClick={() => setSub(sub === s2 ? '' : s2)} style={{ background: sub === s2 ? `${P.ac}18` : P.cd, border: `1px solid ${sub === s2 ? P.ac : P.bd}`, color: sub === s2 ? P.ac : P.sb, padding: '6px 11px', borderRadius: 9, cursor: 'pointer', fontSize: 11 }}>
-                      {s2}
-                    </button>
-                  ))}
-                </div>
+            {isG && (
+              <div style={quickFieldStyle}>
+                <Lbl>Medio</Lbl>
+                <select
+                  value={pay}
+                  onChange={(e) => { setPay(e.target.value); if (e.target.value !== 'credito') setCuotas(1); }}
+                  style={{ background: 'transparent', border: 'none', color: P.tx, fontSize: 13, fontWeight: 600, width: '100%', padding: 0, outline: 'none' }}
+                >
+                  <option value="efectivo">Efectivo</option>
+                  <option value="transferencia">Transferencia</option>
+                  <option value="credito">Crédito</option>
+                </select>
               </div>
             )}
           </div>
@@ -6670,24 +6735,11 @@ function TxModal({
 
           {/* Más opciones toggle */}
           <button type="button" onClick={() => setShowMore((v) => !v)} style={{ alignSelf: 'flex-start', background: 'transparent', border: 'none', color: P.ac, fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: '2px 0' }}>
-            {showMore ? '▴ Menos opciones' : '▾ Más opciones (pago, espacio)'}
+            {showMore ? '▴ Menos opciones' : '▾ Más opciones (cuotas, tarjeta, espacio)'}
           </button>
 
           {showMore && (
             <>
-              {/* Método de pago */}
-              {isG && (
-                <div>
-                  <Lbl>Método de pago</Lbl>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                    {[{ id: 'efectivo', i: '💵', l: 'Efectivo' }, { id: 'transferencia', i: '🏦', l: 'Transferencia' }, { id: 'credito', i: '💳', l: 'Crédito' }].map((p) => (
-                      <button key={p.id} onClick={() => { setPay(p.id); if (p.id !== 'credito') setCuotas(1); }} style={{ background: pay === p.id ? P.ac : P.c2, border: `1px solid ${pay === p.id ? P.ac : P.bd}`, color: pay === p.id ? '#fff' : P.tx, padding: '6px 10px', borderRadius: 10, cursor: 'pointer', fontSize: 11, display: 'flex', alignItems: 'center', gap: 3 }}>
-                        {p.i} {p.l}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
               {isG && pay === 'credito' && (
                 <div>
                   <Lbl>Cuotas</Lbl>
@@ -6778,24 +6830,6 @@ function TxModal({
             )}
             {!confirmDel && (
               <button
-                onClick={onClose}
-                style={{
-                  background: P.c2,
-                  border: `1px solid ${P.bd}`,
-                  color: P.sb,
-                  padding: '15px',
-                  borderRadius: 14,
-                  cursor: 'pointer',
-                  fontSize: 14,
-                  fontWeight: 500,
-                  flex: 1,
-                }}
-              >
-                Cancelar
-              </button>
-            )}
-            {!confirmDel && (
-              <button
                 onClick={() => {
                   const amtNum = Number(String(amt).replace(',', '.'));
                   if (!amtNum || amtNum <= 0) {
@@ -6842,14 +6876,14 @@ function TxModal({
                   onSave(txData);
                 }}
                 style={{
-                  flex: 2,
+                  flex: 1,
                   background: type === 'ingreso' ? P.gn : type === 'ahorro' ? P.ac : P.rd,
                   border: 'none',
                   color: '#fff',
-                  padding: '15px',
-                  borderRadius: 14,
+                  padding: '16px',
+                  borderRadius: 18,
                   cursor: 'pointer',
-                  fontSize: 15,
+                  fontSize: 16,
                   fontWeight: 700,
                 }}
               >

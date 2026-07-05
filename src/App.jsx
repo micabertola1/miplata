@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef, Fragment } from 'react';
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { auth, googleProvider, db } from './firebase.js';
 import {
@@ -782,11 +782,11 @@ function NavB({ children, onClick }) {
         background: P.cd,
         border: `1px solid ${P.bd}`,
         color: P.tx,
-        width: 32,
-        height: 32,
-        borderRadius: 10,
+        width: 30,
+        height: 30,
+        borderRadius: 8,
         cursor: 'pointer',
-        fontSize: 15,
+        fontSize: 14,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -2097,6 +2097,19 @@ function MainApp({ user, onLogout }) {
           padding: mob ? '12px 10px' : '20px 20px',
         }}
       >
+        {tab === 'home' && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: mob ? 14 : 18 }}>
+            <div>
+              <div style={{ fontSize: mob ? 20 : 23, fontWeight: 800, color: P.tx, letterSpacing: -0.3 }}>
+                Hola, {(user.displayName || user.email || 'vos').split(' ')[0]} 👋
+              </div>
+              <div style={{ fontSize: 13, fontWeight: 500, color: P.sb, marginTop: 3 }}>Controlá tus finanzas</div>
+            </div>
+            <div style={{ width: 42, height: 42, borderRadius: 21, background: P.ac, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: 17, flexShrink: 0 }}>
+              {(user.displayName || user.email || 'U')[0].toUpperCase()}
+            </div>
+          </div>
+        )}
         {(tab === 'home' || tab === 'insights' || tab === 'movs' || tab === 'diarios') && (
           <div
             style={{
@@ -2113,6 +2126,11 @@ function MainApp({ user, onLogout }) {
               </span>
               <NavB onClick={nextM}>›</NavB>
             </div>
+            {tab === 'home' && (
+              <span style={{ fontSize: 11, fontWeight: 600, color: P.ar, background: P.bg === P_DARK.bg ? P.c2 : '#FAF6EE', border: `1px solid ${P.bg === P_DARK.bg ? P.bd : '#EDE5D5'}`, borderRadius: 6, padding: '3px 9px', marginLeft: 'auto', marginRight: 8 }}>
+                {cur}
+              </span>
+            )}
             <button
               onClick={clearMonth}
               title="Borrar todos los movimientos de este mes"
@@ -2177,6 +2195,7 @@ function MainApp({ user, onLogout }) {
             onMarkPaid={markPaid}
             onAdd={openAdd}
             onSeeAll={() => setTab('movs')}
+            onSeeCats={() => setTab('insights')}
           />
         )}
         {(tab === 'movs' || tab === 'diarios') && (
@@ -2321,14 +2340,14 @@ function MainApp({ user, onLogout }) {
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
-              gap: 2,
+              gap: 3,
               cursor: 'pointer',
-              padding: '4px 16px',
+              padding: '4px 10px',
               fontSize: 10,
-              fontWeight: tab === t.id ? 600 : 400,
+              fontWeight: tab === t.id ? 600 : 500,
             }}
           >
-            <span style={{ fontSize: 18 }}>{t.e}</span>
+            <span style={{ fontSize: 16, width: 34, height: 26, borderRadius: 10, background: tab === t.id ? P.ab : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{t.e}</span>
             {t.l}
           </button>
         ))}
@@ -4109,8 +4128,24 @@ function HomeTab({
   onPauseSerie,
   onAdd,
   onSeeAll,
+  onSeeCats,
 }) {
   const maxC = byCat.length ? byCat[0][1] : 1;
+  const isDark = P.bg === P_DARK.bg;
+  const catColor = (name) => {
+    const map = {
+      'Alimentación': { c: '#E07840', bg: isDark ? 'rgba(224,120,64,.15)' : '#FFF0E8' },
+      'Vivienda': { c: '#3A7BD5', bg: isDark ? 'rgba(58,123,213,.15)' : '#EAF0FF' },
+      'Transporte': { c: isDark ? '#2EC4A0' : '#1A7A5E', bg: isDark ? 'rgba(46,196,160,.12)' : '#E6F5F0' },
+      'Bienestar': { c: isDark ? '#2EC4A0' : '#1A7A5E', bg: isDark ? 'rgba(46,196,160,.08)' : '#EAF8F5' },
+      'Entretenimiento': { c: '#8B5CF6', bg: isDark ? 'rgba(139,92,246,.15)' : '#F0EEFF' },
+      'Compras': { c: '#D4678A', bg: isDark ? 'rgba(212,103,138,.15)' : '#FFF0F5' },
+      'Obligaciones': { c: P.rd, bg: isDark ? 'rgba(232,113,94,.12)' : P.rb },
+      'Tarjetas': { c: '#C9B89A', bg: isDark ? 'rgba(201,184,154,.1)' : '#FFF8E6' },
+    };
+    return map[name] || { c: pal[Math.abs(name?.length || 0) % pal.length], bg: P.c2 };
+  };
+  const catIcon = (name) => (getCats('gasto', customCats).find((c) => c.n === name) || {}).i || '🏷️';
   const [hoverMonth, setHoverMonth] = useState(null);
   const [usdRates, setUsdRates] = useState(null);
   const [showDiarios, setShowDiarios] = useState(false);
@@ -4376,8 +4411,10 @@ function HomeTab({
             ['Ingresos', totIn, '#4DDDB5'],
             ['Gastos', totOut, '#F08878'],
             ['Ahorro', totSav, 'rgba(255,255,255,.9)'],
-          ].map(([l, v, c]) => (
-            <div key={l} style={{ flex: 1, minWidth: 0 }}>
+          ].map(([l, v, c], i) => (
+            <Fragment key={l}>
+              {i > 0 && <div style={{ width: 1, background: 'rgba(255,255,255,.12)', flexShrink: 0 }} />}
+              <div style={{ flex: 1, minWidth: 0, paddingLeft: i > 0 ? 14 : 0 }}>
               <div
                 style={{
                   fontSize: 11,
@@ -4397,7 +4434,8 @@ function HomeTab({
               >
                 {fmtS(v, cur)}
               </div>
-            </div>
+              </div>
+            </Fragment>
           ))}
         </div>
 
@@ -4456,6 +4494,43 @@ function HomeTab({
           ))}
         </div>
       </Box>
+
+      {/* Por categoría */}
+      {byCat.length > 0 && (() => {
+        const totCatAll = byCat.reduce((s, [, a]) => s + a, 0) || 1;
+        return (
+          <Box>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+              <span style={{ fontSize: 15, fontWeight: 700, color: P.tx }}>Por categoría</span>
+              {onSeeCats && (
+                <span onClick={onSeeCats} style={{ fontSize: 12, fontWeight: 600, color: P.ac, cursor: 'pointer' }}>Ver todo →</span>
+              )}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {byCat.slice(0, 5).map(([catName, amt]) => {
+                const { c, bg } = catColor(catName);
+                const pct = Math.round((amt / totCatAll) * 100);
+                return (
+                  <div key={catName} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div style={{ width: 40, height: 40, borderRadius: 13, background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>
+                      {catIcon(catName)}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: P.tx, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{catName}</span>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: P.tx, flexShrink: 0, marginLeft: 8 }}>{fmtS(amt, cur)}</span>
+                      </div>
+                      <div style={{ height: 7, borderRadius: 4, background: isDark ? 'rgba(255,255,255,.08)' : '#EDE9E2', overflow: 'hidden' }}>
+                        <div style={{ width: `${pct}%`, height: '100%', background: c, borderRadius: 4, transition: 'width .4s ease' }} />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </Box>
+        );
+      })()}
 
       {/* ── DIARIOS: gastos del mes agrupados por día ── */}
       {showDiarios && (() => {
@@ -5076,13 +5151,16 @@ function InsightsTab({
           </div>
         )}
         <div style={{ display: 'flex', gap: 8, marginTop: 14, borderTop: '1px solid rgba(255,255,255,.12)', paddingTop: 14 }}>
-          {[['Ingresos', cIn, '#4DDDB5'], ['Gastos', cOut, '#F08878'], ['Ahorro', cSav, 'rgba(255,255,255,.9)']].map(([l, v, c]) => (
-            <div key={l} style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 11, color: 'rgba(255,255,255,.45)', fontWeight: 500 }}>{l}</div>
-              <div style={{ fontSize: mob ? 15 : 18, fontWeight: 700, color: c, fontVariantNumeric: 'tabular-nums', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {fmtS(Math.round(v), cur)}
+          {[['Ingresos', cIn, '#4DDDB5'], ['Gastos', cOut, '#F08878'], ['Ahorro', cSav, 'rgba(255,255,255,.9)']].map(([l, v, c], i) => (
+            <Fragment key={l}>
+              {i > 0 && <div style={{ width: 1, background: 'rgba(255,255,255,.12)', flexShrink: 0 }} />}
+              <div style={{ flex: 1, minWidth: 0, paddingLeft: i > 0 ? 14 : 0 }}>
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,.45)', fontWeight: 500 }}>{l}</div>
+                <div style={{ fontSize: mob ? 15 : 18, fontWeight: 700, color: c, fontVariantNumeric: 'tabular-nums', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {fmtS(Math.round(v), cur)}
+                </div>
               </div>
-            </div>
+            </Fragment>
           ))}
         </div>
       </Box>

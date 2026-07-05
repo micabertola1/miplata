@@ -2098,16 +2098,11 @@ function MainApp({ user, onLogout }) {
         }}
       >
         {tab === 'home' && (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: mob ? 14 : 18 }}>
-            <div>
-              <div style={{ fontSize: mob ? 20 : 23, fontWeight: 800, color: P.tx, letterSpacing: -0.3 }}>
-                Hola, {(user.displayName || user.email || 'vos').split(' ')[0]} 👋
-              </div>
-              <div style={{ fontSize: 13, fontWeight: 500, color: P.sb, marginTop: 3 }}>Controlá tus finanzas</div>
+          <div style={{ marginBottom: mob ? 14 : 18 }}>
+            <div style={{ fontSize: mob ? 20 : 23, fontWeight: 800, color: P.tx, letterSpacing: -0.3 }}>
+              Hola, {(user.displayName || user.email || 'vos').split(' ')[0]} 👋
             </div>
-            <div style={{ width: 42, height: 42, borderRadius: 21, background: P.ac, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: 17, flexShrink: 0 }}>
-              {(user.displayName || user.email || 'U')[0].toUpperCase()}
-            </div>
+            <div style={{ fontSize: 13, fontWeight: 500, color: P.sb, marginTop: 3 }}>Controlá tus finanzas</div>
           </div>
         )}
         {(tab === 'home' || tab === 'insights' || tab === 'movs' || tab === 'diarios') && (

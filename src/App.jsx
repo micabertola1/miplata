@@ -3724,8 +3724,8 @@ function catRowStyle(catName) {
   const map = {
     'Alimentación': { c: '#E07840', bg: isDark ? 'rgba(224,120,64,.15)' : '#FFF0E8' },
     'Vivienda': { c: '#3A7BD5', bg: isDark ? 'rgba(58,123,213,.15)' : '#EAF0FF' },
-    'Transporte': { c: isDark ? '#2EC4A0' : '#1A7A5E', bg: isDark ? 'rgba(46,196,160,.12)' : '#E6F5F0' },
-    'Bienestar': { c: isDark ? '#2EC4A0' : '#1A7A5E', bg: isDark ? 'rgba(46,196,160,.08)' : '#EAF8F5' },
+    'Transporte': { c: P.gn, bg: isDark ? 'rgba(46,196,160,.12)' : '#E6F5F0' },
+    'Bienestar': { c: P.gn, bg: isDark ? 'rgba(46,196,160,.08)' : '#EAF8F5' },
     'Entretenimiento': { c: '#8B5CF6', bg: isDark ? 'rgba(139,92,246,.15)' : '#F0EEFF' },
     'Compras': { c: '#D4678A', bg: isDark ? 'rgba(212,103,138,.15)' : '#FFF0F5' },
     'Obligaciones': { c: P.rd, bg: isDark ? 'rgba(232,113,94,.12)' : P.rb },
@@ -4176,8 +4176,8 @@ function HomeTab({
     const map = {
       'Alimentación': { c: '#E07840', bg: isDark ? 'rgba(224,120,64,.15)' : '#FFF0E8' },
       'Vivienda': { c: '#3A7BD5', bg: isDark ? 'rgba(58,123,213,.15)' : '#EAF0FF' },
-      'Transporte': { c: isDark ? '#2EC4A0' : '#1A7A5E', bg: isDark ? 'rgba(46,196,160,.12)' : '#E6F5F0' },
-      'Bienestar': { c: isDark ? '#2EC4A0' : '#1A7A5E', bg: isDark ? 'rgba(46,196,160,.08)' : '#EAF8F5' },
+      'Transporte': { c: P.gn, bg: isDark ? 'rgba(46,196,160,.12)' : '#E6F5F0' },
+      'Bienestar': { c: P.gn, bg: isDark ? 'rgba(46,196,160,.08)' : '#EAF8F5' },
       'Entretenimiento': { c: '#8B5CF6', bg: isDark ? 'rgba(139,92,246,.15)' : '#F0EEFF' },
       'Compras': { c: '#D4678A', bg: isDark ? 'rgba(212,103,138,.15)' : '#FFF0F5' },
       'Obligaciones': { c: P.rd, bg: isDark ? 'rgba(232,113,94,.12)' : P.rb },
@@ -4431,7 +4431,7 @@ function HomeTab({
               const q = m.ingreso - m.gasto;
               return (
                 <span key={who} style={{ fontSize: 11, color: 'rgba(255,255,255,.55)' }}>
-                  {who.split(' ')[0]}: <b style={{ color: q >= 0 ? '#4DDDB5' : '#F08878' }}>{fmtS(q, cur)}</b>
+                  {who.split(' ')[0]}: <b style={{ color: q >= 0 ? P.gn : P.rd }}>{fmtS(q, cur)}</b>
                 </span>
               );
             })}
@@ -4448,8 +4448,8 @@ function HomeTab({
           }}
         >
           {[
-            ['Ingresos', totIn, '#4DDDB5'],
-            ['Gastos', totOut, '#F08878'],
+            ['Ingresos', totIn, P.gn],
+            ['Gastos', totOut, P.rd],
             ['Ahorro', totSav, 'rgba(255,255,255,.9)'],
           ].map(([l, v, c], i) => (
             <Fragment key={l}>
@@ -4498,7 +4498,7 @@ function HomeTab({
         {hasBudgets && (
           <div style={{ marginTop: 12 }}>
             <div style={{ height: 7, borderRadius: 4, background: 'rgba(255,255,255,.15)' }}>
-              <div style={{ height: '100%', borderRadius: 4, width: `${Math.min(100, totIn > 0 ? (totOut / totIn) * 100 : 0)}%`, background: totOut / totIn > 0.8 ? '#F08878' : '#4DDDB5', transition: 'width .4s ease' }} />
+              <div style={{ height: '100%', borderRadius: 4, width: `${Math.min(100, totIn > 0 ? (totOut / totIn) * 100 : 0)}%`, background: totOut / totIn > 0.8 ? P.rd : P.gn, transition: 'width .4s ease' }} />
             </div>
             <div style={{ fontSize: 11, color: 'rgba(255,255,255,.55)', marginTop: 5 }}>
               Gastaste el {totIn > 0 ? Math.round((totOut / totIn) * 100) : 0}%
@@ -5174,8 +5174,8 @@ function InsightsTab({
         </div>
         {carry !== 0 && (
           <div style={{ fontSize: 12, color: 'rgba(255,255,255,.55)', marginTop: 3 }}>
-            venías con <b style={{ color: carry >= 0 ? '#4DDDB5' : '#F08878' }}>{fmtS(carry, cur)}</b>
-            {' · '}disponible total <b style={{ color: cBal + carry >= 0 ? '#4DDDB5' : '#F08878' }}>{fmtS(cBal + carry, cur)}</b>
+            venías con <b style={{ color: carry >= 0 ? P.gn : P.rd }}>{fmtS(carry, cur)}</b>
+            {' · '}disponible total <b style={{ color: cBal + carry >= 0 ? P.gn : P.rd }}>{fmtS(cBal + carry, cur)}</b>
           </div>
         )}
         {isGroup && memberRows.length > 0 && (
@@ -5184,14 +5184,14 @@ function InsightsTab({
               const q = m.ingreso - m.gasto;
               return (
                 <span key={who} style={{ fontSize: 11, color: 'rgba(255,255,255,.55)' }}>
-                  {who.split(' ')[0]}: <b style={{ color: q >= 0 ? '#4DDDB5' : '#F08878' }}>{fmtS(q, cur)}</b>
+                  {who.split(' ')[0]}: <b style={{ color: q >= 0 ? P.gn : P.rd }}>{fmtS(q, cur)}</b>
                 </span>
               );
             })}
           </div>
         )}
         <div style={{ display: 'flex', gap: 8, marginTop: 14, borderTop: '1px solid rgba(255,255,255,.12)', paddingTop: 14 }}>
-          {[['Ingresos', cIn, '#4DDDB5'], ['Gastos', cOut, '#F08878'], ['Ahorro', cSav, 'rgba(255,255,255,.9)']].map(([l, v, c], i) => (
+          {[['Ingresos', cIn, P.gn], ['Gastos', cOut, P.rd], ['Ahorro', cSav, 'rgba(255,255,255,.9)']].map(([l, v, c], i) => (
             <Fragment key={l}>
               {i > 0 && <div style={{ width: 1, background: 'rgba(255,255,255,.12)', flexShrink: 0 }} />}
               <div style={{ flex: 1, minWidth: 0, paddingLeft: i > 0 ? 14 : 0 }}>

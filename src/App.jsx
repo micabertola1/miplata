@@ -2242,6 +2242,7 @@ function MainApp({ user, onLogout }) {
             onAdd={openAdd}
             onEdit={openEdit}
             onExport={() => exportCSV(true)}
+            customCats={settings.customCats}
           />
         )}
         {tab === 'perfil' && (
@@ -3795,8 +3796,40 @@ function PerfilTab({ onExportAll, onExportMonth, onImport, cards, onSaveCards, t
   );
 }
 
-function DiariosTab({ mob, cur, activeTx, month, onAdd, onEdit, onExport }) {
+const PAY_LABEL = { efectivo: 'Efectivo', transferencia: 'Transferencia', credito: 'Crédito' };
+function catRowStyle(catName) {
+  const isDark = P.bg === P_DARK.bg;
+  const map = {
+    'Alimentación': { c: '#E07840', bg: isDark ? 'rgba(224,120,64,.15)' : '#FFF0E8' },
+    'Vivienda': { c: '#3A7BD5', bg: isDark ? 'rgba(58,123,213,.15)' : '#EAF0FF' },
+    'Transporte': { c: isDark ? '#2EC4A0' : '#1A7A5E', bg: isDark ? 'rgba(46,196,160,.12)' : '#E6F5F0' },
+    'Bienestar': { c: isDark ? '#2EC4A0' : '#1A7A5E', bg: isDark ? 'rgba(46,196,160,.08)' : '#EAF8F5' },
+    'Entretenimiento': { c: '#8B5CF6', bg: isDark ? 'rgba(139,92,246,.15)' : '#F0EEFF' },
+    'Compras': { c: '#D4678A', bg: isDark ? 'rgba(212,103,138,.15)' : '#FFF0F5' },
+    'Obligaciones': { c: P.rd, bg: isDark ? 'rgba(232,113,94,.12)' : P.rb },
+    'Tarjetas': { c: '#C9B89A', bg: isDark ? 'rgba(201,184,154,.1)' : '#FFF8E6' },
+  };
+  if (map[catName]) return map[catName];
+  const idx = Math.abs([...(catName || '')].reduce((a, c) => a + c.charCodeAt(0), 0)) % pal.length;
+  return { c: pal[idx], bg: P.c2 };
+}
+function relDayLabel(d) {
+  const todayS = td();
+  const yd = new Date();
+  yd.setDate(yd.getDate() - 1);
+  const yestS = yd.toISOString().slice(0, 10);
+  const [, m, dd] = d.split('-').map(Number);
+  const mAbbr = MO[m - 1].toUpperCase();
+  if (d === todayS) return { label: `HOY · ${dd} ${mAbbr}`, rel: 'hoy' };
+  if (d === yestS) return { label: `AYER · ${dd} ${mAbbr}`, rel: 'ayer' };
+  return { label: `${dd} ${mAbbr}`, rel: '' };
+}
+
+function DiariosTab({ mob, cur, activeTx, month, onAdd, onEdit, onExport, customCats }) {
   const [usdRates, setUsdRates] = useState(null);
+  const [filter, setFilter] = useState('todos');
+  const [showSearch, setShowSearch] = useState(false);
+  const [q, setQ] = useState('');
   useEffect(() => {
     fetch('https://api.bluelytics.com.ar/v2/latest')
       .then((r) => r.json())
@@ -3804,14 +3837,32 @@ function DiariosTab({ mob, cur, activeTx, month, onAdd, onEdit, onExport }) {
       .catch(() => {});
   }, []);
 
-  const gastos = activeTx
-    .filter((t) => t.type === 'gasto' && !t.recurring && mk(t.date) === month)
-    .sort((a, b) => String(b.date).localeCompare(String(a.date)));
+  const pool = activeTx.filter(
+    (t) => mk(t.date) === month && !(t.type === 'gasto' && t.recurring)
+  );
+  const FILTERS = [
+    { id: 'todos', l: 'Todos' },
+    { id: 'ingreso', l: 'Ingresos' },
+    { id: 'gasto', l: 'Gastos' },
+    { id: 'ahorro', l: 'Ahorro' },
+  ];
+  let items = filter === 'todos' ? pool : pool.filter((t) => t.type === filter);
+  if (q.trim()) {
+    const qq = q.trim().toLowerCase();
+    items = items.filter((t) =>
+      (t.desc || '').toLowerCase().includes(qq) ||
+      (t.cat || '').toLowerCase().includes(qq) ||
+      (t.sub || '').toLowerCase().includes(qq)
+    );
+  }
+  items = [...items].sort((a, b) => String(b.date).localeCompare(String(a.date)));
 
-  const totalGastos = gastos.reduce((s, t) => s + (t.cur === 'USD' ? t.amt * ((usdRates?.venta) || 1200) : t.amt), 0);
+  const toARS = (t) => (t.cur === 'USD' ? t.amt * ((usdRates?.venta) || 1200) : t.amt);
+  const totalSel = items.reduce((s, t) => s + (t.type === 'gasto' ? -toARS(t) : toARS(t)), 0);
+  const totalColor = filter === 'ingreso' ? P.gn : filter === 'gasto' ? P.rd : filter === 'ahorro' ? P.ac : (totalSel >= 0 ? P.gn : P.rd);
 
   const byDay = {};
-  gastos.forEach((t) => {
+  items.forEach((t) => {
     const d = String(t.date).slice(0, 10);
     if (!byDay[d]) byDay[d] = [];
     byDay[d].push(t);
@@ -3820,52 +3871,119 @@ function DiariosTab({ mob, cur, activeTx, month, onAdd, onEdit, onExport }) {
 
   return (
     <div style={{ paddingBottom: 80 }}>
-      <div style={{ background: P.cd, border: `1px solid ${P.bd}`, borderRadius: 16, padding: '14px 14px 6px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ fontSize: 16 }}>📝</span>
-              <span style={{ fontSize: 15, fontWeight: 700, color: P.tx }}>Gastos diarios</span>
-            </div>
-            <div style={{ fontSize: 16, fontWeight: 700, color: P.rd, marginTop: 2 }}>{fmtS(totalGastos)}</div>
-          </div>
-          <div style={{ display: 'flex', gap: 6 }}>
-            <button onClick={onExport} style={{ background: 'transparent', color: P.sb, border: `1px solid ${P.bd}`, borderRadius: 20, padding: '7px 10px', fontSize: 12, cursor: 'pointer' }}>📤</button>
-            <button onClick={() => onAdd('gasto')} style={{ background: P.ac, color: '#fff', border: 'none', borderRadius: 20, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>+ Agregar</button>
-          </div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+        <span style={{ fontSize: 24, fontWeight: 800, color: P.tx }}>Movimientos</span>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            onClick={() => setShowSearch((v) => !v)}
+            style={{ width: 38, height: 38, borderRadius: 12, background: P.cd, border: `1px solid ${P.bd}`, color: P.tx, fontSize: 15, cursor: 'pointer' }}
+          >
+            🔍
+          </button>
+          <button onClick={onExport} style={{ width: 38, height: 38, borderRadius: 12, background: P.cd, border: `1px solid ${P.bd}`, color: P.tx, fontSize: 15, cursor: 'pointer' }}>📤</button>
+          <button onClick={() => onAdd('gasto')} style={{ background: P.ac, color: '#fff', border: 'none', borderRadius: 12, padding: '0 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>+ Agregar</button>
         </div>
-        {gastos.length === 0 ? (
-          <div style={{ fontSize: 12, color: P.sb, textAlign: 'center', padding: '12px 0' }}>Sin gastos este mes</div>
-        ) : days.map((d) => {
-          const dayTxs = byDay[d];
-          const dayTotal = dayTxs.reduce((s, t) => s + (t.cur === 'USD' ? t.amt * ((usdRates?.venta) || 1200) : t.amt), 0);
-          const dayLabel = (() => {
-            const [y, m, dd] = d.split('-');
-            return `${Number(dd)}/${Number(m)}`;
-          })();
-          return (
-            <div key={d}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0 2px', borderTop: `1px solid ${P.bd}` }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: P.sb }}>{dayLabel}</span>
-                <span style={{ fontSize: 11, color: P.sb }}>{fmtS(dayTotal)}</span>
-              </div>
-              {dayTxs.map((t) => (
-                <div key={t.id} onClick={() => onEdit(t)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0 8px 8px', cursor: 'pointer' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-                    <span style={{ fontSize: 15 }}>📤</span>
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: P.tx, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: mob ? 150 : 260 }}>{t.desc || t.cat}</div>
-                      <div style={{ fontSize: 10, color: P.sb }}>{t.cat}{t.sub ? ` · ${t.sub}` : ''}{t.member ? ` · 👤 ${t.member.split(' ')[0]}` : ''}</div>
+      </div>
+
+      {showSearch && (
+        <input
+          autoFocus
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Buscar por nombre o categoría..."
+          style={{ width: '100%', background: P.cd, border: `1px solid ${P.bd}`, borderRadius: 12, padding: '10px 14px', fontSize: 13, color: P.tx, marginBottom: 12, boxSizing: 'border-box' }}
+        />
+      )}
+
+      <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4, marginBottom: 14 }}>
+        {FILTERS.map((f) => (
+          <button
+            key={f.id}
+            onClick={() => setFilter(f.id)}
+            style={{
+              flexShrink: 0,
+              background: filter === f.id ? P.ac : P.cd,
+              color: filter === f.id ? '#fff' : P.sb,
+              border: filter === f.id ? 'none' : `1px solid ${P.bd}`,
+              borderRadius: 20,
+              padding: '8px 16px',
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {f.l}
+          </button>
+        ))}
+      </div>
+
+      <div style={{ fontSize: 13, color: P.sb, marginBottom: 12 }}>
+        Total: <b style={{ color: totalColor, fontSize: 15 }}>{fmtS(totalSel)}</b>
+      </div>
+
+      {items.length === 0 ? (
+        <Nil
+          icon="✨"
+          t="Sin movimientos"
+          sub="Probá otro filtro o cargá uno nuevo."
+          action="➕ Agregar movimiento"
+          onAction={() => onAdd('gasto')}
+        />
+      ) : days.map((d) => {
+        const dayTxs = byDay[d];
+        const { label } = relDayLabel(d);
+        return (
+          <div key={d} style={{ marginBottom: 4 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.6, color: P.sb, marginBottom: 12 }}>
+              {label}
+            </div>
+            {dayTxs.map((t) => {
+              const isIn = t.type === 'ingreso';
+              const isSav = t.type === 'ahorro';
+              const { c: iconColor, bg: iconBg } = catRowStyle(t.cat);
+              const emoji = (getCats(t.type, customCats).find((c) => c.n === t.cat) || {}).i || (isIn ? '💰' : isSav ? '🏦' : '🏷️');
+              const amtColor = isIn ? P.gn : isSav ? P.ac : P.rd;
+              const { rel } = relDayLabel(String(t.date).slice(0, 10));
+              return (
+                <div
+                  key={t.id}
+                  onClick={() => onEdit(t)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                    background: P.cd,
+                    border: `1px solid ${P.bd}`,
+                    borderRadius: 16,
+                    padding: '14px 16px',
+                    marginBottom: 8,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <div style={{ width: 44, height: 44, borderRadius: 14, background: iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 19, flexShrink: 0 }}>
+                    {emoji}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: P.tx, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {t.desc || t.cat}
+                    </div>
+                    <div style={{ fontSize: 12, fontWeight: 500, color: P.sb, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {t.cat}{t.sub ? ` · ${t.sub}` : ''}{t.pay ? ` · ${PAY_LABEL[t.pay] || t.pay}` : ''}{t.member ? ` · 👤 ${t.member.split(' ')[0]}` : ''}
                     </div>
                   </div>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: P.rd, flexShrink: 0 }}>{fmtS(t.amt, t.cur)}</span>
+                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: amtColor }}>
+                      {isIn ? '+' : isSav ? '' : '−'}{fmtS(t.amt, t.cur)}
+                    </div>
+                    {rel && <div style={{ fontSize: 11, fontWeight: 500, color: P.sb, marginTop: 2 }}>{rel}</div>}
+                  </div>
                 </div>
-              ))}
-            </div>
-          );
-        })}
-        <div style={{ fontSize: 10, color: P.sb, textAlign: 'center', padding: '8px 0 4px' }}>Tocá para editar</div>
-      </div>
+              );
+            })}
+          </div>
+        );
+      })}
     </div>
   );
 }

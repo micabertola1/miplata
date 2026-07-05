@@ -198,17 +198,6 @@ function fmtS(a, c) {
 function td() {
   return new Date().toISOString().slice(0, 10);
 }
-// Autoformatea a DD/MM mientras se escribe (solo números, inserta la barra sola)
-function fmtDDMM(raw, prev) {
-  let digits = raw.replace(/\D/g, '').slice(0, 4);
-  // Si borró la barra, no la reponemos de más (evita loop al borrar)
-  if (raw.length < (prev || '').length && (prev || '').includes('/') && !raw.includes('/')) {
-    return digits.slice(0, 2);
-  }
-  if (digits.length <= 2) return digits;
-  return `${digits.slice(0, 2)}/${digits.slice(2)}`;
-}
-
 // Cargos de un mes: las compras en cuotas se reparten (una cuota por mes)
 function chargesForMonth(txs, monthKey) {
   const [my, mm] = monthKey.split('-').map(Number);
@@ -3611,20 +3600,25 @@ function PerfilTab({ onExportAll, onExportMonth, onImport, cards, onSaveCards, t
             <div style={{ display: 'flex', gap: 8 }}>
               <input
                 style={{ ...inputStyle, marginBottom: 0 }}
-                type="text"
-                inputMode="numeric"
-                placeholder="Cierre DD/MM (ej: 08/03)"
+                type="number"
+                min="1"
+                max="31"
+                placeholder="Día de cierre aprox. (ej: 15)"
                 value={newCard.cierre}
-                onChange={(e) => setNewCard((v) => ({ ...v, cierre: fmtDDMM(e.target.value, v.cierre) }))}
+                onChange={(e) => setNewCard((v) => ({ ...v, cierre: e.target.value }))}
               />
               <input
                 style={{ ...inputStyle, marginBottom: 0 }}
-                type="text"
-                inputMode="numeric"
-                placeholder="Vencimiento DD/MM (ej: 15/03)"
+                type="number"
+                min="1"
+                max="31"
+                placeholder="Día de venc. aprox. (ej: 22)"
                 value={newCard.vencimiento}
-                onChange={(e) => setNewCard((v) => ({ ...v, vencimiento: fmtDDMM(e.target.value, v.vencimiento) }))}
+                onChange={(e) => setNewCard((v) => ({ ...v, vencimiento: e.target.value }))}
               />
+            </div>
+            <div style={{ fontSize: 11, color: P.sb, marginTop: 4 }}>
+              Días aproximados: si tu tarjeta se mueve un poco cada mes, poné el día más cercano.
             </div>
             <button
               onClick={handleAddCard}
@@ -3650,19 +3644,21 @@ function PerfilTab({ onExportAll, onExportMonth, onImport, cards, onSaveCards, t
                 <div style={{ display: 'flex', gap: 8 }}>
                   <input
                     style={{ ...inputStyle, marginBottom: 0 }}
-                    type="text"
-                    inputMode="numeric"
-                    placeholder="Cierre DD/MM"
+                    type="number"
+                    min="1"
+                    max="31"
+                    placeholder="Día de cierre aprox."
                     value={editCard.cierre}
-                    onChange={(e) => setEditCard((v) => ({ ...v, cierre: fmtDDMM(e.target.value, v.cierre) }))}
+                    onChange={(e) => setEditCard((v) => ({ ...v, cierre: e.target.value }))}
                   />
                   <input
                     style={{ ...inputStyle, marginBottom: 0 }}
-                    type="text"
-                    inputMode="numeric"
-                    placeholder="Vencimiento DD/MM"
+                    type="number"
+                    min="1"
+                    max="31"
+                    placeholder="Día de venc. aprox."
                     value={editCard.vencimiento}
-                    onChange={(e) => setEditCard((v) => ({ ...v, vencimiento: fmtDDMM(e.target.value, v.vencimiento) }))}
+                    onChange={(e) => setEditCard((v) => ({ ...v, vencimiento: e.target.value }))}
                   />
                 </div>
                 <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
@@ -3694,7 +3690,7 @@ function PerfilTab({ onExportAll, onExportMonth, onImport, cards, onSaveCards, t
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 600, color: P.tx }}>💳 {c.name}</div>
                   <div style={{ fontSize: 11, color: P.sb, marginTop: 2 }}>
-                    Cierre: {c.cierre || '—'} · Vence: {c.vencimiento || '—'}
+                    Cierre: día {c.cierre || '—'} (aprox.) · Vence: día {c.vencimiento || '—'} (aprox.)
                   </div>
                 </div>
                 <span style={{ fontSize: 12, color: P.sb }}>✏️</span>

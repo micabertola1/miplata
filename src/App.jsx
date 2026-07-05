@@ -1689,51 +1689,6 @@ function MainApp({ user, onLogout }) {
           </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <div
-            style={{
-              display: 'flex',
-              background: P.c2,
-              borderRadius: 8,
-              border: `1px solid ${P.bd}`,
-              overflow: 'hidden',
-            }}
-          >
-            {['ARS', 'USD'].map((c) => (
-              <button
-                key={c}
-                onClick={() => setCur(c)}
-                style={{
-                  background: cur === c ? P.ac : 'transparent',
-                  color: cur === c ? '#fff' : P.sb,
-                  border: 'none',
-                  padding: '4px 10px',
-                  fontSize: 10,
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                }}
-              >
-                {c}
-              </button>
-            ))}
-          </div>
-          <button
-            onClick={() => setShowCats(true)}
-            title="Personalizar categorías"
-            style={{
-              width: 28,
-              height: 28,
-              borderRadius: 8,
-              background: P.c2,
-              border: `1px solid ${P.bd}`,
-              fontSize: 13,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            🏷️
-          </button>
           {user.photoURL && (
             <img
               src={user.photoURL}
@@ -1770,67 +1725,6 @@ function MainApp({ user, onLogout }) {
           )}
         </div>
       </header>
-
-      {/* Scope bar: solo el espacio actual */}
-      <div
-        style={{
-          background: P.cd,
-          borderBottom: `1px solid ${P.bd}`,
-          padding: mob ? '8px 14px' : '8px 24px',
-        }}
-      >
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 8,
-            maxWidth: 800,
-            margin: '0 auto',
-          }}
-        >
-          <span
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              background: viewScope === 'personal' ? P.ab : P.pu + '18',
-              border: `1px solid ${viewScope === 'personal' ? P.ac : P.pu}`,
-              color: viewScope === 'personal' ? P.ac : P.pu,
-              padding: '6px 14px',
-              borderRadius: 999,
-              fontSize: 13,
-              fontWeight: 600,
-              maxWidth: '70%',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {viewScope === 'personal'
-              ? '👤 Personal'
-              : '👥 ' +
-                (myGroups.find((g) => g.id === viewScope)?.name || 'Grupo')}
-            {settings.defScope === viewScope && ' ⭐'}
-          </span>
-          <button
-            onClick={() => setMenuOpen(true)}
-            style={{
-              background: 'transparent',
-              border: `1px solid ${P.bd}`,
-              color: P.sb,
-              padding: '6px 12px',
-              borderRadius: 999,
-              cursor: 'pointer',
-              fontSize: 12,
-              fontWeight: 500,
-              whiteSpace: 'nowrap',
-            }}
-          >
-            Cambiar ▾
-          </button>
-        </div>
-      </div>
 
       {/* Menú de cuenta + espacios */}
       {menuOpen && (
@@ -2098,11 +1992,32 @@ function MainApp({ user, onLogout }) {
         }}
       >
         {tab === 'home' && (
-          <div style={{ marginBottom: mob ? 14 : 18 }}>
-            <div style={{ fontSize: mob ? 20 : 23, fontWeight: 800, color: P.tx, letterSpacing: -0.3 }}>
-              Hola, {(user.displayName || user.email || 'vos').split(' ')[0]} 👋
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: mob ? 14 : 18 }}>
+            <div>
+              <div style={{ fontSize: mob ? 20 : 23, fontWeight: 800, color: P.tx, letterSpacing: -0.3 }}>
+                Hola, {(user.displayName || user.email || 'vos').split(' ')[0]} 👋
+              </div>
+              <div style={{ fontSize: 13, fontWeight: 500, color: P.sb, marginTop: 3 }}>Controlá tus finanzas</div>
             </div>
-            <div style={{ fontSize: 13, fontWeight: 500, color: P.sb, marginTop: 3 }}>Controlá tus finanzas</div>
+            <div style={{ display: 'flex', background: P.c2, borderRadius: 8, border: `1px solid ${P.bd}`, overflow: 'hidden', flexShrink: 0 }}>
+              {['ARS', 'USD'].map((c) => (
+                <button
+                  key={c}
+                  onClick={() => setCur(c)}
+                  style={{
+                    background: cur === c ? P.ac : 'transparent',
+                    color: cur === c ? '#fff' : P.sb,
+                    border: 'none',
+                    padding: '4px 10px',
+                    fontSize: 10,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {c}
+                </button>
+              ))}
+            </div>
           </div>
         )}
         {(tab === 'home' || tab === 'insights' || tab === 'movs' || tab === 'diarios') && (
@@ -2121,11 +2036,6 @@ function MainApp({ user, onLogout }) {
               </span>
               <NavB onClick={nextM}>›</NavB>
             </div>
-            {tab === 'home' && (
-              <span style={{ fontSize: 11, fontWeight: 600, color: P.ar, background: P.bg === P_DARK.bg ? P.c2 : '#FAF6EE', border: `1px solid ${P.bg === P_DARK.bg ? P.bd : '#EDE5D5'}`, borderRadius: 6, padding: '3px 9px', marginLeft: 'auto', marginRight: 8 }}>
-                {cur}
-              </span>
-            )}
             <button
               onClick={clearMonth}
               title="Borrar todos los movimientos de este mes"
@@ -2249,6 +2159,13 @@ function MainApp({ user, onLogout }) {
             onSaveCards={(c) => saveSettings({ cards: c })}
             theme={settings.theme || 'light'}
             onToggleTheme={() => saveSettings({ theme: settings.theme === 'dark' ? 'light' : 'dark' })}
+            scopeLabel={
+              viewScope === 'personal'
+                ? '👤 Personal'
+                : '👥 ' + (myGroups.find((g) => g.id === viewScope)?.name || 'Grupo')
+            }
+            onOpenSpaces={() => setMenuOpen(true)}
+            onOpenCats={() => setShowCats(true)}
           />
         )}
         {tab === 'insights' && (
@@ -3599,7 +3516,7 @@ function TxListTab({ mob, cur, activeTx, onEdit, customCats, onAdd }) {
 }
 
 /* ── MES ── */
-function PerfilTab({ onExportAll, onExportMonth, onImport, cards, onSaveCards, theme, onToggleTheme }) {
+function PerfilTab({ onExportAll, onExportMonth, onImport, cards, onSaveCards, theme, onToggleTheme, scopeLabel, onOpenSpaces, onOpenCats }) {
   const [showAddCard, setShowAddCard] = useState(false);
   const [newCard, setNewCard] = useState({ name: '', cierre: '', vencimiento: '' });
   const [editingId, setEditingId] = useState(null);
@@ -3640,6 +3557,16 @@ function PerfilTab({ onExportAll, onExportMonth, onImport, cards, onSaveCards, t
 
   return (
     <div style={{ paddingBottom: 80 }}>
+
+      {/* Espacio y categorías */}
+      <div style={sectionStyle}>
+        {sectionTitle('Espacio')}
+        <button onClick={onOpenSpaces} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', background: 'transparent', border: 'none', borderBottom: `1px solid ${P.bd}`, padding: '14px 4px', cursor: 'pointer', textAlign: 'left' }}>
+          <span style={{ fontSize: 14, fontWeight: 500, color: P.tx }}>{scopeLabel}</span>
+          <span style={{ fontSize: 13, color: P.ac, fontWeight: 600 }}>Cambiar ▾</span>
+        </button>
+        {row('🏷️', 'Categorías', onOpenCats)}
+      </div>
 
       {/* Apariencia */}
       <div style={sectionStyle}>

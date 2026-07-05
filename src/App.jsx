@@ -1157,19 +1157,33 @@ function MainApp({ user, onLogout }) {
     }
   };
 
-  // Registrar la instancia de un pago recurrente en el mes visto
-  const registerRecurring = async (template) => {
-    const day = String(template.date || '').slice(8, 10) || '01';
-    const newDate = `${month}-${day}`;
-    const { id, createdAt, imported, ...rest } = template;
-    await addTx({ ...rest, date: newDate });
-  };
-
   // Ref correcta según dónde vive la tx (grupo o personal)
   const txRefFor = (t) =>
     t.groupId
       ? doc(db, 'groups', t.groupId, 'transactions', t.id)
       : doc(db, 'users', user.uid, 'transactions', t.id);
+
+  // Registrar la instancia de un pago recurrente en el mes visto.
+  // Si ya existe una instancia de este mes (quedó pendiente al destildar),
+  // solo la reactivamos en vez de crear un duplicado.
+  const registerRecurring = async (template) => {
+    const existing = activeTx.find(
+      (t) => t.serieId === template.serieId && mk(t.date) === month
+    );
+    if (existing) {
+      try {
+        await updateDoc(txRefFor(existing), { pending: false });
+      } catch (e) {
+        console.error('registerRecurring (update) error:', e);
+        notify('No pudimos registrar el pago. Probá de nuevo.', 'error');
+      }
+      return;
+    }
+    const day = String(template.date || '').slice(8, 10) || '01';
+    const newDate = `${month}-${day}`;
+    const { id, createdAt, imported, ...rest } = template;
+    await addTx({ ...rest, date: newDate, pending: false });
+  };
 
   // Quitar una serie recurrente: pone recurring=false en todas las txs de esa serieId
   const removeRecurringSerie = async (serieId) => {
@@ -1203,14 +1217,16 @@ function MainApp({ user, onLogout }) {
     }
   };
 
-  // Destildar: borra la(s) instancia(s) de esta serie en el mes visto
+  // Destildar: marca como pendiente la instancia de esta serie en el mes
+  // visto (no borra el documento, para no perder la definición del
+  // recurrente si es la única instancia que existe).
   const unregisterRecurring = async (template) => {
     if (!template?.serieId) return;
     const insts = activeTx.filter((t) => t.serieId === template.serieId && mk(t.date) === month);
     if (insts.length === 0) return;
     try {
       const batch = writeBatch(db);
-      for (const t of insts) batch.delete(txRefFor(t));
+      for (const t of insts) batch.update(txRefFor(t), { pending: true });
       await batch.commit();
       notify('Quitamos el pago de este mes', 'success');
     } catch (e) {
@@ -3934,7 +3950,7 @@ function MesTab({
     (a.desc || a.cat) > (b.desc || b.cat) ? 1 : -1
   );
   const doneThisMonth = (serieId) =>
-    activeTx.some((t) => t.serieId === serieId && mk(t.date) === month);
+    activeTx.some((t) => t.serieId === serieId && mk(t.date) === month && !t.pending);
 
   const ingresos = activeTx.filter((t) => t.type === 'ingreso' && mk(t.date) === month);
 
@@ -4328,7 +4344,7 @@ function HomeTab({
     (a.desc || a.cat) > (b.desc || b.cat) ? 1 : -1
   );
   const doneThisMonth = (serieId) =>
-    activeTx.some((t) => t.serieId === serieId && mk(t.date) === month);
+    activeTx.some((t) => t.serieId === serieId && mk(t.date) === month && !t.pending);
   const freqLabel = {
     mensual: 'mensual',
     semanal: 'semanal',

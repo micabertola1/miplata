@@ -5859,12 +5859,12 @@ function GoalsTab({
                 key={c}
                 onClick={() => setSC(c)}
                 style={{
-                  background: sC === c ? P.ac : 'transparent',
-                  color: sC === c ? '#fff' : P.sb,
+                  background: sC === c ? P.gb : 'transparent',
+                  color: sC === c ? P.gn : P.sb,
                   border: 'none',
                   padding: '0 10px',
                   fontSize: 11,
-                  fontWeight: 600,
+                  fontWeight: 700,
                   cursor: 'pointer',
                 }}
               >

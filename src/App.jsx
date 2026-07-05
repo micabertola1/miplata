@@ -2203,13 +2203,6 @@ function MainApp({ user, onLogout }) {
             setEfund={(ef) => saveSettings({ efund: ef })}
             savings={settings.savings || []}
             setSavings={(s) => saveSettings({ savings: s })}
-            usdHeld={[...tx].reduce(
-              (s, t) =>
-                s +
-                (t.usd > 0 ? t.usd : 0) -
-                (t.type === 'gasto' && t.cur === 'USD' ? t.amt : 0),
-              0
-            )}
             usdBuys={tx
               .filter((t) => t.usd > 0)
               .sort((a, b) => (b.date || '').localeCompare(a.date || ''))}
@@ -2327,6 +2320,16 @@ function MainApp({ user, onLogout }) {
           mob={mob}
           onSave={(t) => {
             addTx(t);
+            // Suma el USD comprado al ítem editable "Dólares" en Patrimonio (Metas)
+            if (t.usd > 0) {
+              const cur2 = settings.savings || [];
+              const idx = cur2.findIndex((s) => s.cur === 'USD' && s.name === 'Dólares');
+              const next =
+                idx >= 0
+                  ? cur2.map((s, i) => (i === idx ? { ...s, amount: s.amount + t.usd } : s))
+                  : [...cur2, { id: 'sv-usd-' + Date.now(), name: 'Dólares', amount: t.usd, cur: 'USD' }];
+              saveSettings({ savings: next });
+            }
             setShowExchange(false);
           }}
           onClose={() => setShowExchange(false)}
@@ -5629,7 +5632,6 @@ function GoalsTab({
   setEfund,
   savings = [],
   setSavings,
-  usdHeld = 0,
   usdBuys = [],
   delTx,
 }) {
@@ -5676,9 +5678,7 @@ function GoalsTab({
   const savArs = savings
     .filter((s) => s.cur === 'ARS')
     .reduce((a, s) => a + s.amount, 0);
-  const savUsd =
-    savings.filter((s) => s.cur === 'USD').reduce((a, s) => a + s.amount, 0) +
-    (usdHeld > 0 ? usdHeld : 0);
+  const savUsd = savings.filter((s) => s.cur === 'USD').reduce((a, s) => a + s.amount, 0);
   const sT = totIn * (savPct / 100);
   const actual = totIn - totOut;
   const ok = actual >= sT;
@@ -5776,7 +5776,7 @@ function GoalsTab({
             )}
           </div>
         ))}
-        {usdHeld > 0 && (
+        {usdBuys.length > 0 && (
           <div style={{ borderTop: `1px solid ${P.bd}` }}>
             <div
               onClick={() => setShowUsd((v) => !v)}
@@ -5787,14 +5787,11 @@ function GoalsTab({
                 padding: '6px 0',
                 fontSize: 12,
                 color: P.sb,
-                cursor: usdBuys.length ? 'pointer' : 'default',
+                cursor: 'pointer',
               }}
             >
-              <span>
-                Dólares comprados en la app{' '}
-                {usdBuys.length > 0 && (showUsd ? '▾' : '▸')}
-              </span>
-              <span>US$ {usdHeld.toLocaleString('es-AR')}</span>
+              <span>Historial de compras en la app {showUsd ? '▾' : '▸'}</span>
+              <span>solo referencia</span>
             </div>
             {showUsd &&
               usdBuys.map((t) => (
@@ -5825,11 +5822,6 @@ function GoalsTab({
                   </span>
                 </div>
               ))}
-            {showUsd && usdBuys.length === 0 && (
-              <div style={{ fontSize: 11, color: P.sb, padding: '4px 0 6px 12px' }}>
-                No hay compras para editar.
-              </div>
-            )}
           </div>
         )}
         <div

@@ -5659,6 +5659,20 @@ function GoalsTab({
     setSA('');
   };
   const delSaving = (id) => setSavings(savings.filter((s) => s.id !== id));
+  const [editSavId, setEditSavId] = useState(null);
+  const [editAmt, setEditAmt] = useState('');
+  const startEditSaving = (s) => {
+    setEditSavId(s.id);
+    setEditAmt(String(s.amount));
+  };
+  const saveEditSaving = () => {
+    const n = Number(String(editAmt).replace(',', '.'));
+    if (n > 0) {
+      setSavings(savings.map((s) => (s.id === editSavId ? { ...s, amount: n } : s)));
+    }
+    setEditSavId(null);
+    setEditAmt('');
+  };
   const savArs = savings
     .filter((s) => s.cur === 'ARS')
     .reduce((a, s) => a + s.amount, 0);
@@ -5725,22 +5739,41 @@ function GoalsTab({
               alignItems: 'center',
               padding: '6px 0',
               borderTop: `1px solid ${P.bd}`,
+              gap: 8,
             }}
           >
-            <span style={{ fontSize: 13 }}>{s.name}</span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 13, fontWeight: 600 }}>
-                {s.cur === 'USD'
-                  ? `US$ ${s.amount.toLocaleString('es-AR')}`
-                  : fmt(s.amount, 'ARS')}
+            <span style={{ fontSize: 13, flexShrink: 0 }}>{s.name}</span>
+            {editSavId === s.id ? (
+              <span style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, justifyContent: 'flex-end' }}>
+                <span style={{ fontSize: 12, color: P.sb }}>{s.cur === 'USD' ? 'US$' : '$'}</span>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  autoFocus
+                  value={editAmt}
+                  onChange={(e) => setEditAmt(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && saveEditSaving()}
+                  style={{ width: 100, background: P.c2, border: `1px solid ${P.ac}`, borderRadius: 8, padding: '5px 8px', fontSize: 13, fontWeight: 600, color: P.tx }}
+                />
+                <span onClick={saveEditSaving} style={{ cursor: 'pointer', color: P.gn, fontSize: 14, fontWeight: 700 }}>✓</span>
+                <span onClick={() => { setEditSavId(null); setEditAmt(''); }} style={{ cursor: 'pointer', color: P.sb, fontSize: 12 }}>✕</span>
               </span>
-              <span
-                onClick={() => delSaving(s.id)}
-                style={{ cursor: 'pointer', color: P.sb, fontSize: 12 }}
-              >
-                ✕
+            ) : (
+              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span onClick={() => startEditSaving(s)} style={{ fontSize: 13, fontWeight: 600, cursor: 'pointer' }} title="Tocá para editar el monto">
+                  {s.cur === 'USD'
+                    ? `US$ ${s.amount.toLocaleString('es-AR')}`
+                    : fmt(s.amount, 'ARS')}
+                  {' '}✏️
+                </span>
+                <span
+                  onClick={() => delSaving(s.id)}
+                  style={{ cursor: 'pointer', color: P.sb, fontSize: 12 }}
+                >
+                  ✕
+                </span>
               </span>
-            </span>
+            )}
           </div>
         ))}
         {usdHeld > 0 && (

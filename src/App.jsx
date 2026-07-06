@@ -831,23 +831,11 @@ export default function App() {
           rel="stylesheet"
         />
         <div style={{ textAlign: 'center' }}>
-          <div
-            style={{
-              width: 48,
-              height: 48,
-              borderRadius: 14,
-              background: P.ac,
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#fff',
-              fontWeight: 800,
-              fontSize: 22,
-              marginBottom: 12,
-            }}
-          >
-            A
-          </div>
+          <img
+            src="/favicon.svg"
+            alt="Aureo"
+            style={{ width: 48, height: 48, borderRadius: 14, marginBottom: 12 }}
+          />
           <div style={{ color: P.sb, fontSize: 14 }}>Cargando...</div>
         </div>
       </div>
@@ -897,26 +885,16 @@ function LoginScreen({ onLogin }) {
           textAlign: 'center',
         }}
       >
-        <div
-          style={{
-            width: 56,
-            height: 56,
-            borderRadius: 16,
-            background: P.ac,
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: '#fff',
-            fontWeight: 800,
-            fontSize: 26,
-            marginBottom: 16,
-          }}
-        >
-          A
-        </div>
-        <h1 style={{ fontSize: 26, fontWeight: 700, marginBottom: 6 }}>
-          Aureo
-        </h1>
+        <img
+          src="/favicon.svg"
+          alt="Aureo"
+          style={{ width: 56, height: 56, borderRadius: 16, marginBottom: 16 }}
+        />
+        <img
+          src="/aureo-wordmark.svg"
+          alt="Aureo"
+          style={{ height: 30, marginBottom: 6, display: 'inline-block' }}
+        />
         <p
           style={{
             fontSize: 14,
@@ -1673,22 +1651,7 @@ function MainApp({ user, onLogout }) {
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div
-            style={{
-              width: 28,
-              height: 28,
-              borderRadius: 9,
-              background: P.ac,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#fff',
-              fontWeight: 800,
-              fontSize: 14,
-            }}
-          >
-            A
-          </div>
+          <img src="/favicon.svg" alt="Aureo" style={{ width: 28, height: 28, borderRadius: 9 }} />
           <span style={{ fontWeight: 700, fontSize: 16, letterSpacing: -0.5 }}>
             Aureo
           </span>

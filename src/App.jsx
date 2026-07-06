@@ -890,11 +890,6 @@ function LoginScreen({ onLogin }) {
           alt="Aureo"
           style={{ width: 56, height: 56, borderRadius: 16, marginBottom: 16 }}
         />
-        <img
-          src="/aureo-wordmark.svg"
-          alt="Aureo"
-          style={{ height: 30, marginBottom: 6, display: 'inline-block' }}
-        />
         <p
           style={{
             fontSize: 14,

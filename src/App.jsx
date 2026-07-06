@@ -1651,7 +1651,11 @@ function MainApp({ user, onLogout }) {
             alt=""
             style={{ width: 28, height: 28, borderRadius: 9 }}
           />
-          <img src="/aureo-wordmark.svg" alt="Aureo" style={{ height: 15 }} />
+          <img
+            src={settings.theme === 'dark' ? '/aureo-wordmark-neg.svg' : '/aureo-wordmark.svg'}
+            alt="Aureo"
+            style={{ height: 15 }}
+          />
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           {user.photoURL && (

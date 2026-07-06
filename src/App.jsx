@@ -834,7 +834,7 @@ export default function App() {
           <img
             src="/favicon.svg"
             alt="Aureo"
-            style={{ width: 48, height: 48, borderRadius: 14, marginBottom: 12 }}
+            style={{ width: 48, height: 48, marginBottom: 12 }}
           />
           <div style={{ color: P.sb, fontSize: 14 }}>Cargando...</div>
         </div>
@@ -888,7 +888,7 @@ function LoginScreen({ onLogin }) {
         <img
           src="/favicon.svg"
           alt="Aureo"
-          style={{ width: 56, height: 56, borderRadius: 16, marginBottom: 16 }}
+          style={{ width: 56, height: 56, marginBottom: 16 }}
         />
         <p
           style={{
@@ -1649,7 +1649,7 @@ function MainApp({ user, onLogout }) {
           <img
             src={settings.theme === 'dark' ? '/isologo-neg.svg' : '/isologo.svg'}
             alt=""
-            style={{ width: 28, height: 28, borderRadius: 9 }}
+            style={{ width: 28, height: 28 }}
           />
           <img
             src={settings.theme === 'dark' ? '/aureo-wordmark-neg.svg' : '/aureo-wordmark.svg'}

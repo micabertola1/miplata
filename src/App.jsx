@@ -1651,7 +1651,11 @@ function MainApp({ user, onLogout }) {
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <img src="/favicon.svg" alt="" style={{ width: 28, height: 28, borderRadius: 9 }} />
+          <img
+            src={settings.theme === 'dark' ? '/isologo-neg.svg' : '/isologo.svg'}
+            alt=""
+            style={{ width: 28, height: 28, borderRadius: 9 }}
+          />
           <img src="/aureo-wordmark.svg" alt="Aureo" style={{ height: 15 }} />
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>

@@ -836,17 +836,17 @@ export default function App() {
               width: 48,
               height: 48,
               borderRadius: 14,
-              background: `linear-gradient(135deg,${P.ac},${P.gn})`,
+              background: P.ac,
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
               color: '#fff',
-              fontWeight: 700,
-              fontSize: 20,
+              fontWeight: 800,
+              fontSize: 22,
               marginBottom: 12,
             }}
           >
-            ₿
+            A
           </div>
           <div style={{ color: P.sb, fontSize: 14 }}>Cargando...</div>
         </div>
@@ -902,20 +902,20 @@ function LoginScreen({ onLogin }) {
             width: 56,
             height: 56,
             borderRadius: 16,
-            background: `linear-gradient(135deg,${P.ac},${P.gn})`,
+            background: P.ac,
             display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'center',
             color: '#fff',
-            fontWeight: 700,
-            fontSize: 24,
+            fontWeight: 800,
+            fontSize: 26,
             marginBottom: 16,
           }}
         >
-          ₿
+          A
         </div>
         <h1 style={{ fontSize: 26, fontWeight: 700, marginBottom: 6 }}>
-          miplata
+          Aureo
         </h1>
         <p
           style={{
@@ -1678,19 +1678,19 @@ function MainApp({ user, onLogout }) {
               width: 28,
               height: 28,
               borderRadius: 9,
-              background: `linear-gradient(135deg,${P.ac},${P.gn})`,
+              background: P.ac,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               color: '#fff',
-              fontWeight: 700,
-              fontSize: 12,
+              fontWeight: 800,
+              fontSize: 14,
             }}
           >
-            ₿
+            A
           </div>
           <span style={{ fontWeight: 700, fontSize: 16, letterSpacing: -0.5 }}>
-            miplata
+            Aureo
           </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>

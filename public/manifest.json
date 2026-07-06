@@ -1,11 +1,11 @@
 {
-  "name": "miplata",
-  "short_name": "miplata",
+  "name": "Aureo",
+  "short_name": "Aureo",
   "description": "Controlá tus finanzas personales y compartidas, simple y claro.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#F5F4EF",
-  "theme_color": "#014641",
+  "theme_color": "#0B4A42",
   "icons": [
     {
       "src": "/favicon.svg",

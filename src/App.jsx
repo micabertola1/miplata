@@ -528,7 +528,19 @@ const P_DARK = {
   bal: '#013D38',
   ar: '#8A7A65',
 };
-let P = { ...P_LIGHT };
+// Lee el tema guardado localmente para aplicarlo ya mismo (login, splash),
+// sin esperar a que Firestore devuelva settings.theme.
+const savedTheme = (() => {
+  try {
+    return localStorage.getItem('aureo-theme');
+  } catch {
+    return null;
+  }
+})();
+let P = { ...(savedTheme === 'dark' ? P_DARK : P_LIGHT) };
+if (typeof document !== 'undefined') {
+  document.body.style.background = P.bg;
+}
 const pal = [
   '#E07840',
   '#3A7BD5',
@@ -1507,6 +1519,12 @@ function MainApp({ user, onLogout }) {
 
   // Aplicar tema antes de renderizar
   Object.assign(P, (settings.theme || 'light') === 'dark' ? P_DARK : P_LIGHT);
+  useEffect(() => {
+    document.body.style.background = P.bg;
+    try {
+      localStorage.setItem('aureo-theme', settings.theme === 'dark' ? 'dark' : 'light');
+    } catch {}
+  }, [settings.theme]);
 
   const mtx = chargesForMonth(activeTx, month).filter((t) => t.cur === cur);
   // Los gastos PROGRAMADOS (pendientes de pago) no cuentan hasta marcarse pagados

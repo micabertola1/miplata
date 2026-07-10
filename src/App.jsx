@@ -5115,6 +5115,7 @@ function InsightsTab({
   const pctOf = (v, tot) => (tot > 0 ? Math.round((v / tot) * 100) : 0);
   const [bCat, setBCat] = useState('');
   const [bPct, setBPct] = useState('');
+  const [balMode, setBalMode] = useState('mes');
   const [anim, setAnim] = useState(false);
   useEffect(() => {
     setAnim(false);
@@ -5170,9 +5171,15 @@ function InsightsTab({
           {fmtS(cBal, cur)}
         </div>
         {carry !== 0 && (
-          <div style={{ fontSize: 12, color: 'rgba(255,255,255,.55)', marginTop: 3 }}>
-            venías con <b style={{ color: carry >= 0 ? P.gn : P.rd }}>{fmtS(carry, cur)}</b>
-            {' · '}disponible total <b style={{ color: cBal + carry >= 0 ? P.gn : P.rd }}>{fmtS(cBal + carry, cur)}</b>
+          <div style={{ display: 'flex', gap: 20, marginTop: 6 }}>
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 500, color: 'rgba(255,255,255,.45)', textTransform: 'uppercase', letterSpacing: 0.4 }}>Este mes</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: cBal >= 0 ? P.gn : P.rd }}>{fmtS(cBal, cur)}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 500, color: 'rgba(255,255,255,.45)', textTransform: 'uppercase', letterSpacing: 0.4 }}>Acumulado</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: cBal + carry >= 0 ? P.gn : P.rd }}>{fmtS(cBal + carry, cur)}</div>
+            </div>
           </div>
         )}
         {isGroup && memberRows.length > 0 && (
@@ -5202,55 +5209,82 @@ function InsightsTab({
         </div>
       </Box>
 
-      {cBal + carry > 0 && (
-        <Box
-          style={{
-            background: `linear-gradient(135deg,${P.gn}12,${P.ac}0A)`,
-            border: `1px solid ${P.gn}22`,
-          }}
-        >
-          <div style={{ fontSize: 15, fontWeight: 700, color: P.tx }}>
-            💰 Te quedan {fmtS(cBal + carry, cur)} para gastar o ahorrar
-          </div>
-          <div style={{ fontSize: 12, color: P.sb, marginTop: 2 }}>
-            ¿Qué vas a hacer con ellos? 👀
-          </div>
-          <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-            <button
-              onClick={() => onAdd && onAdd('ahorro')}
-              style={{
-                flex: 1,
-                background: P.ac,
-                color: '#fff',
-                border: 'none',
-                borderRadius: 12,
-                padding: '10px',
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: 'pointer',
-              }}
-            >
-              🏦 Ahorrar una parte
-            </button>
-            <button
-              onClick={() => onAdd && onAdd('gasto')}
-              style={{
-                flex: 1,
-                background: 'transparent',
-                color: P.tx,
-                border: `1px solid ${P.bd}`,
-                borderRadius: 12,
-                padding: '10px',
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: 'pointer',
-              }}
-            >
-              📉 Registrar un gasto
-            </button>
-          </div>
-        </Box>
-      )}
+      {(() => {
+        const displayBal = balMode === 'acum' ? cBal + carry : cBal;
+        if (displayBal <= 0) return null;
+        return (
+          <Box
+            style={{
+              background: `linear-gradient(135deg,${P.gn}12,${P.ac}0A)`,
+              border: `1px solid ${P.gn}22`,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <div style={{ fontSize: 15, fontWeight: 700, color: P.tx }}>
+                💰 Te quedan {fmtS(displayBal, cur)}
+              </div>
+              <div style={{ display: 'flex', background: 'rgba(0,0,0,.06)', borderRadius: 8, padding: 2 }}>
+                {[['mes', 'Este mes'], ['acum', 'Acumulado']].map(([v, l]) => (
+                  <button
+                    key={v}
+                    onClick={() => setBalMode(v)}
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 600,
+                      padding: '4px 8px',
+                      border: 'none',
+                      borderRadius: 6,
+                      cursor: 'pointer',
+                      background: balMode === v ? P.ac : 'transparent',
+                      color: balMode === v ? '#fff' : P.sb,
+                      transition: 'all .15s',
+                    }}
+                  >{l}</button>
+                ))}
+              </div>
+            </div>
+            <div style={{ fontSize: 12, color: P.sb }}>
+              {balMode === 'acum'
+                ? `Este mes ${fmtS(cBal, cur)} + arrastre ${fmtS(carry, cur)}`
+                : '¿Qué vas a hacer con ellos? 👀'}
+            </div>
+            <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+              <button
+                onClick={() => onAdd && onAdd('ahorro')}
+                style={{
+                  flex: 1,
+                  background: P.ac,
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 12,
+                  padding: '10px',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                🏦 Ahorrar una parte
+              </button>
+              <button
+                onClick={() => onAdd && onAdd('gasto')}
+                style={{
+                  flex: 1,
+                  background: 'transparent',
+                  color: P.tx,
+                  border: `1px solid ${P.bd}`,
+                  borderRadius: 12,
+                  padding: '10px',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                📉 Registrar un gasto
+              </button>
+            </div>
+          </Box>
+        );
+      })()}
 
 
       <Box>

@@ -4617,7 +4617,9 @@ function HomeTab({
         <div style={{ fontSize: 12, color: 'rgba(255,255,255,.55)', marginTop: 3 }}>
           {bal >= 0
             ? 'Disponible este mes'
-            : 'Este mes gastaste más de lo que ingresó'}
+            : totOut > totIn
+            ? 'Este mes gastaste más de lo que ingresó'
+            : 'Ahorraste más de lo que te sobraba este mes'}
         </div>
 
         {isGroup && memberRows.length > 0 && (

@@ -208,8 +208,8 @@ function chargesForMonth(txs, monthKey, cards = []) {
   const [my, mm] = monthKey.split('-').map(Number);
   const out = [];
   for (const t of txs) {
-    const n = t.pay === 'credito' && t.cuotas > 1 ? t.cuotas : 1;
-    if (n > 1) {
+    if (t.pay === 'credito') {
+      const n = t.cuotas > 1 ? t.cuotas : 1;
       let [sy, sm, sd] = String(t.date).slice(0, 10).split('-').map(Number);
       const card = cards.find((c) => c.name === t.card);
       const cierre = card && Number(card.cierre);
@@ -224,8 +224,8 @@ function chargesForMonth(txs, monthKey, cards = []) {
       if (idx >= 0 && idx < n) {
         out.push({
           ...t,
-          amt: Math.round((t.amt / n) * 100) / 100,
-          cuotaInfo: `${idx + 1}/${n}`,
+          amt: n > 1 ? Math.round((t.amt / n) * 100) / 100 : t.amt,
+          cuotaInfo: n > 1 ? `${idx + 1}/${n}` : undefined,
         });
       }
     } else if (mk(t.date) === monthKey) {

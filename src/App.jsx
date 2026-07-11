@@ -4821,32 +4821,6 @@ function HomeTab({
           );
         })()}
 
-        {/* Pills de acción rápida */}
-        <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-          {[
-            { label: '+ Ingreso', type: 'ingreso' },
-            { label: '− Gasto', type: 'gasto' },
-            { label: '📅 Diarios', type: 'gasto' },
-          ].map(({ label, type }) => (
-            <button
-              key={label}
-              onClick={() => type ? onAdd(type) : setShowDiarios((v) => !v)}
-              style={{
-                flex: 1,
-                background: 'rgba(255,255,255,.12)',
-                color: '#fff',
-                border: '1px solid rgba(255,255,255,.18)',
-                borderRadius: 10,
-                padding: '8px 4px',
-                fontSize: 12,
-                fontWeight: 600,
-                cursor: 'pointer',
-              }}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
       </Box>
 
       {/* Por categoría */}

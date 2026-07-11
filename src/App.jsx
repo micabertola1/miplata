@@ -190,6 +190,15 @@ function fmtS(a, c) {
   // Antes abreviaba a k/M; ahora siempre muestra el monto completo.
   return fmt(a, c);
 }
+// Achica la tipografía de números grandes (balance) según la cantidad de
+// dígitos, para que los montos completos (sin abreviar) siempre entren.
+function bigNumSize(text, mob) {
+  const digits = String(text).replace(/\D/g, '').length;
+  if (digits >= 10) return mob ? 20 : 28;
+  if (digits >= 8) return mob ? 24 : 32;
+  if (digits >= 7) return mob ? 28 : 38;
+  return mob ? 34 : 46;
+}
 // Fecha de HOY según Argentina (Mendoza/Buenos Aires, UTC-3), no UTC ni la
 // zona del dispositivo: toISOString() usa UTC y puede dar el día siguiente
 // pasadas las ~21hs en Argentina.
@@ -4570,7 +4579,7 @@ function HomeTab({
         </div>
         <div
           style={{
-            fontSize: mob ? 34 : 46,
+            fontSize: bigNumSize(fmt(bal, cur), mob),
             fontWeight: 800,
             color: '#fff',
             lineHeight: 1.05,
@@ -5211,7 +5220,7 @@ function InsightsTab({
         <div style={{ fontSize: 11, fontWeight: 500, color: 'rgba(255,255,255,.5)', textTransform: 'uppercase', letterSpacing: 0.7, marginBottom: 4 }}>
           Balance de {MOF[Number(month.slice(5, 7)) - 1]}
         </div>
-        <div style={{ fontSize: mob ? 34 : 46, fontWeight: 800, color: '#fff', lineHeight: 1.05, fontVariantNumeric: 'tabular-nums' }}>
+        <div style={{ fontSize: bigNumSize(fmtS(cBal, cur), mob), fontWeight: 800, color: '#fff', lineHeight: 1.05, fontVariantNumeric: 'tabular-nums' }}>
           {fmtS(cBal, cur)}
         </div>
         {carry !== 0 && (

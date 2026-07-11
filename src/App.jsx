@@ -5838,12 +5838,7 @@ function GoalsTab({
     borderRadius: 10,
     fontSize: 13,
   };
-  const efMonthly = Object.values(efund.expenses || {}).reduce(
-    (s, v) => s + Number(v || 0),
-    0
-  );
-  const efMeses = efund.tipo === 'fijo' ? 3 : 6;
-  const efTarget = efMonthly * efMeses;
+  const efTarget = Number(efund.target || 0);
   const efSaved = activeTx
     .filter((t) => t.type === 'ahorro' && t.efund === true && t.cur === cur)
     .reduce((s, t) => s + (t.efundAmt ?? t.amt), 0);
@@ -6173,56 +6168,14 @@ function GoalsTab({
         </div>
         {showEF && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <Lbl>Tipo de ingreso</Lbl>
-            <div style={{ display: 'flex', background: P.cd, borderRadius: 12, padding: 3, border: `1px solid ${P.bd}` }}>
-              {[['fijo', 'Sueldo fijo (3 meses)'], ['freelance', 'Freelance (6 meses)']].map(([v, l]) => (
-                <button
-                  key={v}
-                  onClick={() => setEfund({ ...efund, tipo: v })}
-                  style={{ flex: 1, background: (efund.tipo || 'freelance') === v ? P.rd : 'transparent', color: (efund.tipo || 'freelance') === v ? '#fff' : P.sb, border: 'none', padding: '9px 4px', borderRadius: 9, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
-                >
-                  {l}
-                </button>
-              ))}
-            </div>
-            <Lbl>Gastos esenciales mensuales</Lbl>
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
-                gap: 6,
-              }}
-            >
-              {[
-                'Alquiler',
-                'Alimentación',
-                'Servicios',
-                'Salud',
-                'Transporte',
-                'Deudas',
-              ].map((k) => (
-                <div
-                  key={k}
-                  style={{ display: 'flex', alignItems: 'center', gap: 4 }}
-                >
-                  <span style={{ fontSize: 10, color: P.sb, minWidth: 65 }}>
-                    {k}
-                  </span>
-                  <input
-                    type="number"
-                    placeholder="$"
-                    value={efund.expenses?.[k] || ''}
-                    onChange={(e) =>
-                      setEfund({
-                        ...efund,
-                        expenses: { ...efund.expenses, [k]: e.target.value },
-                      })
-                    }
-                    style={{ ...iS, flex: 1, padding: '6px 8px', fontSize: 11 }}
-                  />
-                </div>
-              ))}
-            </div>
+            <Lbl>Meta del fondo</Lbl>
+            <input
+              type="number"
+              placeholder="Ej: 1.500.000"
+              value={efund.target || ''}
+              onChange={(e) => setEfund({ ...efund, target: e.target.value })}
+              style={{ ...iS }}
+            />
             {efTarget > 0 && (
               <div
                 style={{
@@ -6242,9 +6195,6 @@ function GoalsTab({
                   <span style={{ fontSize: 12, fontWeight: 600 }}>
                     Meta: {fmt(efTarget, cur)}
                   </span>
-                  <span style={{ fontSize: 11, color: P.sb }}>
-                    {efMeses} × {fmt(efMonthly, cur)}
-                  </span>
                 </div>
                 <Bar
                   pct={efTarget > 0 ? (efSaved / efTarget) * 100 : 0}
@@ -6261,10 +6211,6 @@ function GoalsTab({
                 >
                   <span style={{ color: P.gn }}>
                     Ahorrado: {fmt(efSaved, cur)}
-                  </span>
-                  <span style={{ color: P.sb }}>
-                    {efMonthly > 0 ? (efSaved / efMonthly).toFixed(1) : 0}{' '}
-                    meses
                   </span>
                 </div>
                 <button

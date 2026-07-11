@@ -4052,7 +4052,6 @@ function DiariosTab({ mob, cur, activeTx, month, onAdd, onEdit, onExport, custom
       !(excludeSpecial && t.type === 'gasto' && isSuscOrCuota(t))
   );
   const FILTERS = [
-    { id: 'todos', l: 'Todos' },
     { id: 'ingreso', l: 'Ingresos' },
     { id: 'gasto', l: 'Gastos' },
     { id: 'ahorro', l: 'Ahorro' },
@@ -4082,17 +4081,11 @@ function DiariosTab({ mob, cur, activeTx, month, onAdd, onEdit, onExport, custom
 
   return (
     <div style={{ paddingBottom: 80 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: embedded ? 'flex-end' : 'space-between', marginBottom: 14 }}>
-        {!embedded && <span style={{ fontSize: 24, fontWeight: 800, color: P.tx }}>Movimientos</span>}
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button
-            onClick={() => setShowSearch((v) => !v)}
-            style={{ width: 38, height: 38, borderRadius: 12, background: P.cd, border: `1px solid ${P.bd}`, color: P.tx, fontSize: 15, cursor: 'pointer' }}
-          >
-            🔍
-          </button>
+      {!embedded && (
+        <div style={{ display: 'flex', alignItems: 'center', marginBottom: 14 }}>
+          <span style={{ fontSize: 24, fontWeight: 800, color: P.tx }}>Movimientos</span>
         </div>
-      </div>
+      )}
 
       {showSearch && (
         <input
@@ -4126,6 +4119,12 @@ function DiariosTab({ mob, cur, activeTx, month, onAdd, onEdit, onExport, custom
               {f.l}
             </button>
           ))}
+          <button
+            onClick={() => setShowSearch((v) => !v)}
+            style={{ flexShrink: 0, width: 34, height: 34, borderRadius: '50%', background: showSearch ? P.ac : P.cd, color: showSearch ? '#fff' : P.tx, border: showSearch ? 'none' : `1px solid ${P.bd}`, fontSize: 14, cursor: 'pointer' }}
+          >
+            🔍
+          </button>
         </div>
       )}
 

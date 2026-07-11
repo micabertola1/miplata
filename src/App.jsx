@@ -5842,10 +5842,11 @@ function GoalsTab({
     (s, v) => s + Number(v || 0),
     0
   );
-  const efTarget = efMonthly * 6;
+  const efMeses = efund.tipo === 'fijo' ? 3 : 6;
+  const efTarget = efMonthly * efMeses;
   const efSaved = activeTx
     .filter((t) => t.type === 'ahorro' && t.efund === true && t.cur === cur)
-    .reduce((s, t) => s + t.amt, 0);
+    .reduce((s, t) => s + (t.efundAmt ?? t.amt), 0);
 
   // Ahorro mes a mes: cuánto se cargó como tipo "ahorro" en cada uno de los
   // últimos 6 meses (separado de Patrimonio, que es el saldo manual), separado por
@@ -5868,13 +5869,17 @@ function GoalsTab({
       const monthTx = activeTx.filter(
         (t) => t.type === 'ahorro' && t.cur === cur && mk(t.date) === key
       );
+      // Lo que fue directo al fondo de emergencia se descuenta del ahorro general
+      const netAmt = (t) => Math.max(0, t.amt - (t.efund ? (t.efundAmt ?? t.amt) : 0));
       const byMember = {};
       monthTx.forEach((t) => {
         const who = memberKey(t);
-        byMember[who] = (byMember[who] || 0) + t.amt;
+        const n = netAmt(t);
+        if (n <= 0) return;
+        byMember[who] = (byMember[who] || 0) + n;
         if (!ahorroMembers.includes(who)) ahorroMembers.push(who);
       });
-      const total = monthTx.reduce((s, t) => s + t.amt, 0);
+      const total = monthTx.reduce((s, t) => s + netAmt(t), 0);
       arr.push({ key, label: MO[mm - 1], total, byMember });
     }
     return arr;
@@ -6168,6 +6173,18 @@ function GoalsTab({
         </div>
         {showEF && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <Lbl>Tipo de ingreso</Lbl>
+            <div style={{ display: 'flex', background: P.cd, borderRadius: 12, padding: 3, border: `1px solid ${P.bd}` }}>
+              {[['fijo', 'Sueldo fijo (3 meses)'], ['freelance', 'Freelance (6 meses)']].map(([v, l]) => (
+                <button
+                  key={v}
+                  onClick={() => setEfund({ ...efund, tipo: v })}
+                  style={{ flex: 1, background: (efund.tipo || 'freelance') === v ? P.rd : 'transparent', color: (efund.tipo || 'freelance') === v ? '#fff' : P.sb, border: 'none', padding: '9px 4px', borderRadius: 9, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
+                >
+                  {l}
+                </button>
+              ))}
+            </div>
             <Lbl>Gastos esenciales mensuales</Lbl>
             <div
               style={{
@@ -6226,7 +6243,7 @@ function GoalsTab({
                     Meta: {fmt(efTarget, cur)}
                   </span>
                   <span style={{ fontSize: 11, color: P.sb }}>
-                    6 × {fmt(efMonthly, cur)}
+                    {efMeses} × {fmt(efMonthly, cur)}
                   </span>
                 </div>
                 <Bar
@@ -6547,6 +6564,9 @@ function TxModal({
   const [susc, setSusc] = useState(initial?.susc || false);
   const [addingCard, setAddingCard] = useState(false);
   const [efundFlag, setEfundFlag] = useState(initial?.efund || false);
+  const [efundAmt, setEfundAmt] = useState(
+    initial?.efundAmt != null ? String(initial.efundAmt) : ''
+  );
   const isG = type === 'gasto';
   const isSav = type === 'ahorro';
 
@@ -6806,9 +6826,26 @@ function TxModal({
               </div>
             )}
             {isSav && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderTop: `1px solid ${P.bd}` }}>
-                <span style={{ fontSize: 14, fontWeight: 600, color: P.tx }}>🛡️ ¿Es para el fondo de emergencia?</span>
-                <Switch on={efundFlag} onClick={() => setEfundFlag(!efundFlag)} color={P.rd} />
+              <div style={{ borderTop: `1px solid ${P.bd}`, padding: '12px 0' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: P.tx }}>🛡️ ¿Es para el fondo de emergencia?</span>
+                  <Switch on={efundFlag} onClick={() => setEfundFlag(!efundFlag)} color={P.rd} />
+                </div>
+                {efundFlag && (
+                  <div style={{ marginTop: 10 }}>
+                    <Lbl>¿Cuánto va al fondo?</Lbl>
+                    <input
+                      type="number"
+                      placeholder={amt || '0'}
+                      value={efundAmt}
+                      onChange={(e) => setEfundAmt(e.target.value)}
+                      style={{ ...iS, background: P.cd, marginTop: 4 }}
+                    />
+                    <div style={{ fontSize: 10, color: P.sb, marginTop: 4 }}>
+                      Dejalo vacío para que vaya todo el monto. Lo que va al fondo se descuenta del ahorro general.
+                    </div>
+                  </div>
+                )}
               </div>
             )}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderTop: `1px solid ${P.bd}` }}>
@@ -6956,6 +6993,13 @@ function TxModal({
                         : undefined,
                     susc: isG && recurring && susc ? true : undefined,
                     efund: isSav && efundFlag ? true : undefined,
+                    efundAmt:
+                      isSav && efundFlag
+                        ? Math.min(
+                            amtNum,
+                            Number(String(efundAmt).replace(',', '.')) || amtNum
+                          )
+                        : undefined,
                     scope: isGroupScope ? 'grupo' : 'personal',
                     groupId: isGroupScope ? scope : undefined,
                     member: isGroupScope ? member || userName : undefined,

@@ -4742,6 +4742,53 @@ function HomeTab({
           </div>
         )}
 
+        <div
+          style={{
+            display: 'flex',
+            gap: 8,
+            marginTop: 14,
+            borderTop: '1px solid rgba(255,255,255,.12)',
+            paddingTop: 14,
+          }}
+        >
+          {[
+            ['Ingresos', totIn, P.gn, 'ingreso'],
+            ['Gastos', totOut, P.rd, 'gasto'],
+            ['Ahorro', totSav, 'rgba(255,255,255,.9)', 'ahorro'],
+          ].map(([l, v, c, ftype], i) => (
+            <Fragment key={l}>
+              {i > 0 && <div style={{ width: 1, background: 'rgba(255,255,255,.12)', flexShrink: 0 }} />}
+              <div
+                onClick={() => onGoFilter && onGoFilter(ftype)}
+                style={{ flex: 1, minWidth: 0, paddingLeft: i > 0 ? 14 : 0, cursor: onGoFilter ? 'pointer' : 'default' }}
+              >
+              <div
+                style={{
+                  fontSize: 11,
+                  color: 'rgba(255,255,255,.45)',
+                  fontWeight: 500,
+                }}
+              >
+                {l}
+              </div>
+              <div
+                style={{
+                  fontSize: smallNumSize(fmtS(v, cur), mob),
+                  fontWeight: 700,
+                  color: c,
+                  fontVariantNumeric: 'tabular-nums',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}
+              >
+                {fmtS(v, cur)}
+              </div>
+              </div>
+            </Fragment>
+          ))}
+        </div>
+
         {isCurrentMonth && bal > 0 && daysLeft > 0 && (
           <div
             style={{
@@ -5364,6 +5411,22 @@ function InsightsTab({
             })}
           </div>
         )}
+        <div style={{ display: 'flex', gap: 8, marginTop: 14, borderTop: '1px solid rgba(255,255,255,.12)', paddingTop: 14 }}>
+          {[['Ingresos', cIn, P.gn, 'ingreso'], ['Gastos', cOut, P.rd, 'gasto'], ['Ahorro', cSav, 'rgba(255,255,255,.9)', 'ahorro']].map(([l, v, c, ftype], i) => (
+            <Fragment key={l}>
+              {i > 0 && <div style={{ width: 1, background: 'rgba(255,255,255,.12)', flexShrink: 0 }} />}
+              <div
+                onClick={() => onGoFilter && onGoFilter(ftype)}
+                style={{ flex: 1, minWidth: 0, paddingLeft: i > 0 ? 14 : 0, cursor: onGoFilter ? 'pointer' : 'default' }}
+              >
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,.45)', fontWeight: 500 }}>{l}</div>
+                <div style={{ fontSize: smallNumSize(fmtS(Math.round(v), cur), mob), fontWeight: 700, color: c, fontVariantNumeric: 'tabular-nums', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {fmtS(Math.round(v), cur)}
+                </div>
+              </div>
+            </Fragment>
+          ))}
+        </div>
       </Box>
       )}
 

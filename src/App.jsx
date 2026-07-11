@@ -1024,7 +1024,7 @@ function MainApp({ user, onLogout }) {
   const [pendingFilter, setPendingFilter] = useState(null);
   const goToFilter = (type, q) => {
     setPendingFilter({ type: type || 'todos', q: q || '', seq: Date.now() });
-    setTab('diarios');
+    setTab('movs');
   };
   const [modal, setModal] = useState(null);
   const [editItem, setEditItem] = useState(null);
@@ -2162,7 +2162,7 @@ function MainApp({ user, onLogout }) {
             </div>
           </div>
         )}
-        {(tab === 'dashboard' || tab === 'movs' || tab === 'diarios') && (
+        {(tab === 'dashboard' || tab === 'movs') && (
           <div
             style={{
               display: 'flex',
@@ -2267,53 +2267,36 @@ function MainApp({ user, onLogout }) {
             />
           </>
         )}
-        {(tab === 'movs' || tab === 'diarios') && (
-          <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-            {tab !== 'diarios' && (
-              <button
-                onClick={() => openAdd('ingreso')}
-                style={{ flex: 1, background: P.gn + '18', border: `1px solid ${P.gn}40`, borderRadius: 10, padding: '9px 0', fontSize: 13, fontWeight: 700, color: P.gn, cursor: 'pointer' }}
-              >
-                + Ingreso
-              </button>
-            )}
-            <button
-              onClick={() => openAdd('gasto')}
-              style={{ flex: 1, background: P.rd + '18', border: `1px solid ${P.rd}40`, borderRadius: 10, padding: '9px 0', fontSize: 13, fontWeight: 700, color: P.rd, cursor: 'pointer' }}
-            >
-              + Gasto
-            </button>
-          </div>
-        )}
         {tab === 'movs' && (
-          <MesTab
+          <MovimientosTab
             mob={mob}
-            cur={cur}
-            activeTx={activeTx}
-            totIn={totIn}
-            month={month}
-            onAdd={openAdd}
-            onEdit={openEdit}
-            onRegister={registerRecurring}
-            onUnregister={unregisterRecurring}
-            onRemoveSerie={removeRecurringSerie}
-            onPauseSerie={pauseRecurringSerie}
-            onExport={() => exportCSV(true)}
-            onExchange={() => setShowExchange(true)}
-            cards={settings.cards}
-          />
-        )}
-        {tab === 'diarios' && (
-          <DiariosTab
-            mob={mob}
-            cur={cur}
-            activeTx={activeTx}
-            month={month}
-            onAdd={openAdd}
-            onEdit={openEdit}
-            onExport={() => exportCSV(true)}
-            customCats={settings.customCats}
-            pendingFilter={pendingFilter}
+            mesProps={{
+              mob,
+              cur,
+              activeTx,
+              totIn,
+              month,
+              onAdd: openAdd,
+              onEdit: openEdit,
+              onRegister: registerRecurring,
+              onUnregister: unregisterRecurring,
+              onRemoveSerie: removeRecurringSerie,
+              onPauseSerie: pauseRecurringSerie,
+              onExport: () => exportCSV(true),
+              onExchange: () => setShowExchange(true),
+              cards: settings.cards,
+            }}
+            diariosProps={{
+              mob,
+              cur,
+              activeTx,
+              month,
+              onAdd: openAdd,
+              onEdit: openEdit,
+              onExport: () => exportCSV(true),
+              customCats: settings.customCats,
+              pendingFilter,
+            }}
           />
         )}
         {tab === 'perfil' && (
@@ -2381,8 +2364,7 @@ function MainApp({ user, onLogout }) {
       >
         {[
           { id: 'dashboard', l: 'Dashboard', e: '📊' },
-          { id: 'movs', l: 'Mes', e: '📅' },
-          { id: 'diarios', l: 'Diarios', e: '📝' },
+          { id: 'movs', l: 'Movimientos', e: '📝' },
           { id: 'goals', l: 'Metas', e: '🎯' },
           { id: 'perfil', l: 'Config', e: '⚙️' },
         ].map((t) => (
@@ -3916,9 +3898,9 @@ function relDayLabel(d) {
   return { label: `${dd} ${mAbbr}`, rel: '' };
 }
 
-function DiariosTab({ mob, cur, activeTx, month, onAdd, onEdit, onExport, customCats, pendingFilter }) {
+function DiariosTab({ mob, cur, activeTx, month, onAdd, onEdit, onExport, customCats, pendingFilter, embedded = false, hidePills = false, excludeSpecial = false, defaultFilter = 'todos' }) {
   const [usdRates, setUsdRates] = useState(null);
-  const [filter, setFilter] = useState('todos');
+  const [filter, setFilter] = useState(defaultFilter);
   const [showSearch, setShowSearch] = useState(false);
   const [q, setQ] = useState('');
   useEffect(() => {
@@ -3934,8 +3916,17 @@ function DiariosTab({ mob, cur, activeTx, month, onAdd, onEdit, onExport, custom
     setShowSearch(!!pendingFilter.q);
   }, [pendingFilter?.seq]);
 
+  const isSuscOrCuota = (t) => {
+    const s = (v) => (v || '').toLowerCase();
+    const susc = t.susc === true || s(t.cat).includes('suscripci') || s(t.sub).includes('suscripci');
+    const cuota = t.pay === 'credito' && t.cuotas > 1;
+    return susc || cuota;
+  };
   const pool = activeTx.filter(
-    (t) => mk(t.date) === month && !(t.type === 'gasto' && t.recurring)
+    (t) =>
+      mk(t.date) === month &&
+      !(t.type === 'gasto' && t.recurring) &&
+      !(excludeSpecial && t.type === 'gasto' && isSuscOrCuota(t))
   );
   const FILTERS = [
     { id: 'todos', l: 'Todos' },
@@ -3968,8 +3959,8 @@ function DiariosTab({ mob, cur, activeTx, month, onAdd, onEdit, onExport, custom
 
   return (
     <div style={{ paddingBottom: 80 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-        <span style={{ fontSize: 24, fontWeight: 800, color: P.tx }}>Movimientos</span>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: embedded ? 'flex-end' : 'space-between', marginBottom: 14 }}>
+        {!embedded && <span style={{ fontSize: 24, fontWeight: 800, color: P.tx }}>Movimientos</span>}
         <div style={{ display: 'flex', gap: 8 }}>
           <button
             onClick={() => setShowSearch((v) => !v)}
@@ -3992,28 +3983,30 @@ function DiariosTab({ mob, cur, activeTx, month, onAdd, onEdit, onExport, custom
         />
       )}
 
-      <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4, marginBottom: 14 }}>
-        {FILTERS.map((f) => (
-          <button
-            key={f.id}
-            onClick={() => setFilter(f.id)}
-            style={{
-              flexShrink: 0,
-              background: filter === f.id ? P.ac : P.cd,
-              color: filter === f.id ? '#fff' : P.sb,
-              border: filter === f.id ? 'none' : `1px solid ${P.bd}`,
-              borderRadius: 20,
-              padding: '8px 16px',
-              fontSize: 12,
-              fontWeight: 600,
-              cursor: 'pointer',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {f.l}
-          </button>
-        ))}
-      </div>
+      {!hidePills && (
+        <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4, marginBottom: 14 }}>
+          {FILTERS.map((f) => (
+            <button
+              key={f.id}
+              onClick={() => setFilter(f.id)}
+              style={{
+                flexShrink: 0,
+                background: filter === f.id ? P.ac : P.cd,
+                color: filter === f.id ? '#fff' : P.sb,
+                border: filter === f.id ? 'none' : `1px solid ${P.bd}`,
+                borderRadius: 20,
+                padding: '8px 16px',
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {f.l}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div style={{ fontSize: 13, color: P.sb, marginBottom: 12 }}>
         Total: <b style={{ color: totalColor, fontSize: 15 }}>{fmtS(totalSel)}</b>
@@ -4085,6 +4078,53 @@ function DiariosTab({ mob, cur, activeTx, month, onAdd, onEdit, onExport, custom
   );
 }
 
+// Envuelve Mes + Diarios en una sola pantalla "Movimientos", con pills
+// Diarios / Mes / Todos para elegir qué ver.
+function MovimientosTab({ mob, mesProps, diariosProps }) {
+  const [view, setView] = useState('todos');
+  useEffect(() => {
+    if (diariosProps.pendingFilter?.seq) setView('todos');
+  }, [diariosProps.pendingFilter?.seq]);
+  return (
+    <div style={{ paddingBottom: 80 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+        <span style={{ fontSize: 24, fontWeight: 800, color: P.tx }}>Movimientos</span>
+      </div>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+        {[
+          { id: 'diarios', l: '📝 Diarios' },
+          { id: 'mes', l: '📅 Mes' },
+          { id: 'todos', l: '📋 Todos' },
+        ].map((v) => (
+          <button
+            key={v.id}
+            onClick={() => setView(v.id)}
+            style={{
+              flex: 1,
+              background: view === v.id ? P.ac : P.cd,
+              color: view === v.id ? '#fff' : P.sb,
+              border: view === v.id ? 'none' : `1px solid ${P.bd}`,
+              borderRadius: 12,
+              padding: '10px 0',
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: 'pointer',
+            }}
+          >
+            {v.l}
+          </button>
+        ))}
+      </div>
+
+      {view === 'mes' && <MesTab {...mesProps} />}
+      {view === 'diarios' && (
+        <DiariosTab {...diariosProps} embedded hidePills excludeSpecial defaultFilter="gasto" />
+      )}
+      {view === 'todos' && <DiariosTab {...diariosProps} embedded />}
+    </div>
+  );
+}
+
 function MesTab({
   mob, cur, activeTx, totIn, month, onAdd, onEdit, onRegister, onUnregister, onRemoveSerie, onPauseSerie, onExport, onExchange, cards = [],
 }) {
@@ -4115,7 +4155,18 @@ function MesTab({
   const recListAll = Object.values(recSeries).sort((a, b) =>
     (a.desc || a.cat) > (b.desc || b.cat) ? 1 : -1
   );
-  const recList = recListAll.filter((t) => !isSusc(t));
+  // Fijos = el monto no varió entre las instancias ya registradas de la
+  // serie (ej: alquiler, suscripción). Recurrentes = el monto varía entre
+  // meses (ej: mantenimiento, luz). Con una sola instancia se asume Fijo.
+  const isFijo = (serieId) => {
+    const montos = new Set(
+      activeTx.filter((t) => t.serieId === serieId && t.recurring).map((t) => t.amt)
+    );
+    return montos.size <= 1;
+  };
+  const recNoSusc = recListAll.filter((t) => !isSusc(t));
+  const recList = recNoSusc.filter((t) => !isFijo(t.serieId));
+  const fijosList = recNoSusc.filter((t) => isFijo(t.serieId));
   const suscripciones = recListAll.filter((t) => isSusc(t));
   const doneThisMonth = (serieId) =>
     activeTx.some((t) => t.serieId === serieId && mk(t.date) === month && !t.pending);
@@ -4130,7 +4181,8 @@ function MesTab({
   );
 
   const totalIngresos = ingresos.reduce((s, t) => s + (t.cur === 'USD' ? t.amt * ((usdRates?.venta) || 1200) : t.amt), 0);
-  const totalFijos = recList.reduce((s, t) => s + (t.cur === 'USD' ? t.amt * ((usdRates?.venta) || 1200) : t.amt), 0);
+  const totalRecurrentes = recList.reduce((s, t) => s + (t.cur === 'USD' ? t.amt * ((usdRates?.venta) || 1200) : t.amt), 0);
+  const totalFijos = fijosList.reduce((s, t) => s + (t.cur === 'USD' ? t.amt * ((usdRates?.venta) || 1200) : t.amt), 0);
   const totalSusc = suscripciones.reduce((s, t) => s + (t.cur === 'USD' ? t.amt * ((usdRates?.venta) || 1200) : t.amt), 0);
   const totalCuotas = cuotasMes.reduce((s, t) => s + t.amt, 0);
 
@@ -4189,126 +4241,78 @@ function MesTab({
         ))}
       </SectionCard>
 
-      {/* Recurrentes */}
-      {recList.length > 0 && (
-        <div style={{ background: P.cd, border: `1px solid ${P.bd}`, borderRadius: 16, padding: '14px 14px 6px', marginBottom: 12 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ fontSize: 16 }}>🔁</span>
-                <span style={{ fontSize: 15, fontWeight: 700, color: P.tx }}>Recurrentes</span>
+      {/* Recurrentes / Fijos / Suscripciones (mismo layout, distinta fuente de datos) */}
+      {[
+        { key: 'rec', icon: '🔁', label: 'Recurrentes', items: recList, total: totalRecurrentes, removeLabel: 'de los recurrentes' },
+        { key: 'fijos', icon: '📌', label: 'Fijos', items: fijosList, total: totalFijos, removeLabel: 'de los fijos' },
+        { key: 'susc', icon: '📲', label: 'Suscripciones', items: suscripciones, total: totalSusc, removeLabel: 'de las suscripciones' },
+      ].map(({ key, icon, label, items, total, removeLabel }) => (
+        items.length > 0 && (
+          <div key={key} style={{ background: P.cd, border: `1px solid ${P.bd}`, borderRadius: 16, padding: '14px 14px 6px', marginBottom: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 16 }}>{icon}</span>
+                  <span style={{ fontSize: 15, fontWeight: 700, color: P.tx }}>{label}</span>
+                </div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: P.rd, marginTop: 2 }}>{fmtS(total)}</div>
               </div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: P.rd, marginTop: 2 }}>{fmtS(totalFijos)}</div>
-            </div>
-            <button onClick={() => onAdd('gasto')} style={{ background: P.ac, color: '#fff', border: 'none', borderRadius: 20, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
-              + Agregar
-            </button>
-          </div>
-          {recList.map((t) => {
-            const done = doneThisMonth(t.serieId);
-            const due = t.dueDay || (t.date ? Number(String(t.date).slice(8, 10)) : null);
-            const dueInfo = (() => {
-              if (!due) return null;
-              const fecha = `${due}/${monthNum}`;
-              if (done) return { text: '✓ Pagado', color: P.gn, bg: P.gb };
-              const diff = due - todayD;
-              if (diff < 0) return { text: `⚠️ Venció ${fecha}`, color: P.rd, bg: P.rb };
-              if (diff === 0) return { text: '📅 Vence hoy', color: P.rd, bg: P.rb };
-              if (diff <= 3) return { text: `📅 Vence en ${diff}d · ${fecha}`, color: P.am, bg: P.am + '22' };
-              return { text: `📅 Vence ${fecha}`, color: P.sb, bg: P.c2 };
-            })();
-            const pctIncome = totIn > 0 ? ((t.cur === 'USD' ? t.amt * ((usdRates?.venta) || 1200) : t.amt) / totIn * 100).toFixed(0) : null;
-            return (
-              <div key={t.serieId} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderTop: `1px solid ${P.bd}`, opacity: t.paused ? 0.5 : 1 }}>
-                <button
-                  onClick={() => { if (t.paused) return; done ? onUnregister(t) : onRegister(t); }}
-                  title={done ? 'Tocá para destildar (quitar el pago de este mes)' : 'Marcar como pagado este mes'}
-                  style={{ width: 24, height: 24, borderRadius: '50%', flexShrink: 0, border: `2px solid ${done ? P.gn : P.bd}`, background: done ? P.gn : 'transparent', cursor: t.paused ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 13, fontWeight: 700 }}
-                >
-                  {done ? '✓' : ''}
+              {key === 'rec' && (
+                <button onClick={() => onAdd('gasto')} style={{ background: P.ac, color: '#fff', border: 'none', borderRadius: 20, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                  + Agregar
                 </button>
-                <div onClick={() => onEdit(t)} style={{ flex: 1, minWidth: 0, cursor: 'pointer' }} title="Tocá para editar (monto, día, etc.)">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: done ? P.sb : P.tx, textDecoration: done ? 'line-through' : 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 140 }}>
-                      {t.paused ? '⏸ ' : ''}{t.desc || t.sub || t.cat}
-                    </span>
-                    {pctIncome && (
-                      <span style={{ fontSize: 10, color: P.sb, background: P.bd, borderRadius: 6, padding: '1px 5px', flexShrink: 0 }}>{pctIncome}%</span>
-                    )}
-                  </div>
-                  <div style={{ fontSize: 11, color: P.sb, marginTop: 2, display: 'flex', gap: 8, alignItems: 'center' }}>
-                    <span style={{ fontWeight: 500, color: done ? P.sb : P.tx }}>{fmtS(t.amt, t.cur)}</span>
-                    {!t.paused && dueInfo && <span style={{ color: dueInfo.color, fontWeight: 600, fontSize: 10, background: dueInfo.bg, borderRadius: 6, padding: '2px 7px' }}>{dueInfo.text}</span>}
-                  </div>
-                </div>
-                <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
-                  <button onClick={() => onPauseSerie(t.serieId, !t.paused)} style={{ background: 'transparent', color: P.sb, border: 'none', padding: '4px 6px', fontSize: 14, cursor: 'pointer' }}>
-                    {t.paused ? '▶' : '⏸'}
-                  </button>
-                  <button onClick={() => { if (window.confirm(`¿Sacar "${t.desc || t.sub || t.cat}" de los recurrentes?`)) onRemoveSerie(t.serieId); }} style={{ background: 'transparent', color: P.sb, border: 'none', padding: '4px 6px', fontSize: 16, cursor: 'pointer' }}>×</button>
-                </div>
-              </div>
-            );
-          })}
-          <div style={{ fontSize: 10, color: P.sb, textAlign: 'center', padding: '8px 0 4px' }}>Tocá para editar</div>
-        </div>
-      )}
-
-      {/* Suscripciones */}
-      {suscripciones.length > 0 && (
-        <div style={{ background: P.cd, border: `1px solid ${P.bd}`, borderRadius: 16, padding: '14px 14px 6px', marginBottom: 12 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ fontSize: 16 }}>📲</span>
-                <span style={{ fontSize: 15, fontWeight: 700, color: P.tx }}>Suscripciones</span>
-              </div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: P.rd, marginTop: 2 }}>{fmtS(totalSusc)}</div>
+              )}
             </div>
-          </div>
-          {suscripciones.map((t) => {
-            const done = doneThisMonth(t.serieId);
-            const due = t.dueDay || (t.date ? Number(String(t.date).slice(8, 10)) : null);
-            const dueInfo = (() => {
-              if (!due) return null;
-              const fecha = `${due}/${monthNum}`;
-              if (done) return { text: '✓ Pagado', color: P.gn, bg: P.gb };
-              const diff = due - todayD;
-              if (diff < 0) return { text: `⚠️ Venció ${fecha}`, color: P.rd, bg: P.rb };
-              if (diff === 0) return { text: '📅 Vence hoy', color: P.rd, bg: P.rb };
-              if (diff <= 3) return { text: `📅 Vence en ${diff}d · ${fecha}`, color: P.am, bg: P.am + '22' };
-              return { text: `📅 Vence ${fecha}`, color: P.sb, bg: P.c2 };
-            })();
-            return (
-              <div key={t.serieId} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderTop: `1px solid ${P.bd}`, opacity: t.paused ? 0.5 : 1 }}>
-                <button
-                  onClick={() => { if (t.paused) return; done ? onUnregister(t) : onRegister(t); }}
-                  title={done ? 'Tocá para destildar (quitar el pago de este mes)' : 'Marcar como pagado este mes'}
-                  style={{ width: 24, height: 24, borderRadius: '50%', flexShrink: 0, border: `2px solid ${done ? P.gn : P.bd}`, background: done ? P.gn : 'transparent', cursor: t.paused ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 13, fontWeight: 700 }}
-                >
-                  {done ? '✓' : ''}
-                </button>
-                <div onClick={() => onEdit(t)} style={{ flex: 1, minWidth: 0, cursor: 'pointer' }} title="Tocá para editar (monto, día, etc.)">
-                  <div style={{ fontSize: 13, fontWeight: 600, color: done ? P.sb : P.tx, textDecoration: done ? 'line-through' : 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 170 }}>
-                    {t.paused ? '⏸ ' : ''}{t.desc || t.sub || t.cat}
-                  </div>
-                  <div style={{ fontSize: 11, color: P.sb, marginTop: 2, display: 'flex', gap: 8, alignItems: 'center' }}>
-                    <span style={{ fontWeight: 500, color: done ? P.sb : P.tx }}>{fmtS(t.amt, t.cur)}</span>
-                    {!t.paused && dueInfo && <span style={{ color: dueInfo.color, fontWeight: 600, fontSize: 10, background: dueInfo.bg, borderRadius: 6, padding: '2px 7px' }}>{dueInfo.text}</span>}
-                  </div>
-                </div>
-                <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
-                  <button onClick={() => onPauseSerie(t.serieId, !t.paused)} style={{ background: 'transparent', color: P.sb, border: 'none', padding: '4px 6px', fontSize: 14, cursor: 'pointer' }}>
-                    {t.paused ? '▶' : '⏸'}
+            {items.map((t) => {
+              const done = doneThisMonth(t.serieId);
+              const due = t.dueDay || (t.date ? Number(String(t.date).slice(8, 10)) : null);
+              const dueInfo = (() => {
+                if (!due) return null;
+                const fecha = `${due}/${monthNum}`;
+                if (done) return { text: '✓ Pagado', color: P.gn, bg: P.gb };
+                const diff = due - todayD;
+                if (diff < 0) return { text: `⚠️ Venció ${fecha}`, color: P.rd, bg: P.rb };
+                if (diff === 0) return { text: '📅 Vence hoy', color: P.rd, bg: P.rb };
+                if (diff <= 3) return { text: `📅 Vence en ${diff}d · ${fecha}`, color: P.am, bg: P.am + '22' };
+                return { text: `📅 Vence ${fecha}`, color: P.sb, bg: P.c2 };
+              })();
+              const pctIncome = totIn > 0 ? ((t.cur === 'USD' ? t.amt * ((usdRates?.venta) || 1200) : t.amt) / totIn * 100).toFixed(0) : null;
+              return (
+                <div key={t.serieId} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderTop: `1px solid ${P.bd}`, opacity: t.paused ? 0.5 : 1 }}>
+                  <button
+                    onClick={() => { if (t.paused) return; done ? onUnregister(t) : onRegister(t); }}
+                    title={done ? 'Tocá para destildar (quitar el pago de este mes)' : 'Marcar como pagado este mes'}
+                    style={{ width: 24, height: 24, borderRadius: '50%', flexShrink: 0, border: `2px solid ${done ? P.gn : P.bd}`, background: done ? P.gn : 'transparent', cursor: t.paused ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 13, fontWeight: 700 }}
+                  >
+                    {done ? '✓' : ''}
                   </button>
-                  <button onClick={() => { if (window.confirm(`¿Sacar "${t.desc || t.sub || t.cat}" de las suscripciones?`)) onRemoveSerie(t.serieId); }} style={{ background: 'transparent', color: P.sb, border: 'none', padding: '4px 6px', fontSize: 16, cursor: 'pointer' }}>×</button>
+                  <div onClick={() => onEdit(t)} style={{ flex: 1, minWidth: 0, cursor: 'pointer' }} title="Tocá para editar (monto, día, etc.)">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: done ? P.sb : P.tx, textDecoration: done ? 'line-through' : 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 140 }}>
+                        {t.paused ? '⏸ ' : ''}{t.desc || t.sub || t.cat}
+                      </span>
+                      {pctIncome && (
+                        <span style={{ fontSize: 10, color: P.sb, background: P.bd, borderRadius: 6, padding: '1px 5px', flexShrink: 0 }}>{pctIncome}%</span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: 11, color: P.sb, marginTop: 2, display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <span style={{ fontWeight: 500, color: done ? P.sb : P.tx }}>{fmtS(t.amt, t.cur)}</span>
+                      {!t.paused && dueInfo && <span style={{ color: dueInfo.color, fontWeight: 600, fontSize: 10, background: dueInfo.bg, borderRadius: 6, padding: '2px 7px' }}>{dueInfo.text}</span>}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                    <button onClick={() => onPauseSerie(t.serieId, !t.paused)} style={{ background: 'transparent', color: P.sb, border: 'none', padding: '4px 6px', fontSize: 14, cursor: 'pointer' }}>
+                      {t.paused ? '▶' : '⏸'}
+                    </button>
+                    <button onClick={() => { if (window.confirm(`¿Sacar "${t.desc || t.sub || t.cat}" ${removeLabel}?`)) onRemoveSerie(t.serieId); }} style={{ background: 'transparent', color: P.sb, border: 'none', padding: '4px 6px', fontSize: 16, cursor: 'pointer' }}>×</button>
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-          <div style={{ fontSize: 10, color: P.sb, textAlign: 'center', padding: '8px 0 4px' }}>Tocá para editar</div>
-        </div>
-      )}
+              );
+            })}
+            <div style={{ fontSize: 10, color: P.sb, textAlign: 'center', padding: '8px 0 4px' }}>Tocá para editar</div>
+          </div>
+        )
+      ))}
 
       {/* Cuotas */}
       {cuotasMes.length > 0 && (

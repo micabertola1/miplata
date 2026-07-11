@@ -4605,7 +4605,7 @@ function HomeTab({
           style={{
             fontSize: bigNumSize(fmt(bal, cur), mob),
             fontWeight: 800,
-            color: '#fff',
+            color: bal < 0 ? P.rd : '#fff',
             lineHeight: 1.05,
             fontVariantNumeric: 'tabular-nums',
             whiteSpace: 'nowrap',
@@ -4696,17 +4696,21 @@ function HomeTab({
           </div>
         )}
 
-        {hasBudgets && (
-          <div style={{ marginTop: 12 }}>
-            <div style={{ height: 7, borderRadius: 4, background: 'rgba(255,255,255,.15)' }}>
-              <div style={{ height: '100%', borderRadius: 4, width: `${Math.min(100, totIn > 0 ? (totOut / totIn) * 100 : 0)}%`, background: totOut / totIn > 0.8 ? P.rd : P.gn, transition: 'width .4s ease' }} />
+        {hasBudgets && (() => {
+          const pctGastado = totIn > 0 ? (totOut / totIn) * 100 : 0;
+          const over = pctGastado > 50;
+          return (
+            <div style={{ marginTop: 12 }}>
+              <div style={{ height: 7, borderRadius: 4, background: 'rgba(255,255,255,.15)' }}>
+                <div style={{ height: '100%', borderRadius: 4, width: `${Math.min(100, pctGastado)}%`, background: over ? P.rd : P.gn, transition: 'width .4s ease' }} />
+              </div>
+              <div style={{ fontSize: 11, color: over ? P.rd : 'rgba(255,255,255,.55)', fontWeight: over ? 700 : 400, marginTop: 5 }}>
+                Gastaste el {Math.round(pctGastado)}%
+                de lo que ingresó
+              </div>
             </div>
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,.55)', marginTop: 5 }}>
-              Gastaste el {totIn > 0 ? Math.round((totOut / totIn) * 100) : 0}%
-              de lo que ingresó
-            </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Pills de acción rápida */}
         <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
@@ -5269,7 +5273,7 @@ function InsightsTab({
         <div style={{ fontSize: 11, fontWeight: 500, color: 'rgba(255,255,255,.5)', textTransform: 'uppercase', letterSpacing: 0.7, marginBottom: 4 }}>
           Balance de {MOF[Number(month.slice(5, 7)) - 1]}
         </div>
-        <div style={{ fontSize: bigNumSize(fmtS(cBal, cur), mob), fontWeight: 800, color: '#fff', lineHeight: 1.05, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', overflow: 'hidden' }}>
+        <div style={{ fontSize: bigNumSize(fmtS(cBal, cur), mob), fontWeight: 800, color: cBal < 0 ? P.rd : '#fff', lineHeight: 1.05, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', overflow: 'hidden' }}>
           {fmtS(cBal, cur)}
         </div>
         {carry !== 0 && (

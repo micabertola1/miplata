@@ -210,6 +210,15 @@ function td() {
     day: '2-digit',
   }).format(new Date());
 }
+// Extrae el día de cierre sin importar el formato en que haya quedado
+// guardado: "15" (día simple, formato actual) o "15/03" (día/mes, un
+// formato viejo que usó la app antes) — en ambos casos toma el día.
+function parseCierreDay(raw) {
+  if (raw == null || raw === '') return null;
+  const first = String(raw).split('/')[0];
+  const n = Number(first);
+  return n >= 1 && n <= 31 ? n : null;
+}
 // Cargos de un mes: las compras en cuotas se reparten (una cuota por mes),
 // respetando el cierre real de la tarjeta: si la compra fue después del
 // día de cierre, cae en el resumen (y la cuota 1) del mes siguiente.
@@ -221,8 +230,8 @@ function chargesForMonth(txs, monthKey, cards = []) {
       const n = t.cuotas > 1 ? t.cuotas : 1;
       let [sy, sm, sd] = String(t.date).slice(0, 10).split('-').map(Number);
       const card = cards.find((c) => c.name === t.card);
-      const cierre = card && Number(card.cierre);
-      if (cierre >= 1 && cierre <= 31 && sd > cierre) {
+      const cierre = card && parseCierreDay(card.cierre);
+      if (cierre && sd > cierre) {
         sm += 1;
         if (sm > 12) {
           sm = 1;

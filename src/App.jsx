@@ -189,23 +189,39 @@ function fmt(a, c) {
   return c === 'USD' ? `US$ ${s}` : `$ ${s}`;
 }
 function fmtS(a, c) {
-  const p = c === 'USD' ? 'US$ ' : '$ ';
-  const v = Math.abs(a);
-  if (v >= 1e6) return p + (v / 1e6).toFixed(1) + 'M';
-  if (v >= 1e3) return p + (v / 1e3).toFixed(0) + 'k';
+  // Antes abreviaba a k/M; ahora siempre muestra el monto completo.
   return fmt(a, c);
 }
+// Fecha de HOY según Argentina (Mendoza/Buenos Aires, UTC-3), no UTC ni la
+// zona del dispositivo: toISOString() usa UTC y puede dar el día siguiente
+// pasadas las ~21hs en Argentina.
 function td() {
-  return new Date().toISOString().slice(0, 10);
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Argentina/Buenos_Aires',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
 }
-// Cargos de un mes: las compras en cuotas se reparten (una cuota por mes)
-function chargesForMonth(txs, monthKey) {
+// Cargos de un mes: las compras en cuotas se reparten (una cuota por mes),
+// respetando el cierre real de la tarjeta: si la compra fue después del
+// día de cierre, cae en el resumen (y la cuota 1) del mes siguiente.
+function chargesForMonth(txs, monthKey, cards = []) {
   const [my, mm] = monthKey.split('-').map(Number);
   const out = [];
   for (const t of txs) {
     const n = t.pay === 'credito' && t.cuotas > 1 ? t.cuotas : 1;
     if (n > 1) {
-      const [sy, sm] = mk(t.date).split('-').map(Number);
+      let [sy, sm, sd] = String(t.date).slice(0, 10).split('-').map(Number);
+      const card = cards.find((c) => c.name === t.card);
+      const cierre = card && Number(card.cierre);
+      if (cierre >= 1 && cierre <= 31 && sd > cierre) {
+        sm += 1;
+        if (sm > 12) {
+          sm = 1;
+          sy += 1;
+        }
+      }
       const idx = (my - sy) * 12 + (mm - sm);
       if (idx >= 0 && idx < n) {
         out.push({
@@ -1526,7 +1542,7 @@ function MainApp({ user, onLogout }) {
     } catch {}
   }, [settings.theme]);
 
-  const mtx = chargesForMonth(activeTx, month).filter((t) => t.cur === cur);
+  const mtx = chargesForMonth(activeTx, month, settings.cards).filter((t) => t.cur === cur);
   // Los gastos PROGRAMADOS (pendientes de pago) no cuentan hasta marcarse pagados
   const paid = (t) => !t.pending;
   const totIn = mtx
@@ -1556,7 +1572,7 @@ function MainApp({ user, onLogout }) {
     );
     let s = 0;
     keys.forEach((k) => {
-      chargesForMonth(activeTx, k)
+      chargesForMonth(activeTx, k, settings.cards)
         .filter((t) => t.cur === cur && !t.pending)
         .forEach((t) => {
           if (t.type === 'ingreso') s += t.amt;
@@ -1564,7 +1580,7 @@ function MainApp({ user, onLogout }) {
         });
     });
     return Math.round(s);
-  }, [activeTx, month, cur]);
+  }, [activeTx, month, cur, settings.cards]);
 
   // Gastos programados pendientes de pago (cualquier mes, scope/moneda actual)
   const pendingTx = activeTx
@@ -2088,6 +2104,7 @@ function MainApp({ user, onLogout }) {
             onAdd={openAdd}
             onSeeAll={() => setTab('movs')}
             onSeeCats={() => setTab('insights')}
+            cards={settings.cards}
           />
         )}
         {(tab === 'movs' || tab === 'diarios') && (
@@ -2123,6 +2140,7 @@ function MainApp({ user, onLogout }) {
             onPauseSerie={pauseRecurringSerie}
             onExport={() => exportCSV(true)}
             onExchange={() => setShowExchange(true)}
+            cards={settings.cards}
           />
         )}
         {tab === 'diarios' && (
@@ -3734,9 +3752,9 @@ function catRowStyle(catName) {
 }
 function relDayLabel(d) {
   const todayS = td();
-  const yd = new Date();
-  yd.setDate(yd.getDate() - 1);
-  const yestS = yd.toISOString().slice(0, 10);
+  const [ty, tm, tdd] = todayS.split('-').map(Number);
+  const yd = new Date(ty, tm - 1, tdd - 1);
+  const yestS = `${yd.getFullYear()}-${String(yd.getMonth() + 1).padStart(2, '0')}-${String(yd.getDate()).padStart(2, '0')}`;
   const [, m, dd] = d.split('-').map(Number);
   const mAbbr = MO[m - 1].toUpperCase();
   if (d === todayS) return { label: `HOY · ${dd} ${mAbbr}`, rel: 'hoy' };
@@ -3908,7 +3926,7 @@ function DiariosTab({ mob, cur, activeTx, month, onAdd, onEdit, onExport, custom
 }
 
 function MesTab({
-  mob, cur, activeTx, totIn, month, onAdd, onEdit, onRegister, onUnregister, onRemoveSerie, onPauseSerie, onExport, onExchange,
+  mob, cur, activeTx, totIn, month, onAdd, onEdit, onRegister, onUnregister, onRemoveSerie, onPauseSerie, onExport, onExchange, cards = [],
 }) {
   const [usdRates, setUsdRates] = useState(null);
   useEffect(() => {
@@ -3946,7 +3964,8 @@ function MesTab({
   // Cuotas: gastos en cuotas (credito, cuotas > 1) distribuidos al mes actual
   const cuotasMes = chargesForMonth(
     activeTx.filter((t) => t.type === 'gasto' && t.pay === 'credito' && t.cuotas > 1 && t.cur === cur),
-    month
+    month,
+    cards
   );
 
   const totalIngresos = ingresos.reduce((s, t) => s + (t.cur === 'USD' ? t.amt * ((usdRates?.venta) || 1200) : t.amt), 0);
@@ -4156,6 +4175,7 @@ function HomeTab({
   month,
   onRegister,
   onUnregister,
+  cards = [],
   favorites = [],
   onUseFav,
   onRemoveFav,
@@ -4229,7 +4249,7 @@ function HomeTab({
     return arr;
   })();
   const monthly = months6.map((mkey) => {
-    const items = chargesForMonth(activeTx, mkey).filter(
+    const items = chargesForMonth(activeTx, mkey, cards).filter(
       (t) => t.cur === cur && !t.pending
     );
     return {

@@ -200,6 +200,17 @@ function bigNumSize(text, mob) {
   if (digits >= 7) return mob ? 26 : 34;
   return mob ? 30 : 42;
 }
+// Igual que bigNumSize pero para números chicos (ej: fila Ingresos/Gastos/
+// Ahorro), con un tamaño base menor y piso de legibilidad.
+function smallNumSize(text, mob) {
+  const digits = String(text).replace(/\D/g, '').length;
+  const base = mob ? 16 : 19;
+  if (digits >= 10) return mob ? 10 : 12;
+  if (digits >= 9) return mob ? 11 : 13;
+  if (digits >= 8) return mob ? 12 : 15;
+  if (digits >= 7) return mob ? 13 : 16;
+  return base;
+}
 // Fecha de HOY según Argentina (Mendoza/Buenos Aires, UTC-3), no UTC ni la
 // zona del dispositivo: toISOString() usa UTC y puede dar el día siguiente
 // pasadas las ~21hs en Argentina.
@@ -4650,10 +4661,13 @@ function HomeTab({
               </div>
               <div
                 style={{
-                  fontSize: mob ? 16 : 19,
+                  fontSize: smallNumSize(fmtS(v, cur), mob),
                   fontWeight: 700,
                   color: c,
                   fontVariantNumeric: 'tabular-nums',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
                 }}
               >
                 {fmtS(v, cur)}
@@ -5268,7 +5282,7 @@ function InsightsTab({
                 style={{ flex: 1, minWidth: 0, paddingLeft: i > 0 ? 14 : 0, cursor: onGoFilter ? 'pointer' : 'default' }}
               >
                 <div style={{ fontSize: 11, color: 'rgba(255,255,255,.45)', fontWeight: 500 }}>{l}</div>
-                <div style={{ fontSize: mob ? 15 : 18, fontWeight: 700, color: c, fontVariantNumeric: 'tabular-nums', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <div style={{ fontSize: smallNumSize(fmtS(Math.round(v), cur), mob), fontWeight: 700, color: c, fontVariantNumeric: 'tabular-nums', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {fmtS(Math.round(v), cur)}
                 </div>
               </div>

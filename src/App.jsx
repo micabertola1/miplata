@@ -194,10 +194,11 @@ function fmtS(a, c) {
 // dígitos, para que los montos completos (sin abreviar) siempre entren.
 function bigNumSize(text, mob) {
   const digits = String(text).replace(/\D/g, '').length;
-  if (digits >= 10) return mob ? 20 : 28;
-  if (digits >= 8) return mob ? 24 : 32;
-  if (digits >= 7) return mob ? 28 : 38;
-  return mob ? 34 : 46;
+  if (digits >= 10) return mob ? 16 : 24;
+  if (digits >= 9) return mob ? 19 : 27;
+  if (digits >= 8) return mob ? 22 : 30;
+  if (digits >= 7) return mob ? 26 : 34;
+  return mob ? 30 : 42;
 }
 // Fecha de HOY según Argentina (Mendoza/Buenos Aires, UTC-3), no UTC ni la
 // zona del dispositivo: toISOString() usa UTC y puede dar el día siguiente
@@ -4593,6 +4594,8 @@ function HomeTab({
             color: '#fff',
             lineHeight: 1.05,
             fontVariantNumeric: 'tabular-nums',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
           }}
         >
           {fmt(bal, cur)}
@@ -5229,7 +5232,7 @@ function InsightsTab({
         <div style={{ fontSize: 11, fontWeight: 500, color: 'rgba(255,255,255,.5)', textTransform: 'uppercase', letterSpacing: 0.7, marginBottom: 4 }}>
           Balance de {MOF[Number(month.slice(5, 7)) - 1]}
         </div>
-        <div style={{ fontSize: bigNumSize(fmtS(cBal, cur), mob), fontWeight: 800, color: '#fff', lineHeight: 1.05, fontVariantNumeric: 'tabular-nums' }}>
+        <div style={{ fontSize: bigNumSize(fmtS(cBal, cur), mob), fontWeight: 800, color: '#fff', lineHeight: 1.05, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', overflow: 'hidden' }}>
           {fmtS(cBal, cur)}
         </div>
         {carry !== 0 && (

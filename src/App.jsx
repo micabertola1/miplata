@@ -991,6 +991,11 @@ function MainApp({ user, onLogout }) {
   const [dataLoaded, setDataLoaded] = useState(false);
 
   const [tab, setTab] = useState('insights');
+  const [pendingFilter, setPendingFilter] = useState(null);
+  const goToFilter = (type) => {
+    setPendingFilter({ type, seq: Date.now() });
+    setTab('diarios');
+  };
   const [modal, setModal] = useState(null);
   const [editItem, setEditItem] = useState(null);
   const [month, setMonth] = useState(mk(new Date()));
@@ -2190,6 +2195,7 @@ function MainApp({ user, onLogout }) {
             onSeeAll={() => setTab('movs')}
             onSeeCats={() => setTab('insights')}
             cards={settings.cards}
+            onGoFilter={goToFilter}
           />
         )}
         {(tab === 'movs' || tab === 'diarios') && (
@@ -2238,6 +2244,7 @@ function MainApp({ user, onLogout }) {
             onEdit={openEdit}
             onExport={() => exportCSV(true)}
             customCats={settings.customCats}
+            pendingFilter={pendingFilter}
           />
         )}
         {tab === 'perfil' && (
@@ -2277,6 +2284,7 @@ function MainApp({ user, onLogout }) {
             saveBudgets={(b) => saveSettings({ budgets: b })}
             onAdd={openAdd}
             customCats={settings.customCats}
+            onGoFilter={goToFilter}
           />
         )}
         {tab === 'goals' && (
@@ -2299,6 +2307,8 @@ function MainApp({ user, onLogout }) {
               .filter((t) => t.usd > 0)
               .sort((a, b) => (b.date || '').localeCompare(a.date || ''))}
             delTx={delTxFn}
+            activeTx={activeTx}
+            month={month}
           />
         )}
       </main>
@@ -3858,7 +3868,7 @@ function relDayLabel(d) {
   return { label: `${dd} ${mAbbr}`, rel: '' };
 }
 
-function DiariosTab({ mob, cur, activeTx, month, onAdd, onEdit, onExport, customCats }) {
+function DiariosTab({ mob, cur, activeTx, month, onAdd, onEdit, onExport, customCats, pendingFilter }) {
   const [usdRates, setUsdRates] = useState(null);
   const [filter, setFilter] = useState('todos');
   const [showSearch, setShowSearch] = useState(false);
@@ -3869,6 +3879,9 @@ function DiariosTab({ mob, cur, activeTx, month, onAdd, onEdit, onExport, custom
       .then((d) => setUsdRates({ venta: Math.round(d.oficial?.value_sell) }))
       .catch(() => {});
   }, []);
+  useEffect(() => {
+    if (pendingFilter?.type) setFilter(pendingFilter.type);
+  }, [pendingFilter?.seq]);
 
   const pool = activeTx.filter(
     (t) => mk(t.date) === month && !(t.type === 'gasto' && t.recurring)
@@ -4311,6 +4324,7 @@ function HomeTab({
   onAdd,
   onSeeAll,
   onSeeCats,
+  onGoFilter,
 }) {
   const maxC = byCat.length ? byCat[0][1] : 1;
   const isDark = P.bg === P_DARK.bg;
@@ -4590,13 +4604,16 @@ function HomeTab({
           }}
         >
           {[
-            ['Ingresos', totIn, P.gn],
-            ['Gastos', totOut, P.rd],
-            ['Ahorro', totSav, 'rgba(255,255,255,.9)'],
-          ].map(([l, v, c], i) => (
+            ['Ingresos', totIn, P.gn, 'ingreso'],
+            ['Gastos', totOut, P.rd, 'gasto'],
+            ['Ahorro', totSav, 'rgba(255,255,255,.9)', 'ahorro'],
+          ].map(([l, v, c, ftype], i) => (
             <Fragment key={l}>
               {i > 0 && <div style={{ width: 1, background: 'rgba(255,255,255,.12)', flexShrink: 0 }} />}
-              <div style={{ flex: 1, minWidth: 0, paddingLeft: i > 0 ? 14 : 0 }}>
+              <div
+                onClick={() => onGoFilter && onGoFilter(ftype)}
+                style={{ flex: 1, minWidth: 0, paddingLeft: i > 0 ? 14 : 0, cursor: onGoFilter ? 'pointer' : 'default' }}
+              >
               <div
                 style={{
                   fontSize: 11,
@@ -5210,6 +5227,7 @@ function InsightsTab({
   saveBudgets,
   onAdd,
   customCats,
+  onGoFilter,
 }) {
   const total = byCat.reduce((s, [, a]) => s + a, 0);
   const [expandedCat, setExpandedCat] = useState(null);
@@ -5340,10 +5358,13 @@ function InsightsTab({
           </div>
         )}
         <div style={{ display: 'flex', gap: 8, marginTop: 14, borderTop: '1px solid rgba(255,255,255,.12)', paddingTop: 14 }}>
-          {[['Ingresos', cIn, P.gn], ['Gastos', cOut, P.rd], ['Ahorro', cSav, 'rgba(255,255,255,.9)']].map(([l, v, c], i) => (
+          {[['Ingresos', cIn, P.gn, 'ingreso'], ['Gastos', cOut, P.rd, 'gasto'], ['Ahorro', cSav, 'rgba(255,255,255,.9)', 'ahorro']].map(([l, v, c, ftype], i) => (
             <Fragment key={l}>
               {i > 0 && <div style={{ width: 1, background: 'rgba(255,255,255,.12)', flexShrink: 0 }} />}
-              <div style={{ flex: 1, minWidth: 0, paddingLeft: i > 0 ? 14 : 0 }}>
+              <div
+                onClick={() => onGoFilter && onGoFilter(ftype)}
+                style={{ flex: 1, minWidth: 0, paddingLeft: i > 0 ? 14 : 0, cursor: onGoFilter ? 'pointer' : 'default' }}
+              >
                 <div style={{ fontSize: 11, color: 'rgba(255,255,255,.45)', fontWeight: 500 }}>{l}</div>
                 <div style={{ fontSize: mob ? 15 : 18, fontWeight: 700, color: c, fontVariantNumeric: 'tabular-nums', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {fmtS(Math.round(v), cur)}
@@ -5808,6 +5829,8 @@ function GoalsTab({
   setSavings,
   usdBuys = [],
   delTx,
+  activeTx = [],
+  month,
 }) {
   const [showUsd, setShowUsd] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
@@ -5870,6 +5893,30 @@ function GoalsTab({
   );
   const efTarget = efMonthly * 6;
 
+  // Ahorro mes a mes: cuánto se cargó como tipo "ahorro" en cada uno de los
+  // últimos 6 meses (separado de Patrimonio, que es el saldo manual)
+  const ahorroMeses = (() => {
+    const base = month || td().slice(0, 7);
+    const [y, m] = base.split('-').map(Number);
+    const arr = [];
+    for (let i = 5; i >= 0; i--) {
+      let yy = y;
+      let mm = m - i;
+      while (mm <= 0) {
+        mm += 12;
+        yy -= 1;
+      }
+      const key = `${yy}-${String(mm).padStart(2, '0')}`;
+      const total = activeTx
+        .filter((t) => t.type === 'ahorro' && t.cur === cur && mk(t.date) === key)
+        .reduce((s, t) => s + t.amt, 0);
+      arr.push({ key, label: MO[mm - 1], total });
+    }
+    return arr;
+  })();
+  const ahorroTotal6m = ahorroMeses.reduce((s, m) => s + m.total, 0);
+  const maxAhorroMes = Math.max(...ahorroMeses.map((m) => m.total), 1);
+
   return (
     <div
       style={{
@@ -5879,6 +5926,38 @@ function GoalsTab({
         paddingTop: 8,
       }}
     >
+      <Box>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+          <Lbl>🏦 Ahorro mes a mes</Lbl>
+          <span style={{ fontSize: 12, fontWeight: 700, color: P.gn }}>{fmtS(ahorroTotal6m, cur)}</span>
+        </div>
+        <div style={{ fontSize: 11, color: P.sb, marginBottom: 12 }}>
+          Lo que cargaste como "ahorro" (inversiones, plazo fijo, etc.) cada mes. Distinto de tu Patrimonio de abajo.
+        </div>
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 90 }}>
+          {ahorroMeses.map((m) => {
+            const isCur = m.key === month;
+            const h = Math.max(4, (m.total / maxAhorroMes) * 100);
+            return (
+              <div key={m.key} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                <div style={{ width: '100%', height: 70, display: 'flex', alignItems: 'flex-end' }}>
+                  <div
+                    title={fmtS(m.total, cur)}
+                    style={{
+                      width: '100%',
+                      height: `${h}%`,
+                      borderRadius: 5,
+                      background: isCur ? P.gn : m.total > 0 ? `${P.gn}55` : P.bd,
+                    }}
+                  />
+                </div>
+                <span style={{ fontSize: 10, fontWeight: isCur ? 700 : 500, color: isCur ? P.gn : P.sb }}>{m.label}</span>
+              </div>
+            );
+          })}
+        </div>
+      </Box>
+
       <Box style={{ background: `linear-gradient(135deg,${P.ac}0E,${P.gn}0A)` }}>
         <Lbl>💰 Mis ahorros (patrimonio)</Lbl>
         <div

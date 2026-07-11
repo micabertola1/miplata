@@ -5193,6 +5193,11 @@ function InsightsTab({
     return Object.entries(m).sort((a, b) => b[1] - a[1]);
   })();
   const subTotal = bySub.reduce((s, [, a]) => s + a, 0);
+  // Contado (efectivo/transferencia) vs Crédito
+  const gastosPagos = mtx.filter((t) => t.type === 'gasto' && !t.pending && t.cur === cur);
+  const totContado = gastosPagos.filter((t) => t.pay !== 'credito').reduce((s, t) => s + t.amt, 0);
+  const totCredito = gastosPagos.filter((t) => t.pay === 'credito').reduce((s, t) => s + t.amt, 0);
+  const totContadoCredito = totContado + totCredito;
   // Por persona (solo grupo)
   const byMember = {};
   if (isGroup) {
@@ -5454,6 +5459,29 @@ function InsightsTab({
           ))}
         </div>
       </Box>
+
+      {totContadoCredito > 0 && (
+        <Box>
+          <Lbl>Contado vs Crédito</Lbl>
+          <div style={{ display: 'flex', gap: 14 }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 11, color: P.sb, marginBottom: 2 }}>💵 Contado</div>
+              <div style={{ fontSize: 18, fontWeight: 700, color: P.gn }}>{fmtS(totContado, cur)}</div>
+              <div style={{ fontSize: 11, color: P.sb, marginTop: 1 }}>{Math.round((totContado / totContadoCredito) * 100)}%</div>
+            </div>
+            <div style={{ width: 1, background: P.bd }} />
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 11, color: P.sb, marginBottom: 2 }}>💳 Crédito</div>
+              <div style={{ fontSize: 18, fontWeight: 700, color: P.rd }}>{fmtS(totCredito, cur)}</div>
+              <div style={{ fontSize: 11, color: P.sb, marginTop: 1 }}>{Math.round((totCredito / totContadoCredito) * 100)}%</div>
+            </div>
+          </div>
+          <div style={{ height: 7, borderRadius: 4, background: P.bd, overflow: 'hidden', marginTop: 12 }}>
+            <div style={{ width: `${(totContado / totContadoCredito) * 100}%`, height: '100%', background: P.gn, borderRadius: 4 }} />
+          </div>
+        </Box>
+      )}
+
       <Box>
         <Lbl>Gastos por categoría</Lbl>
         {byCat.length === 0 ? (

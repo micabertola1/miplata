@@ -2343,6 +2343,7 @@ function MainApp({ user, onLogout }) {
             month={month}
             onGoFilter={goToFilter}
             onAdd={openAdd}
+            userName={user.displayName || user.email}
           />
         )}
       </main>
@@ -5759,6 +5760,7 @@ function GoalsTab({
   month,
   onGoFilter,
   onAdd,
+  userName,
 }) {
   const [showUsd, setShowUsd] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
@@ -5813,6 +5815,10 @@ function GoalsTab({
     fontSize: 13,
   };
   const efTarget = Number(efund.target || 0);
+  const myIncomeType = efund.tipoPorMiembro?.[userName] || 'freelance';
+  const setMyIncomeType = (v) =>
+    setEfund({ ...efund, tipoPorMiembro: { ...(efund.tipoPorMiembro || {}), [userName]: v } });
+  const incomeTypeEntries = Object.entries(efund.tipoPorMiembro || {});
   const efSaved = activeTx
     .filter((t) => t.type === 'ahorro' && t.efund === true && t.cur === cur)
     .reduce((s, t) => s + (t.efundAmt ?? t.amt), 0);
@@ -6142,6 +6148,23 @@ function GoalsTab({
         </div>
         {showEF && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <Lbl>Tu sueldo ({(userName || '').split(' ')[0] || 'vos'})</Lbl>
+            <div style={{ display: 'flex', background: P.cd, borderRadius: 12, padding: 3, border: `1px solid ${P.bd}` }}>
+              {[['fijo', 'Sueldo fijo'], ['freelance', 'Freelance']].map(([v, l]) => (
+                <button
+                  key={v}
+                  onClick={() => setMyIncomeType(v)}
+                  style={{ flex: 1, background: myIncomeType === v ? P.rd : 'transparent', color: myIncomeType === v ? '#fff' : P.sb, border: 'none', padding: '9px 4px', borderRadius: 9, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
+                >
+                  {l}
+                </button>
+              ))}
+            </div>
+            {incomeTypeEntries.length > 0 && (
+              <div style={{ fontSize: 10, color: P.sb }}>
+                {incomeTypeEntries.map(([who, v]) => `${who.split(' ')[0]}: ${v === 'fijo' ? 'Sueldo fijo' : 'Freelance'}`).join(' · ')}
+              </div>
+            )}
             <Lbl>Meta del fondo</Lbl>
             <input
               type="number"

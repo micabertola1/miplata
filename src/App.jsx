@@ -1763,6 +1763,7 @@ function MainApp({ user, onLogout }) {
     setEditItem({ type });
     setModal('add');
   };
+  const [showQuickAdd, setShowQuickAdd] = useState(false);
   // Abrir el formulario PRE-CARGADO como nuevo (sin id, fecha hoy)
   const openPrefill = (data) => {
     if (!data) return;
@@ -2365,6 +2366,54 @@ function MainApp({ user, onLogout }) {
         {[
           { id: 'dashboard', l: 'Dashboard', e: '📊' },
           { id: 'movs', l: 'Movimientos', e: '📝' },
+        ].map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: tab === t.id ? P.ac : P.sb,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 3,
+              cursor: 'pointer',
+              padding: '4px 10px',
+              fontSize: 10,
+              fontWeight: tab === t.id ? 600 : 500,
+            }}
+          >
+            <span style={{ fontSize: 16, width: 34, height: 26, borderRadius: 10, background: tab === t.id ? P.ab : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{t.e}</span>
+            {t.l}
+          </button>
+        ))}
+
+        <button
+          onClick={() => setShowQuickAdd(true)}
+          style={{
+            background: P.ac,
+            border: 'none',
+            color: '#fff',
+            width: 52,
+            height: 52,
+            borderRadius: 18,
+            marginTop: -26,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 26,
+            fontWeight: 700,
+            cursor: 'pointer',
+            boxShadow: '0 4px 14px rgba(0,0,0,0.28)',
+            flexShrink: 0,
+          }}
+          aria-label="Agregar movimiento"
+        >
+          +
+        </button>
+
+        {[
           { id: 'goals', l: 'Metas', e: '🎯' },
           { id: 'perfil', l: 'Config', e: '⚙️' },
         ].map((t) => (
@@ -2390,6 +2439,80 @@ function MainApp({ user, onLogout }) {
           </button>
         ))}
       </nav>
+
+      {showQuickAdd && (
+        <div
+          onClick={() => setShowQuickAdd(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.45)',
+            zIndex: 200,
+            display: 'flex',
+            alignItems: 'flex-end',
+            justifyContent: 'center',
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: P.cd,
+              width: '100%',
+              maxWidth: 480,
+              borderRadius: '20px 20px 0 0',
+              padding: '20px 16px calc(20px + env(safe-area-inset-bottom))',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 10,
+            }}
+          >
+            <div style={{ fontSize: 15, fontWeight: 700, color: P.tx, textAlign: 'center', marginBottom: 6 }}>
+              ¿Qué querés agregar?
+            </div>
+            {[
+              { type: 'gasto', l: 'Gasto', e: '💸', c: P.rd },
+              { type: 'ingreso', l: 'Ingreso', e: '💰', c: P.gn },
+              { type: 'ahorro', l: 'Ahorro', e: '🏦', c: P.ac },
+            ].map((o) => (
+              <button
+                key={o.type}
+                onClick={() => {
+                  setShowQuickAdd(false);
+                  openAdd(o.type);
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                  background: P.bg,
+                  border: `1px solid ${P.bd}`,
+                  borderRadius: 14,
+                  padding: '14px 16px',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                }}
+              >
+                <span style={{ fontSize: 20 }}>{o.e}</span>
+                <span style={{ fontSize: 15, fontWeight: 700, color: o.c }}>{o.l}</span>
+              </button>
+            ))}
+            <button
+              onClick={() => setShowQuickAdd(false)}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: P.sb,
+                fontSize: 13,
+                fontWeight: 600,
+                padding: '8px 0 0',
+                cursor: 'pointer',
+              }}
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Modal */}
       {modal && (

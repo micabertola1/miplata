@@ -1022,8 +1022,9 @@ function MainApp({ user, onLogout }) {
 
   const [tab, setTab] = useState('dashboard');
   const [pendingFilter, setPendingFilter] = useState(null);
-  const goToFilter = (type, q) => {
+  const goToFilter = (type, q, m) => {
     setPendingFilter({ type: type || 'todos', q: q || '', seq: Date.now() });
+    if (m) setMonth(m);
     setTab('movs');
   };
   const [modal, setModal] = useState(null);
@@ -1759,8 +1760,8 @@ function MainApp({ user, onLogout }) {
     setEditItem(t);
     setModal('edit');
   };
-  const openAdd = (type) => {
-    setEditItem({ type });
+  const openAdd = (type, extra) => {
+    setEditItem({ type, ...extra });
     setModal('add');
   };
   const [showQuickAdd, setShowQuickAdd] = useState(false);
@@ -2330,8 +2331,6 @@ function MainApp({ user, onLogout }) {
             delGoal={delGoalFn}
             totIn={totIn}
             totOut={totOut}
-            savPct={settings.savPct || 20}
-            setSavPct={(p) => saveSettings({ savPct: p })}
             efund={settings.efund || { expenses: {}, saved: 0 }}
             setEfund={(ef) => saveSettings({ efund: ef })}
             savings={settings.savings || []}
@@ -2342,6 +2341,8 @@ function MainApp({ user, onLogout }) {
             delTx={delTxFn}
             activeTx={activeTx}
             month={month}
+            onGoFilter={goToFilter}
+            onAdd={openAdd}
           />
         )}
       </main>
@@ -5774,8 +5775,6 @@ function GoalsTab({
   delGoal,
   totIn,
   totOut,
-  savPct,
-  setSavPct,
   efund,
   setEfund,
   savings = [],
@@ -5784,6 +5783,8 @@ function GoalsTab({
   delTx,
   activeTx = [],
   month,
+  onGoFilter,
+  onAdd,
 }) {
   const [showUsd, setShowUsd] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
@@ -5829,9 +5830,6 @@ function GoalsTab({
     .filter((s) => s.cur === 'ARS')
     .reduce((a, s) => a + s.amount, 0);
   const savUsd = savings.filter((s) => s.cur === 'USD').reduce((a, s) => a + s.amount, 0);
-  const sT = totIn * (savPct / 100);
-  const actual = totIn - totOut;
-  const ok = actual >= sT;
   const iS = {
     background: P.c2,
     border: `1px solid ${P.bd}`,
@@ -5845,9 +5843,16 @@ function GoalsTab({
     0
   );
   const efTarget = efMonthly * 6;
+  const efSaved = activeTx
+    .filter((t) => t.type === 'ahorro' && t.efund === true && t.cur === cur)
+    .reduce((s, t) => s + t.amt, 0);
 
   // Ahorro mes a mes: cuánto se cargó como tipo "ahorro" en cada uno de los
-  // últimos 6 meses (separado de Patrimonio, que es el saldo manual)
+  // últimos 6 meses (separado de Patrimonio, que es el saldo manual), separado por
+  // quién lo cargó (campo member, en espacios compartidos)
+  const memberColors = [P.gn, P.ac, P.am, P.pu];
+  const ahorroMembers = [];
+  const memberKey = (t) => t.member || 'Vos';
   const ahorroMeses = (() => {
     const base = month || td().slice(0, 7);
     const [y, m] = base.split('-').map(Number);
@@ -5860,10 +5865,17 @@ function GoalsTab({
         yy -= 1;
       }
       const key = `${yy}-${String(mm).padStart(2, '0')}`;
-      const total = activeTx
-        .filter((t) => t.type === 'ahorro' && t.cur === cur && mk(t.date) === key)
-        .reduce((s, t) => s + t.amt, 0);
-      arr.push({ key, label: MO[mm - 1], total });
+      const monthTx = activeTx.filter(
+        (t) => t.type === 'ahorro' && t.cur === cur && mk(t.date) === key
+      );
+      const byMember = {};
+      monthTx.forEach((t) => {
+        const who = memberKey(t);
+        byMember[who] = (byMember[who] || 0) + t.amt;
+        if (!ahorroMembers.includes(who)) ahorroMembers.push(who);
+      });
+      const total = monthTx.reduce((s, t) => s + t.amt, 0);
+      arr.push({ key, label: MO[mm - 1], total, byMember });
     }
     return arr;
   })();
@@ -5885,24 +5897,50 @@ function GoalsTab({
           <span style={{ fontSize: 12, fontWeight: 700, color: P.gn }}>{fmtS(ahorroTotal6m, cur)}</span>
         </div>
         <div style={{ fontSize: 11, color: P.sb, marginBottom: 12 }}>
-          Lo que cargaste como "ahorro" (inversiones, plazo fijo, etc.) cada mes. Distinto de tu Patrimonio de abajo.
+          Lo que cargaste como "ahorro" (inversiones, plazo fijo, etc.) cada mes. Distinto de tu Patrimonio de abajo. Tocá un mes para ver esos movimientos.
         </div>
+        {ahorroMembers.length > 1 && (
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 10 }}>
+            {ahorroMembers.map((who, i) => (
+              <div key={who} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: memberColors[i % memberColors.length] }} />
+                <span style={{ fontSize: 10, color: P.sb }}>{who}</span>
+              </div>
+            ))}
+          </div>
+        )}
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 90 }}>
           {ahorroMeses.map((m) => {
             const isCur = m.key === month;
-            const h = Math.max(4, (m.total / maxAhorroMes) * 100);
             return (
-              <div key={m.key} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                <div style={{ width: '100%', height: 70, display: 'flex', alignItems: 'flex-end' }}>
-                  <div
-                    title={fmtS(m.total, cur)}
-                    style={{
-                      width: '100%',
-                      height: `${h}%`,
-                      borderRadius: 5,
-                      background: isCur ? P.gn : m.total > 0 ? `${P.gn}55` : P.bd,
-                    }}
-                  />
+              <div
+                key={m.key}
+                onClick={() => onGoFilter && onGoFilter('ahorro', '', m.key)}
+                style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, cursor: onGoFilter ? 'pointer' : 'default' }}
+                title={fmtS(m.total, cur)}
+              >
+                <div style={{ width: '100%', height: 70, display: 'flex', flexDirection: 'column-reverse', alignItems: 'stretch' }}>
+                  {m.total > 0 ? (
+                    ahorroMembers.map((who, i) => {
+                      const amt = m.byMember[who] || 0;
+                      if (amt <= 0) return null;
+                      const h = Math.max(4, (amt / maxAhorroMes) * 100);
+                      return (
+                        <div
+                          key={who}
+                          style={{
+                            width: '100%',
+                            height: `${h}%`,
+                            borderRadius: 3,
+                            background: isCur ? memberColors[i % memberColors.length] : `${memberColors[i % memberColors.length]}66`,
+                            marginTop: 1,
+                          }}
+                        />
+                      );
+                    })
+                  ) : (
+                    <div style={{ width: '100%', height: '4%', borderRadius: 3, background: P.bd }} />
+                  )}
                 </div>
                 <span style={{ fontSize: 10, fontWeight: isCur ? 700 : 500, color: isCur ? P.gn : P.sb }}>{m.label}</span>
               </div>
@@ -6099,76 +6137,6 @@ function GoalsTab({
           inicial.
         </div>
       </Box>
-      <Box>
-        <Lbl>Ahorro automático</Lbl>
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 14,
-            marginTop: 6,
-          }}
-        >
-          <input
-            type="range"
-            min={5}
-            max={50}
-            step={5}
-            value={savPct}
-            onChange={(e) => setSavPct(Number(e.target.value))}
-            style={{ flex: 1, accentColor: P.ac }}
-          />
-          <span
-            style={{
-              fontSize: mob ? 22 : 28,
-              fontWeight: 700,
-              color: P.ac,
-              minWidth: 50,
-              textAlign: 'right',
-            }}
-          >
-            {savPct}%
-          </span>
-        </div>
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            marginTop: 12,
-          }}
-        >
-          <div>
-            <div style={{ fontSize: 9, color: P.sb }}>Meta</div>
-            <div
-              style={{ fontSize: mob ? 15 : 18, fontWeight: 700, color: P.am }}
-            >
-              {mob ? fmtS(sT, cur) : fmt(sT, cur)}
-            </div>
-          </div>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: 9, color: P.sb }}>Real</div>
-            <div
-              style={{
-                fontSize: mob ? 15 : 18,
-                fontWeight: 700,
-                color: ok ? P.gn : P.rd,
-              }}
-            >
-              {mob
-                ? fmtS(Math.max(0, actual), cur)
-                : fmt(Math.max(0, actual), cur)}
-            </div>
-          </div>
-        </div>
-        <div style={{ marginTop: 8 }}>
-          <Bar
-            pct={sT > 0 ? (Math.max(0, actual) / sT) * 100 : 0}
-            color={ok ? P.gn : P.am}
-            h={6}
-          />
-        </div>
-      </Box>
-
       <Box style={{ borderColor: `${P.rd}20` }}>
         <div
           style={{
@@ -6262,7 +6230,7 @@ function GoalsTab({
                   </span>
                 </div>
                 <Bar
-                  pct={efTarget > 0 ? ((efund.saved || 0) / efTarget) * 100 : 0}
+                  pct={efTarget > 0 ? (efSaved / efTarget) * 100 : 0}
                   color={P.rd}
                   h={6}
                 />
@@ -6275,45 +6243,30 @@ function GoalsTab({
                   }}
                 >
                   <span style={{ color: P.gn }}>
-                    Ahorrado: {fmt(efund.saved || 0, cur)}
+                    Ahorrado: {fmt(efSaved, cur)}
                   </span>
                   <span style={{ color: P.sb }}>
-                    {efMonthly > 0
-                      ? ((efund.saved || 0) / efMonthly).toFixed(1)
-                      : 0}{' '}
+                    {efMonthly > 0 ? (efSaved / efMonthly).toFixed(1) : 0}{' '}
                     meses
                   </span>
                 </div>
-                <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-                  <input
-                    type="number"
-                    placeholder="Sumar"
-                    id="ef-inp"
-                    style={{ ...iS, flex: 1, padding: '8px', fontSize: 12 }}
-                  />
-                  <button
-                    onClick={() => {
-                      const el = document.getElementById('ef-inp');
-                      const v = Number(el?.value);
-                      if (v > 0) {
-                        setEfund({ ...efund, saved: (efund.saved || 0) + v });
-                        el.value = '';
-                      }
-                    }}
-                    style={{
-                      background: P.rb,
-                      border: `1px solid ${P.rd}20`,
-                      color: P.rd,
-                      padding: '8px 12px',
-                      borderRadius: 8,
-                      cursor: 'pointer',
-                      fontSize: 11,
-                      fontWeight: 600,
-                    }}
-                  >
-                    +
-                  </button>
-                </div>
+                <button
+                  onClick={() => onAdd && onAdd('ahorro', { efund: true })}
+                  style={{
+                    width: '100%',
+                    marginTop: 8,
+                    background: P.rb,
+                    border: `1px solid ${P.rd}20`,
+                    color: P.rd,
+                    padding: '10px 12px',
+                    borderRadius: 10,
+                    cursor: 'pointer',
+                    fontSize: 12,
+                    fontWeight: 700,
+                  }}
+                >
+                  + Agregar ahorro al fondo
+                </button>
               </div>
             )}
           </div>
@@ -6328,13 +6281,13 @@ function GoalsTab({
               }}
             >
               <span style={{ fontSize: 13, fontWeight: 600 }}>
-                {fmt(efund.saved || 0, cur)}{' '}
+                {fmt(efSaved, cur)}{' '}
                 <span style={{ fontSize: 11, color: P.sb, fontWeight: 400 }}>
                   de {fmt(efTarget, cur)}
                 </span>
               </span>
             </div>
-            <Bar pct={((efund.saved || 0) / efTarget) * 100} color={P.rd} />
+            <Bar pct={(efSaved / efTarget) * 100} color={P.rd} />
           </div>
         )}
       </Box>
@@ -6593,7 +6546,9 @@ function TxModal({
   );
   const [susc, setSusc] = useState(initial?.susc || false);
   const [addingCard, setAddingCard] = useState(false);
+  const [efundFlag, setEfundFlag] = useState(initial?.efund || false);
   const isG = type === 'gasto';
+  const isSav = type === 'ahorro';
 
   // Scope: personal or a group.
   // Al EDITAR, respetar el scope real del movimiento (no los defaults).
@@ -6850,6 +6805,12 @@ function TxModal({
                 )}
               </div>
             )}
+            {isSav && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderTop: `1px solid ${P.bd}` }}>
+                <span style={{ fontSize: 14, fontWeight: 600, color: P.tx }}>🛡️ ¿Es para el fondo de emergencia?</span>
+                <Switch on={efundFlag} onClick={() => setEfundFlag(!efundFlag)} color={P.rd} />
+              </div>
+            )}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderTop: `1px solid ${P.bd}` }}>
               <span style={{ fontSize: 14, fontWeight: 600, color: P.tx }}>📅 Programado / pendiente</span>
               <Switch on={programado} onClick={() => setProgramado(!programado)} color={P.am} />
@@ -6994,6 +6955,7 @@ function TxModal({
                         ? Number(cardDue)
                         : undefined,
                     susc: isG && recurring && susc ? true : undefined,
+                    efund: isSav && efundFlag ? true : undefined,
                     scope: isGroupScope ? 'grupo' : 'personal',
                     groupId: isGroupScope ? scope : undefined,
                     member: isGroupScope ? member || userName : undefined,

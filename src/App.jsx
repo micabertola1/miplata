@@ -36,8 +36,6 @@ const CATS = {
         'Delivery',
         'Café',
         'Kiosco',
-        'Salida amigos',
-        'Salida pareja',
         'Otros',
       ],
     },
@@ -73,7 +71,7 @@ const CATS = {
     {
       n: 'Entretenimiento',
       i: '🎉',
-      s: ['Salidas', 'Streaming', 'Hobbies', 'Vacaciones', 'Otros'],
+      s: ['Salidas', 'Salida amigos', 'Salida pareja', 'Streaming', 'Hobbies', 'Vacaciones', 'Otros'],
     },
     {
       n: 'Compras',
@@ -1471,6 +1469,50 @@ function MainApp({ user, onLogout }) {
     }
   };
 
+  // ── Migración puntual: mover "Salida amigos"/"Salida pareja" de
+  // Alimentación a Entretenimiento en los gastos ya cargados ──
+  const migrateSalidasFn = async () => {
+    const subs = ['Salida amigos', 'Salida pareja'];
+    const personal = tx.filter((t) => t.cat === 'Alimentación' && subs.includes(t.sub));
+    const grupos = [];
+    Object.entries(groupTx).forEach(([gid, txs]) => {
+      (txs || []).forEach((t) => {
+        if (t.cat === 'Alimentación' && subs.includes(t.sub)) grupos.push({ ...t, groupId: gid });
+      });
+    });
+    const total = personal.length + grupos.length;
+    if (total === 0) {
+      notify('No encontramos gastos de "Salida amigos/pareja" en Alimentación para mover.', 'info');
+      return;
+    }
+    if (!window.confirm(`¿Mover ${total} gasto(s) de "Salida amigos/pareja" a la categoría Entretenimiento?`))
+      return;
+    try {
+      let batch = writeBatch(db);
+      let n = 0;
+      const bump = async () => {
+        n++;
+        if (n % 400 === 0) {
+          await batch.commit();
+          batch = writeBatch(db);
+        }
+      };
+      for (const t of personal) {
+        batch.update(doc(db, 'users', user.uid, 'transactions', t.id), { cat: 'Entretenimiento' });
+        await bump();
+      }
+      for (const t of grupos) {
+        batch.update(doc(db, 'groups', t.groupId, 'transactions', t.id), { cat: 'Entretenimiento' });
+        await bump();
+      }
+      if (n % 400 !== 0) await batch.commit();
+      notify(`Listo, movimos ${total} gasto(s) a Entretenimiento.`, 'success');
+    } catch (e) {
+      console.error('migrateSalidasFn error:', e);
+      notify('No pudimos mover los gastos. Probá de nuevo.', 'error');
+    }
+  };
+
   // ── Goals CRUD ──
   const addGoalFn = async (g) => {
     await addDoc(collection(db, 'users', user.uid, 'goals'), g);
@@ -2171,6 +2213,7 @@ function MainApp({ user, onLogout }) {
             }
             onOpenSpaces={() => setMenuOpen(true)}
             onOpenCats={() => setShowCats(true)}
+            onMigrateSalidas={migrateSalidasFn}
           />
         )}
         {tab === 'insights' && (
@@ -3524,7 +3567,7 @@ function TxListTab({ mob, cur, activeTx, onEdit, customCats, onAdd }) {
 }
 
 /* ── MES ── */
-function PerfilTab({ onExportAll, onExportMonth, onImport, cards, onSaveCards, theme, onToggleTheme, scopeLabel, onOpenSpaces, onOpenCats }) {
+function PerfilTab({ onExportAll, onExportMonth, onImport, cards, onSaveCards, theme, onToggleTheme, scopeLabel, onOpenSpaces, onOpenCats, onMigrateSalidas }) {
   const [showAddCard, setShowAddCard] = useState(false);
   const [newCard, setNewCard] = useState({ name: '', cierre: '', vencimiento: '' });
   const [editingId, setEditingId] = useState(null);
@@ -3575,6 +3618,14 @@ function PerfilTab({ onExportAll, onExportMonth, onImport, cards, onSaveCards, t
         </button>
         {row('🏷️', 'Categorías', onOpenCats)}
       </div>
+
+      {/* Migración puntual: mover Salida amigos/pareja a Entretenimiento */}
+      {onMigrateSalidas && (
+        <div style={sectionStyle}>
+          {sectionTitle('Mantenimiento')}
+          {row('🎉', 'Mover "Salidas" de Alimentación a Entretenimiento', onMigrateSalidas)}
+        </div>
+      )}
 
       {/* Apariencia */}
       <div style={sectionStyle}>

@@ -1513,6 +1513,49 @@ function MainApp({ user, onLogout }) {
     }
   };
 
+  // ── Migración puntual: pasar pay==='debito' (medio ya no existe) a
+  // 'transferencia' en los gastos ya cargados ──
+  const migrateDebitoFn = async () => {
+    const personal = tx.filter((t) => t.pay === 'debito');
+    const grupos = [];
+    Object.entries(groupTx).forEach(([gid, txs]) => {
+      (txs || []).forEach((t) => {
+        if (t.pay === 'debito') grupos.push({ ...t, groupId: gid });
+      });
+    });
+    const total = personal.length + grupos.length;
+    if (total === 0) {
+      notify('No encontramos gastos con medio de pago "Débito".', 'info');
+      return;
+    }
+    if (!window.confirm(`¿Pasar ${total} gasto(s) de "Débito" a "Transferencia"?`))
+      return;
+    try {
+      let batch = writeBatch(db);
+      let n = 0;
+      const bump = async () => {
+        n++;
+        if (n % 400 === 0) {
+          await batch.commit();
+          batch = writeBatch(db);
+        }
+      };
+      for (const t of personal) {
+        batch.update(doc(db, 'users', user.uid, 'transactions', t.id), { pay: 'transferencia' });
+        await bump();
+      }
+      for (const t of grupos) {
+        batch.update(doc(db, 'groups', t.groupId, 'transactions', t.id), { pay: 'transferencia' });
+        await bump();
+      }
+      if (n % 400 !== 0) await batch.commit();
+      notify(`Listo, pasamos ${total} gasto(s) a Transferencia.`, 'success');
+    } catch (e) {
+      console.error('migrateDebitoFn error:', e);
+      notify('No pudimos actualizar los gastos. Probá de nuevo.', 'error');
+    }
+  };
+
   // ── Goals CRUD ──
   const addGoalFn = async (g) => {
     await addDoc(collection(db, 'users', user.uid, 'goals'), g);
@@ -2214,6 +2257,7 @@ function MainApp({ user, onLogout }) {
             onOpenSpaces={() => setMenuOpen(true)}
             onOpenCats={() => setShowCats(true)}
             onMigrateSalidas={migrateSalidasFn}
+            onMigrateDebito={migrateDebitoFn}
           />
         )}
         {tab === 'insights' && (
@@ -3567,7 +3611,7 @@ function TxListTab({ mob, cur, activeTx, onEdit, customCats, onAdd }) {
 }
 
 /* ── MES ── */
-function PerfilTab({ onExportAll, onExportMonth, onImport, cards, onSaveCards, theme, onToggleTheme, scopeLabel, onOpenSpaces, onOpenCats, onMigrateSalidas }) {
+function PerfilTab({ onExportAll, onExportMonth, onImport, cards, onSaveCards, theme, onToggleTheme, scopeLabel, onOpenSpaces, onOpenCats, onMigrateSalidas, onMigrateDebito }) {
   const [showAddCard, setShowAddCard] = useState(false);
   const [newCard, setNewCard] = useState({ name: '', cierre: '', vencimiento: '' });
   const [editingId, setEditingId] = useState(null);
@@ -3619,11 +3663,12 @@ function PerfilTab({ onExportAll, onExportMonth, onImport, cards, onSaveCards, t
         {row('🏷️', 'Categorías', onOpenCats)}
       </div>
 
-      {/* Migración puntual: mover Salida amigos/pareja a Entretenimiento */}
-      {onMigrateSalidas && (
+      {/* Migraciones puntuales */}
+      {(onMigrateSalidas || onMigrateDebito) && (
         <div style={sectionStyle}>
           {sectionTitle('Mantenimiento')}
-          {row('🎉', 'Mover "Salidas" de Alimentación a Entretenimiento', onMigrateSalidas)}
+          {onMigrateSalidas && row('🎉', 'Mover "Salidas" de Alimentación a Entretenimiento', onMigrateSalidas)}
+          {onMigrateDebito && row('🏦', 'Pasar "Débito" a "Transferencia"', onMigrateDebito)}
         </div>
       )}
 

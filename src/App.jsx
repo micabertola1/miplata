@@ -4042,20 +4042,21 @@ function MesTab({
       if (!prev || String(t.date) > String(prev.date)) recSeries[t.serieId] = t;
     }
   });
-  const recList = Object.values(recSeries).sort((a, b) =>
-    (a.desc || a.cat) > (b.desc || b.cat) ? 1 : -1
-  );
-  const doneThisMonth = (serieId) =>
-    activeTx.some((t) => t.serieId === serieId && mk(t.date) === month && !t.pending);
-
-  const ingresos = activeTx.filter((t) => t.type === 'ingreso' && mk(t.date) === month);
-
-  // Suscripciones: gastos con categoría o subcategoría "suscripción/suscripciones" registrados este mes
+  // Suscripciones: recurrentes marcados como suscripción (toggle o categoría/
+  // subcategoría "suscripción"). Se separan de "Recurrentes" para no duplicar.
   const isSusc = (t) => {
     const s = (v) => (v || '').toLowerCase();
     return t.susc === true || s(t.cat).includes('suscripci') || s(t.sub).includes('suscripci');
   };
-  const suscripciones = activeTx.filter((t) => t.type === 'gasto' && mk(t.date) === month && t.cur === cur && isSusc(t));
+  const recListAll = Object.values(recSeries).sort((a, b) =>
+    (a.desc || a.cat) > (b.desc || b.cat) ? 1 : -1
+  );
+  const recList = recListAll.filter((t) => !isSusc(t));
+  const suscripciones = recListAll.filter((t) => isSusc(t));
+  const doneThisMonth = (serieId) =>
+    activeTx.some((t) => t.serieId === serieId && mk(t.date) === month && !t.pending);
+
+  const ingresos = activeTx.filter((t) => t.type === 'ingreso' && mk(t.date) === month);
 
   // Cuotas: gastos en cuotas (credito, cuotas > 1) distribuidos al mes actual
   const cuotasMes = chargesForMonth(
@@ -4066,7 +4067,7 @@ function MesTab({
 
   const totalIngresos = ingresos.reduce((s, t) => s + (t.cur === 'USD' ? t.amt * ((usdRates?.venta) || 1200) : t.amt), 0);
   const totalFijos = recList.reduce((s, t) => s + (t.cur === 'USD' ? t.amt * ((usdRates?.venta) || 1200) : t.amt), 0);
-  const totalSusc = suscripciones.reduce((s, t) => s + t.amt, 0);
+  const totalSusc = suscripciones.reduce((s, t) => s + (t.cur === 'USD' ? t.amt * ((usdRates?.venta) || 1200) : t.amt), 0);
   const totalCuotas = cuotasMes.reduce((s, t) => s + t.amt, 0);
 
   const todayD = Number(todayStr.slice(8, 10));
@@ -4198,21 +4199,49 @@ function MesTab({
                 <span style={{ fontSize: 16 }}>📲</span>
                 <span style={{ fontSize: 15, fontWeight: 700, color: P.tx }}>Suscripciones</span>
               </div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: P.rd, marginTop: 2 }}>{fmtS(totalSusc, cur)}</div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: P.rd, marginTop: 2 }}>{fmtS(totalSusc)}</div>
             </div>
           </div>
-          {suscripciones.map((t) => (
-            <div key={t.id} onClick={() => onEdit(t)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 0', borderTop: `1px solid ${P.bd}`, cursor: 'pointer' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-                <span style={{ fontSize: 18 }}>🔁</span>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: P.tx, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 170 }}>{t.desc || t.sub || t.cat}</div>
-                  <div style={{ fontSize: 11, color: P.sb }}>{t.cat}</div>
+          {suscripciones.map((t) => {
+            const done = doneThisMonth(t.serieId);
+            const due = t.dueDay || (t.date ? Number(String(t.date).slice(8, 10)) : null);
+            const dueInfo = (() => {
+              if (!due) return null;
+              const fecha = `${due}/${monthNum}`;
+              if (done) return { text: '✓ Pagado', color: P.gn, bg: P.gb };
+              const diff = due - todayD;
+              if (diff < 0) return { text: `⚠️ Venció ${fecha}`, color: P.rd, bg: P.rb };
+              if (diff === 0) return { text: '📅 Vence hoy', color: P.rd, bg: P.rb };
+              if (diff <= 3) return { text: `📅 Vence en ${diff}d · ${fecha}`, color: P.am, bg: P.am + '22' };
+              return { text: `📅 Vence ${fecha}`, color: P.sb, bg: P.c2 };
+            })();
+            return (
+              <div key={t.serieId} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderTop: `1px solid ${P.bd}`, opacity: t.paused ? 0.5 : 1 }}>
+                <button
+                  onClick={() => { if (t.paused) return; done ? onUnregister(t) : onRegister(t); }}
+                  title={done ? 'Tocá para destildar (quitar el pago de este mes)' : 'Marcar como pagado este mes'}
+                  style={{ width: 24, height: 24, borderRadius: '50%', flexShrink: 0, border: `2px solid ${done ? P.gn : P.bd}`, background: done ? P.gn : 'transparent', cursor: t.paused ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 13, fontWeight: 700 }}
+                >
+                  {done ? '✓' : ''}
+                </button>
+                <div onClick={() => onEdit(t)} style={{ flex: 1, minWidth: 0, cursor: 'pointer' }} title="Tocá para editar (monto, día, etc.)">
+                  <div style={{ fontSize: 13, fontWeight: 600, color: done ? P.sb : P.tx, textDecoration: done ? 'line-through' : 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 170 }}>
+                    {t.paused ? '⏸ ' : ''}{t.desc || t.sub || t.cat}
+                  </div>
+                  <div style={{ fontSize: 11, color: P.sb, marginTop: 2, display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <span style={{ fontWeight: 500, color: done ? P.sb : P.tx }}>{fmtS(t.amt, t.cur)}</span>
+                    {!t.paused && dueInfo && <span style={{ color: dueInfo.color, fontWeight: 600, fontSize: 10, background: dueInfo.bg, borderRadius: 6, padding: '2px 7px' }}>{dueInfo.text}</span>}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                  <button onClick={() => onPauseSerie(t.serieId, !t.paused)} style={{ background: 'transparent', color: P.sb, border: 'none', padding: '4px 6px', fontSize: 14, cursor: 'pointer' }}>
+                    {t.paused ? '▶' : '⏸'}
+                  </button>
+                  <button onClick={() => { if (window.confirm(`¿Sacar "${t.desc || t.sub || t.cat}" de las suscripciones?`)) onRemoveSerie(t.serieId); }} style={{ background: 'transparent', color: P.sb, border: 'none', padding: '4px 6px', fontSize: 16, cursor: 'pointer' }}>×</button>
                 </div>
               </div>
-              <span style={{ fontSize: 14, fontWeight: 700, color: P.rd, flexShrink: 0 }}>{fmtS(t.amt, t.cur)}</span>
-            </div>
-          ))}
+            );
+          })}
           <div style={{ fontSize: 10, color: P.sb, textAlign: 'center', padding: '8px 0 4px' }}>Tocá para editar</div>
         </div>
       )}

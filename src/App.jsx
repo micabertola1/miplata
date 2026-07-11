@@ -4555,7 +4555,7 @@ function HomeTab({
       { label: 'Cuotas', value: cuotaAmt, color: '#8B6CF6' },
       { label: 'Suscripciones', value: suscAmt, color: '#3A7BD5' },
       { label: 'Ahorro', value: savAmt, color: P.ac },
-      { label: 'Gastos', value: otherAmt, color: P.rd },
+      { label: 'Gastos diarios', value: otherAmt, color: P.rd },
     ].filter((s) => s.value > 0);
   })();
 

@@ -1020,7 +1020,7 @@ function MainApp({ user, onLogout }) {
   const [groupTx, setGroupTx] = useState({}); // {groupId: [tx]}
   const [dataLoaded, setDataLoaded] = useState(false);
 
-  const [tab, setTab] = useState('insights');
+  const [tab, setTab] = useState('dashboard');
   const [pendingFilter, setPendingFilter] = useState(null);
   const goToFilter = (type, q) => {
     setPendingFilter({ type: type || 'todos', q: q || '', seq: Date.now() });
@@ -2133,7 +2133,7 @@ function MainApp({ user, onLogout }) {
           padding: mob ? '12px 10px' : '20px 20px',
         }}
       >
-        {tab === 'home' && (
+        {tab === 'dashboard' && (
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: mob ? 14 : 18 }}>
             <div>
               <div style={{ fontSize: mob ? 20 : 23, fontWeight: 800, color: P.tx, letterSpacing: -0.3 }}>
@@ -2162,7 +2162,7 @@ function MainApp({ user, onLogout }) {
             </div>
           </div>
         )}
-        {(tab === 'home' || tab === 'insights' || tab === 'movs' || tab === 'diarios') && (
+        {(tab === 'dashboard' || tab === 'movs' || tab === 'diarios') && (
           <div
             style={{
               display: 'flex',
@@ -2214,38 +2214,58 @@ function MainApp({ user, onLogout }) {
             )}
           </div>
         )}
-        {tab === 'home' && (
-          <HomeTab
-            mob={mob}
-            cur={cur}
-            totIn={totIn}
-            totOut={totOut}
-            totSav={totSav}
-            bal={bal}
-            byCat={byCat}
-            mtx={mtx}
-            carry={carry}
-            budgets={settings.budgets || {}}
-            onEdit={openEdit}
-            customCats={settings.customCats}
-            isGroup={viewScope !== 'personal'}
-            activeTx={activeTx}
-            month={month}
-            onRegister={registerRecurring}
-            onUnregister={unregisterRecurring}
-            onRemoveSerie={removeRecurringSerie}
-            onPauseSerie={pauseRecurringSerie}
-            favorites={favorites}
-            onUseFav={openPrefill}
-            onRemoveFav={removeFavorite}
-            pendingTx={pendingTx}
-            onMarkPaid={markPaid}
-            onAdd={openAdd}
-            onSeeAll={() => setTab('movs')}
-            onSeeCats={() => setTab('insights')}
-            cards={settings.cards}
-            onGoFilter={goToFilter}
-          />
+        {tab === 'dashboard' && (
+          <>
+            <HomeTab
+              mob={mob}
+              cur={cur}
+              totIn={totIn}
+              totOut={totOut}
+              totSav={totSav}
+              bal={bal}
+              byCat={byCat}
+              mtx={mtx}
+              carry={carry}
+              budgets={settings.budgets || {}}
+              onEdit={openEdit}
+              customCats={settings.customCats}
+              isGroup={viewScope !== 'personal'}
+              activeTx={activeTx}
+              month={month}
+              onRegister={registerRecurring}
+              onUnregister={unregisterRecurring}
+              onRemoveSerie={removeRecurringSerie}
+              onPauseSerie={pauseRecurringSerie}
+              favorites={favorites}
+              onUseFav={openPrefill}
+              onRemoveFav={removeFavorite}
+              pendingTx={pendingTx}
+              onMarkPaid={markPaid}
+              onAdd={openAdd}
+              onSeeAll={() => setTab('movs')}
+              cards={settings.cards}
+              onGoFilter={goToFilter}
+            />
+            <InsightsTab
+              mob={mob}
+              cur={cur}
+              activeTx={activeTx}
+              month={month}
+              byCat={byCat}
+              totIn={totIn}
+              totOut={totOut}
+              totSav={totSav}
+              carry={carry}
+              isGroup={viewScope !== 'personal'}
+              mtx={mtx}
+              budgets={settings.budgets || {}}
+              saveBudgets={(b) => saveSettings({ budgets: b })}
+              onAdd={openAdd}
+              customCats={settings.customCats}
+              onGoFilter={goToFilter}
+              hideHero
+            />
+          </>
         )}
         {(tab === 'movs' || tab === 'diarios') && (
           <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
@@ -2316,26 +2336,6 @@ function MainApp({ user, onLogout }) {
             onMigrateDebito={migrateDebitoFn}
           />
         )}
-        {tab === 'insights' && (
-          <InsightsTab
-            mob={mob}
-            cur={cur}
-            activeTx={activeTx}
-            month={month}
-            byCat={byCat}
-            totIn={totIn}
-            totOut={totOut}
-            totSav={totSav}
-            carry={carry}
-            isGroup={viewScope !== 'personal'}
-            mtx={mtx}
-            budgets={settings.budgets || {}}
-            saveBudgets={(b) => saveSettings({ budgets: b })}
-            onAdd={openAdd}
-            customCats={settings.customCats}
-            onGoFilter={goToFilter}
-          />
-        )}
         {tab === 'goals' && (
           <GoalsTab
             mob={mob}
@@ -2380,10 +2380,9 @@ function MainApp({ user, onLogout }) {
         }}
       >
         {[
-          { id: 'home', l: 'Inicio', e: '🏠' },
+          { id: 'dashboard', l: 'Dashboard', e: '📊' },
           { id: 'movs', l: 'Mes', e: '📅' },
           { id: 'diarios', l: 'Diarios', e: '📝' },
-          { id: 'insights', l: 'Análisis', e: '📊' },
           { id: 'goals', l: 'Metas', e: '🎯' },
           { id: 'perfil', l: 'Config', e: '⚙️' },
         ].map((t) => (
@@ -5168,6 +5167,7 @@ function InsightsTab({
   onAdd,
   customCats,
   onGoFilter,
+  hideHero = false,
 }) {
   const total = byCat.reduce((s, [, a]) => s + a, 0);
   const [expandedCat, setExpandedCat] = useState(null);
@@ -5271,6 +5271,7 @@ function InsightsTab({
       style={{ display: 'flex', flexDirection: 'column', gap: mob ? 10 : 14 }}
     >
       {/* Hero compacto */}
+      {!hideHero && (
       <Box style={{ background: P.bal, padding: mob ? 20 : 22 }}>
         <div style={{ fontSize: 11, fontWeight: 500, color: 'rgba(255,255,255,.5)', textTransform: 'uppercase', letterSpacing: 0.7, marginBottom: 4 }}>
           Balance de {MOF[Number(month.slice(5, 7)) - 1]}
@@ -5319,6 +5320,7 @@ function InsightsTab({
           ))}
         </div>
       </Box>
+      )}
 
       {(() => {
         const displayBal = balMode === 'acum' ? cBal + carry : cBal;
@@ -5488,141 +5490,6 @@ function InsightsTab({
         </Box>
       )}
 
-      <Box>
-        <Lbl>Gastos por categoría</Lbl>
-        {byCat.length === 0 ? (
-          <Nil
-            icon="📊"
-            t="Todavía no hay datos para analizar"
-            sub="Cargá algunos gastos y acá vas a ver tus análisis."
-          />
-        ) : (
-          <>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 14,
-                marginBottom: 6,
-              }}
-            >
-              <div style={{ position: 'relative', flexShrink: 0 }}>
-                <Donut segments={catSegments} size={mob ? 110 : 130} />
-                <div
-                  style={{
-                    position: 'absolute',
-                    inset: 0,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <span style={{ fontSize: 9, color: P.sb }}>Total</span>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: P.rd }}>
-                    {fmtS(totCat, cur)}
-                  </span>
-                </div>
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                {catSegments.slice(0, 5).map((s) => (
-                  <div
-                    key={s.cat}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                      fontSize: 11,
-                      padding: '2px 0',
-                    }}
-                  >
-                    <span
-                      style={{
-                        width: 8,
-                        height: 8,
-                        borderRadius: 2,
-                        background: s.color,
-                        flexShrink: 0,
-                      }}
-                    />
-                    <span
-                      style={{
-                        flex: 1,
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      {s.cat}
-                    </span>
-                    <span style={{ color: P.sb }}>
-                      {Math.round((s.value / totCat) * 100)}%
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-            {catSegments.map((s) => {
-              const cd = getCats('gasto', customCats).find((c) => c.n === s.cat);
-              const open = expandedCat === s.cat;
-              return (
-                <div key={s.cat} style={{ borderTop: `1px solid ${P.bd}` }}>
-                  <div
-                    onClick={() => setExpandedCat(open ? null : s.cat)}
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      padding: '8px 0',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    <span style={{ fontSize: 12, fontWeight: 500 }}>
-                      <span style={{ color: s.color }}>●</span> {cd?.i} {s.cat}
-                    </span>
-                    <span style={{ fontSize: 12, fontWeight: 600, color: P.rd, display: 'flex', alignItems: 'center', gap: 6 }}>
-                      {fmtS(s.value, cur)}
-                      {onGoFilter && (
-                        <span
-                          onClick={(e) => { e.stopPropagation(); onGoFilter('gasto', s.cat); }}
-                          title="Ver movimientos de esta categoría"
-                          style={{ color: P.ac, cursor: 'pointer' }}
-                        >
-                          →
-                        </span>
-                      )}
-                      <span style={{ color: P.sb, fontSize: 10 }}>
-                        {open ? '▲' : '▼'}
-                      </span>
-                    </span>
-                  </div>
-                  {open && (
-                    <div style={{ paddingBottom: 8 }}>
-                      {subsOf(s.cat).map(([sub, amt]) => (
-                        <div
-                          key={sub}
-                          onClick={() => onGoFilter && onGoFilter('gasto', sub)}
-                          style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            fontSize: 11,
-                            color: P.sb,
-                            padding: '3px 0 3px 16px',
-                            cursor: onGoFilter ? 'pointer' : 'default',
-                          }}
-                        >
-                          <span>{sub}</span>
-                          <span>{fmtS(amt, cur)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </>
-        )}
-      </Box>
       {Object.keys(budgets).length > 0 && (
         <Box>
           <Lbl>🎯 Presupuesto vs gasto real</Lbl>

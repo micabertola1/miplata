@@ -1022,8 +1022,8 @@ function MainApp({ user, onLogout }) {
 
   const [tab, setTab] = useState('insights');
   const [pendingFilter, setPendingFilter] = useState(null);
-  const goToFilter = (type) => {
-    setPendingFilter({ type, seq: Date.now() });
+  const goToFilter = (type, q) => {
+    setPendingFilter({ type: type || 'todos', q: q || '', seq: Date.now() });
     setTab('diarios');
   };
   const [modal, setModal] = useState(null);
@@ -3929,7 +3929,10 @@ function DiariosTab({ mob, cur, activeTx, month, onAdd, onEdit, onExport, custom
       .catch(() => {});
   }, []);
   useEffect(() => {
-    if (pendingFilter?.type) setFilter(pendingFilter.type);
+    if (!pendingFilter?.seq) return;
+    if (pendingFilter.type) setFilter(pendingFilter.type);
+    setQ(pendingFilter.q || '');
+    setShowSearch(!!pendingFilter.q);
   }, [pendingFilter?.seq]);
 
   const pool = activeTx.filter(
@@ -4759,7 +4762,18 @@ function HomeTab({
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
                           <span style={{ fontSize: 13, fontWeight: 600, color: P.tx, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{catName} <span style={{ color: P.sb, fontSize: 10 }}>{open ? '▲' : '▼'}</span></span>
-                          <span style={{ fontSize: 13, fontWeight: 700, color: P.tx, flexShrink: 0, marginLeft: 8 }}>{fmtS(amt, cur)}</span>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, marginLeft: 8 }}>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: P.tx }}>{fmtS(amt, cur)}</span>
+                            {onGoFilter && (
+                              <span
+                                onClick={(e) => { e.stopPropagation(); onGoFilter('gasto', catName); }}
+                                title="Ver movimientos de esta categoría"
+                                style={{ fontSize: 12, color: P.ac, cursor: 'pointer' }}
+                              >
+                                →
+                              </span>
+                            )}
+                          </span>
                         </div>
                         <div style={{ height: 7, borderRadius: 4, background: isDark ? 'rgba(255,255,255,.08)' : '#EDE9E2', overflow: 'hidden' }}>
                           <div style={{ width: `${pct}%`, height: '100%', background: c, borderRadius: 4, transition: 'width .4s ease' }} />
@@ -4769,7 +4783,11 @@ function HomeTab({
                     {open && (
                       <div style={{ paddingLeft: 52, marginTop: 8, display: 'flex', flexDirection: 'column', gap: 5 }}>
                         {subs.map(([sub, sAmt]) => (
-                          <div key={sub} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: P.sb }}>
+                          <div
+                            key={sub}
+                            onClick={() => onGoFilter && onGoFilter('gasto', sub)}
+                            style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: P.sb, cursor: onGoFilter ? 'pointer' : 'default' }}
+                          >
                             <span>{sub}</span>
                             <span>{fmtS(sAmt, cur)}</span>
                           </div>
@@ -5528,8 +5546,17 @@ function InsightsTab({
                     <span style={{ fontSize: 12, fontWeight: 500 }}>
                       <span style={{ color: s.color }}>●</span> {cd?.i} {s.cat}
                     </span>
-                    <span style={{ fontSize: 12, fontWeight: 600, color: P.rd }}>
-                      {fmtS(s.value, cur)}{' '}
+                    <span style={{ fontSize: 12, fontWeight: 600, color: P.rd, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {fmtS(s.value, cur)}
+                      {onGoFilter && (
+                        <span
+                          onClick={(e) => { e.stopPropagation(); onGoFilter('gasto', s.cat); }}
+                          title="Ver movimientos de esta categoría"
+                          style={{ color: P.ac, cursor: 'pointer' }}
+                        >
+                          →
+                        </span>
+                      )}
                       <span style={{ color: P.sb, fontSize: 10 }}>
                         {open ? '▲' : '▼'}
                       </span>
@@ -5540,12 +5567,14 @@ function InsightsTab({
                       {subsOf(s.cat).map(([sub, amt]) => (
                         <div
                           key={sub}
+                          onClick={() => onGoFilter && onGoFilter('gasto', sub)}
                           style={{
                             display: 'flex',
                             justifyContent: 'space-between',
                             fontSize: 11,
                             color: P.sb,
                             padding: '3px 0 3px 16px',
+                            cursor: onGoFilter ? 'pointer' : 'default',
                           }}
                         >
                           <span>{sub}</span>

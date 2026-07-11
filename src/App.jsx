@@ -5574,6 +5574,7 @@ function InsightsTab({
               padding: '8px',
               borderRadius: 10,
               fontSize: 12,
+              colorScheme: P.bg === P_DARK.bg ? 'dark' : 'light',
             }}
           >
             <option value="">Categoría...</option>
@@ -6426,7 +6427,7 @@ function TxModal({
   const [dueDay, setDueDay] = useState(initial?.dueDay ? String(initial.dueDay) : '');
   const [programado, setProgramado] = useState(initial?.pending || false);
   const [showMore, setShowMore] = useState(initial?.type === 'gasto');
-  const [pay, setPay] = useState(initial?.pay || 'efectivo');
+  const [pay, setPay] = useState(initial?.pay || 'transferencia');
   const [cuotas, setCuotas] = useState(initial?.cuotas || 1);
   const [card, setCard] = useState(initial?.card || '');
   const [cardNet, setCardNet] = useState(initial?.cardNet || '');
@@ -6648,11 +6649,11 @@ function TxModal({
                 <select
                   value={pay}
                   onChange={(e) => { setPay(e.target.value); if (e.target.value !== 'credito') setCuotas(1); }}
-                  style={{ background: 'transparent', border: 'none', color: P.tx, fontSize: 13, fontWeight: 600, width: '100%', padding: 0, outline: 'none' }}
+                  style={{ background: 'transparent', border: 'none', color: P.tx, fontSize: 13, fontWeight: 600, width: '100%', padding: 0, outline: 'none', colorScheme: P.bg === P_DARK.bg ? 'dark' : 'light' }}
                 >
-                  <option value="efectivo">Efectivo</option>
-                  <option value="transferencia">Transferencia</option>
-                  <option value="credito">Crédito</option>
+                  <option value="efectivo" style={{ background: P.cd, color: P.tx }}>Efectivo</option>
+                  <option value="transferencia" style={{ background: P.cd, color: P.tx }}>Transferencia</option>
+                  <option value="credito" style={{ background: P.cd, color: P.tx }}>Crédito</option>
                 </select>
               </div>
             )}

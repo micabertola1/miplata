@@ -1567,10 +1567,29 @@ function MainApp({ user, onLogout }) {
   };
   const updateGoalFn = async (id, amt) => {
     const g = goals.find((x) => x.id === id);
-    if (g)
-      await updateDoc(doc(db, 'users', user.uid, 'goals', id), {
-        saved: Math.max(0, (g.saved || 0) + amt),
-      });
+    if (!g) return;
+    await updateDoc(doc(db, 'users', user.uid, 'goals', id), {
+      saved: Math.max(0, (g.saved || 0) + amt),
+    });
+    // Registra el aporte como movimiento de ahorro real, para que se
+    // descuente del balance del mes (si no, los cálculos no cierran).
+    if (amt > 0) {
+      try {
+        await addDoc(collection(db, 'users', user.uid, 'transactions'), {
+          type: 'ahorro',
+          cat: 'Reserva',
+          sub: 'Meta',
+          amt,
+          cur: g.currency || cur,
+          desc: `Meta: ${g.name}`,
+          date: td(),
+          scope: 'personal',
+          createdAt: new Date().toISOString(),
+        });
+      } catch (e) {
+        console.error('updateGoalFn (tx) error:', e);
+      }
+    }
   };
   const delGoalFn = async (id) => {
     await deleteDoc(doc(db, 'users', user.uid, 'goals', id));

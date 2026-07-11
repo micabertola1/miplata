@@ -4091,8 +4091,6 @@ function DiariosTab({ mob, cur, activeTx, month, onAdd, onEdit, onExport, custom
           >
             🔍
           </button>
-          <button onClick={onExport} style={{ width: 38, height: 38, borderRadius: 12, background: P.cd, border: `1px solid ${P.bd}`, color: P.tx, fontSize: 15, cursor: 'pointer' }}>📤</button>
-          <button onClick={() => onAdd('gasto')} style={{ background: P.ac, color: '#fff', border: 'none', borderRadius: 12, padding: '0 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>+ Agregar</button>
         </div>
       </div>
 
@@ -4322,12 +4320,6 @@ function MesTab({
           </div>
           <div style={{ fontSize: 16, fontWeight: 700, color, marginTop: 2 }}>{fmtS(total)}</div>
         </div>
-        <button
-          onClick={onAgregar}
-          style={{ background: P.ac, color: '#fff', border: 'none', borderRadius: 20, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
-        >
-          + Agregar
-        </button>
       </div>
       {children}
       <div style={{ fontSize: 10, color: P.sb, textAlign: 'center', padding: '8px 0 4px' }}>
@@ -4343,9 +4335,6 @@ function MesTab({
       <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
         <button onClick={onExchange} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, background: P.cd, border: `1px solid ${P.bd}`, borderRadius: 10, padding: '9px 0', fontSize: 12, fontWeight: 600, color: P.tx, cursor: 'pointer' }}>
           💱 Comprar dólares
-        </button>
-        <button onClick={onExport} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, background: P.cd, border: `1px solid ${P.bd}`, borderRadius: 10, padding: '9px 0', fontSize: 12, fontWeight: 600, color: P.tx, cursor: 'pointer' }}>
-          📤 Exportar mes
         </button>
       </div>
 
@@ -4380,11 +4369,6 @@ function MesTab({
                 </div>
                 <div style={{ fontSize: 16, fontWeight: 700, color: P.rd, marginTop: 2 }}>{fmtS(total)}</div>
               </div>
-              {key === 'rec' && (
-                <button onClick={() => onAdd('gasto')} style={{ background: P.ac, color: '#fff', border: 'none', borderRadius: 20, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
-                  + Agregar
-                </button>
-              )}
             </div>
             {items.map((t) => {
               const done = doneThisMonth(t.serieId);
@@ -4448,9 +4432,6 @@ function MesTab({
               </div>
               <div style={{ fontSize: 16, fontWeight: 700, color: P.rd, marginTop: 2 }}>{fmtS(totalCuotas, cur)}</div>
             </div>
-            <button onClick={() => onAdd('gasto')} style={{ background: P.ac, color: '#fff', border: 'none', borderRadius: 20, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
-              + Agregar
-            </button>
           </div>
           {cuotasMes.map((t) => (
             <div key={t.id} onClick={() => onEdit(t)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 0', borderTop: `1px solid ${P.bd}`, cursor: 'pointer' }}>

@@ -5862,6 +5862,15 @@ function GoalsTab({
   const ahorroTotal6m = ahorroMeses.reduce((s, m) => s + m.total, 0);
   const maxAhorroMes = Math.max(...ahorroMeses.map((m) => m.total), 1);
 
+  // Análisis del mes: ingreso vs. egreso ya pagado vs. recurrentes/fijos/
+  // suscripciones/cuotas de este mes que todavía están pendientes de pago
+  const pendientesMes = activeTx.filter(
+    (t) => t.type === 'gasto' && t.pending && t.cur === cur && mk(t.date) === month
+  );
+  const totalPendiente = pendientesMes.reduce((s, t) => s + t.amt, 0);
+  const disponibleProyectado = totIn - totOut - totalPendiente;
+  const recomendado = Math.max(0, disponibleProyectado);
+
   return (
     <div
       style={{
@@ -5871,6 +5880,59 @@ function GoalsTab({
         paddingTop: 8,
       }}
     >
+      <Box style={{ background: `linear-gradient(135deg,${P.gn}12,${P.ac}0A)` }}>
+        <Lbl>📊 Análisis del mes</Lbl>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 8, marginBottom: 10 }}>
+          <div style={{ flex: 1, minWidth: 90 }}>
+            <div style={{ fontSize: 10, color: P.sb }}>INGRESOS</div>
+            <div style={{ fontSize: mob ? 14 : 16, fontWeight: 700, color: P.gn }}>{fmtS(totIn, cur)}</div>
+          </div>
+          <div style={{ flex: 1, minWidth: 90 }}>
+            <div style={{ fontSize: 10, color: P.sb }}>GASTADO</div>
+            <div style={{ fontSize: mob ? 14 : 16, fontWeight: 700, color: P.rd }}>{fmtS(totOut, cur)}</div>
+          </div>
+          <div style={{ flex: 1, minWidth: 90 }}>
+            <div style={{ fontSize: 10, color: P.sb }}>PENDIENTE DE PAGAR</div>
+            <div style={{ fontSize: mob ? 14 : 16, fontWeight: 700, color: P.am }}>{fmtS(totalPendiente, cur)}</div>
+          </div>
+        </div>
+        <div
+          style={{
+            background: P.cd,
+            border: `1px solid ${P.bd}`,
+            borderRadius: 12,
+            padding: 12,
+          }}
+        >
+          {disponibleProyectado > 0 ? (
+            <>
+              <div style={{ fontSize: 13, color: P.tx }}>
+                Con lo que ya ingresó, gastaste y lo que todavía te falta pagar de recurrentes/fijos/suscripciones/cuotas, te queda:
+              </div>
+              <div style={{ fontSize: mob ? 20 : 24, fontWeight: 800, color: P.gn, marginTop: 4 }}>
+                {fmt(recomendado, cur)}
+              </div>
+              <div style={{ fontSize: 11, color: P.sb, marginTop: 2 }}>
+                Podrías ahorrar este monto este mes.
+              </div>
+              {onAdd && (
+                <button
+                  onClick={() => onAdd('ahorro')}
+                  style={{ marginTop: 10, width: '100%', background: P.gb, border: `1px solid ${P.gn}25`, color: P.gn, padding: '10px 12px', borderRadius: 10, cursor: 'pointer', fontSize: 12, fontWeight: 700 }}
+                >
+                  + Ahorrar {fmt(recomendado, cur)}
+                </button>
+              )}
+            </>
+          ) : (
+            <div style={{ fontSize: 13, color: P.rd }}>
+              Entre lo que ya gastaste y lo que te falta pagar de recurrentes/fijos/suscripciones/cuotas, te faltarían{' '}
+              <b>{fmt(Math.abs(disponibleProyectado), cur)}</b>. No parece un buen mes para ahorrar más.
+            </div>
+          )}
+        </div>
+      </Box>
+
       <Box>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
           <Lbl>🏦 Ahorro mes a mes</Lbl>

@@ -2344,6 +2344,7 @@ function MainApp({ user, onLogout }) {
             onGoFilter={goToFilter}
             onAdd={openAdd}
             userName={user.displayName || user.email}
+            cards={settings.cards || []}
           />
         )}
       </main>
@@ -5761,6 +5762,7 @@ function GoalsTab({
   onGoFilter,
   onAdd,
   userName,
+  cards = [],
 }) {
   const [showUsd, setShowUsd] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
@@ -5862,13 +5864,51 @@ function GoalsTab({
   const ahorroTotal6m = ahorroMeses.reduce((s, m) => s + m.total, 0);
   const maxAhorroMes = Math.max(...ahorroMeses.map((m) => m.total), 1);
 
-  // Análisis del mes: ingreso vs. egreso ya pagado vs. recurrentes/fijos/
-  // suscripciones/cuotas de este mes que todavía están pendientes de pago
-  const pendientesMes = activeTx.filter(
-    (t) => t.type === 'gasto' && t.pending && t.cur === cur && mk(t.date) === month
+  // Análisis del mes: ingreso vs. egreso ya pagado vs. TODOS los recurrentes/
+  // fijos/suscripciones/cuotas del mes, estén tildados (ya pagados) o no
+  // (todavía no se registró el pago). Se toma el monto de la última
+  // instancia conocida de cada serie como lo que corresponde este mes.
+  const whoOf = (t) => t.member || 'Vos';
+  const mtxAll = chargesForMonth(activeTx, month, cards).filter((t) => t.cur === cur);
+
+  const doneThisMonthSerie = (serieId) =>
+    activeTx.some((t) => t.serieId === serieId && mk(t.date) === month && !t.pending);
+  const recTemplates = {};
+  activeTx.forEach((t) => {
+    if (t.type === 'gasto' && t.recurring && t.serieId && !t.paused) {
+      if (!recTemplates[t.serieId] || t.date > recTemplates[t.serieId].date) {
+        recTemplates[t.serieId] = t;
+      }
+    }
+  });
+
+  const ingresosPorMiembro = {};
+  const gastosPorMiembro = {};
+  const recurrentesPorMiembro = {};
+  mtxAll.forEach((t) => {
+    if (t.pending) return;
+    const who = whoOf(t);
+    if (t.type === 'ingreso') ingresosPorMiembro[who] = (ingresosPorMiembro[who] || 0) + t.amt;
+    else if (t.type === 'gasto') gastosPorMiembro[who] = (gastosPorMiembro[who] || 0) + t.amt;
+  });
+  Object.values(recTemplates).forEach((t) => {
+    if (t.cur !== cur || doneThisMonthSerie(t.serieId)) return;
+    const who = whoOf(t);
+    recurrentesPorMiembro[who] = (recurrentesPorMiembro[who] || 0) + t.amt;
+  });
+
+  const allMembers = Array.from(
+    new Set([...Object.keys(ingresosPorMiembro), ...Object.keys(gastosPorMiembro), ...Object.keys(recurrentesPorMiembro)])
   );
-  const totalPendiente = pendientesMes.reduce((s, t) => s + t.amt, 0);
-  const disponibleProyectado = totIn - totOut - totalPendiente;
+  const totIn2 = Object.values(ingresosPorMiembro).reduce((s, v) => s + v, 0);
+  const totOut2 = Object.values(gastosPorMiembro).reduce((s, v) => s + v, 0);
+  const totalComprometido = Object.values(recurrentesPorMiembro).reduce((s, v) => s + v, 0);
+  const disponiblePorMiembro = allMembers.map((who) => ({
+    who,
+    disponible:
+      (ingresosPorMiembro[who] || 0) - (gastosPorMiembro[who] || 0) - (recurrentesPorMiembro[who] || 0),
+  }));
+  const disponibleProyectado = totIn2 - totOut2 - totalComprometido;
   const recomendado = Math.max(0, disponibleProyectado);
 
   return (
@@ -5885,16 +5925,19 @@ function GoalsTab({
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 8, marginBottom: 10 }}>
           <div style={{ flex: 1, minWidth: 90 }}>
             <div style={{ fontSize: 10, color: P.sb }}>INGRESOS</div>
-            <div style={{ fontSize: mob ? 14 : 16, fontWeight: 700, color: P.gn }}>{fmtS(totIn, cur)}</div>
+            <div style={{ fontSize: mob ? 14 : 16, fontWeight: 700, color: P.gn }}>{fmtS(totIn2, cur)}</div>
           </div>
           <div style={{ flex: 1, minWidth: 90 }}>
             <div style={{ fontSize: 10, color: P.sb }}>GASTADO</div>
-            <div style={{ fontSize: mob ? 14 : 16, fontWeight: 700, color: P.rd }}>{fmtS(totOut, cur)}</div>
+            <div style={{ fontSize: mob ? 14 : 16, fontWeight: 700, color: P.rd }}>{fmtS(totOut2, cur)}</div>
           </div>
           <div style={{ flex: 1, minWidth: 90 }}>
-            <div style={{ fontSize: 10, color: P.sb }}>PENDIENTE DE PAGAR</div>
-            <div style={{ fontSize: mob ? 14 : 16, fontWeight: 700, color: P.am }}>{fmtS(totalPendiente, cur)}</div>
+            <div style={{ fontSize: 10, color: P.sb }}>RECURRENTES DEL MES</div>
+            <div style={{ fontSize: mob ? 14 : 16, fontWeight: 700, color: P.am }}>{fmtS(totalComprometido, cur)}</div>
           </div>
+        </div>
+        <div style={{ fontSize: 10, color: P.sb, marginBottom: 10 }}>
+          "Recurrentes del mes" incluye todos los recurrentes, fijos, suscripciones y cuotas de este mes, estén tildados o no.
         </div>
         <div
           style={{
@@ -5931,6 +5974,34 @@ function GoalsTab({
             </div>
           )}
         </div>
+
+        {allMembers.length > 1 && (
+          <div style={{ marginTop: 10 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: P.sb, marginBottom: 6 }}>Por persona</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {disponiblePorMiembro.map(({ who, disponible }) => (
+                <div
+                  key={who}
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    background: P.cd,
+                    border: `1px solid ${P.bd}`,
+                    borderRadius: 10,
+                    padding: '8px 12px',
+                  }}
+                >
+                  <span style={{ fontSize: 12, fontWeight: 600, color: P.tx }}>{who.split(' ')[0]}</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: disponible >= 0 ? P.gn : P.rd }}>
+                    {disponible >= 0 ? 'Puede ahorrar ' : 'Le faltarían '}
+                    {fmt(Math.abs(disponible), cur)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </Box>
 
       <Box>

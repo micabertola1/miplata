@@ -222,18 +222,9 @@ function td() {
     day: '2-digit',
   }).format(new Date());
 }
-// Extrae el día de cierre sin importar el formato en que haya quedado
-// guardado: "15" (día simple, formato actual) o "15/03" (día/mes, un
-// formato viejo que usó la app antes) — en ambos casos toma el día.
-function parseCierreDay(raw) {
-  if (raw == null || raw === '') return null;
-  const first = String(raw).split('/')[0];
-  const n = Number(first);
-  return n >= 1 && n <= 31 ? n : null;
-}
-// Cargos de un mes: las compras en cuotas se reparten (una cuota por mes),
-// respetando el cierre real de la tarjeta: si la compra fue después del
-// día de cierre, cae en el resumen (y la cuota 1) del mes siguiente.
+// Cargos de un mes: toda compra con tarjeta de crédito (pago único o en
+// cuotas) recién se factura en el resumen del mes SIGUIENTE al de la
+// compra, nunca en el mismo mes en que se cargó.
 function chargesForMonth(txs, monthKey, cards = []) {
   const [my, mm] = monthKey.split('-').map(Number);
   const out = [];
@@ -241,14 +232,10 @@ function chargesForMonth(txs, monthKey, cards = []) {
     if (t.pay === 'credito') {
       const n = t.cuotas > 1 ? t.cuotas : 1;
       let [sy, sm, sd] = String(t.date).slice(0, 10).split('-').map(Number);
-      const card = cards.find((c) => c.name === t.card);
-      const cierre = card && parseCierreDay(card.cierre);
-      if (cierre && sd > cierre) {
-        sm += 1;
-        if (sm > 12) {
-          sm = 1;
-          sy += 1;
-        }
+      sm += 1;
+      if (sm > 12) {
+        sm = 1;
+        sy += 1;
       }
       const idx = (my - sy) * 12 + (mm - sm);
       if (idx >= 0 && idx < n) {
@@ -4309,6 +4296,18 @@ function MesTab({
   const totalSusc = suscripciones.reduce((s, t) => s + (t.cur === 'USD' ? t.amt * ((usdRates?.venta) || 1200) : t.amt), 0);
   const totalCuotas = cuotasMes.reduce((s, t) => s + t.amt, 0);
 
+  // Todos los gastos del mes (diarios, recurrentes, cuotas) agrupados por
+  // medio de pago, para ver cuánto se movió por tarjeta vs. transferencia
+  const gastoMesTodo = chargesForMonth(
+    activeTx.filter((t) => t.type === 'gasto' && t.cur === cur),
+    month,
+    cards
+  ).sort((a, b) => String(b.date).localeCompare(String(a.date)));
+  const gastoTarjeta = gastoMesTodo.filter((t) => t.pay === 'credito');
+  const gastoTransferencia = gastoMesTodo.filter((t) => t.pay === 'transferencia');
+  const totalGastoTarjeta = gastoTarjeta.reduce((s, t) => s + t.amt, 0);
+  const totalGastoTransferencia = gastoTransferencia.reduce((s, t) => s + t.amt, 0);
+
   const todayD = Number(todayStr.slice(8, 10));
   const monthNum = Number(todayStr.slice(5, 7));
 
@@ -4451,6 +4450,34 @@ function MesTab({
         </div>
       )}
 
+      {/* Tarjeta / Transferencia: todos los gastos del mes agrupados por medio de pago */}
+      {[
+        { key: 'tarjeta', icon: '💳', label: 'Tarjeta', items: gastoTarjeta, total: totalGastoTarjeta },
+        { key: 'transferencia', icon: '🏦', label: 'Transferencia', items: gastoTransferencia, total: totalGastoTransferencia },
+      ].map(({ key, icon, label, items, total }) => (
+        items.length > 0 && (
+          <div key={key} style={{ background: P.cd, border: `1px solid ${P.bd}`, borderRadius: 16, padding: '14px 14px 6px', marginBottom: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+              <span style={{ fontSize: 16 }}>{icon}</span>
+              <span style={{ fontSize: 15, fontWeight: 700, color: P.tx }}>{label}</span>
+              <span style={{ fontSize: 15, fontWeight: 700, color: P.rd, marginLeft: 'auto' }}>{fmtS(total, cur)}</span>
+            </div>
+            {items.map((t, i) => (
+              <div key={t.id + '_' + i} onClick={() => onEdit(t)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 0', borderTop: `1px solid ${P.bd}`, cursor: 'pointer' }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: P.tx, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 190 }}>
+                    {t.desc || t.sub || t.cat}
+                  </div>
+                  <div style={{ fontSize: 11, color: P.sb }}>
+                    {t.cuotaInfo ? `Cuota ${t.cuotaInfo} · ` : ''}{t.card ? t.card + ' · ' : ''}{(t.date || '').slice(8, 10)}/{(t.date || '').slice(5, 7)}
+                  </div>
+                </div>
+                <span style={{ fontSize: 14, fontWeight: 700, color: P.rd, flexShrink: 0 }}>{fmtS(t.amt, cur)}</span>
+              </div>
+            ))}
+          </div>
+        )
+      ))}
     </div>
   );
 }

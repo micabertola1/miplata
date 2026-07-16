@@ -2272,7 +2272,6 @@ function MainApp({ user, onLogout }) {
               onRemoveSerie: removeRecurringSerie,
               onPauseSerie: pauseRecurringSerie,
               onExport: () => exportCSV(true),
-              onExchange: () => setShowExchange(true),
               cards: settings.cards,
             }}
             diariosProps={{
@@ -4236,9 +4235,10 @@ function MovimientosTab({ mob, mesProps, diariosProps }) {
 }
 
 function MesTab({
-  mob, cur, activeTx, totIn, month, onAdd, onEdit, onRegister, onUnregister, onRemoveSerie, onPauseSerie, onExport, onExchange, cards = [],
+  mob, cur, activeTx, totIn, month, onAdd, onEdit, onRegister, onUnregister, onRemoveSerie, onPauseSerie, onExport, cards = [],
 }) {
   const [usdRates, setUsdRates] = useState(null);
+  const [pagoView, setPagoView] = useState(null);
   useEffect(() => {
     fetch('https://api.bluelytics.com.ar/v2/latest')
       .then((r) => r.json())
@@ -4296,17 +4296,17 @@ function MesTab({
   const totalSusc = suscripciones.reduce((s, t) => s + (t.cur === 'USD' ? t.amt * ((usdRates?.venta) || 1200) : t.amt), 0);
   const totalCuotas = cuotasMes.reduce((s, t) => s + t.amt, 0);
 
-  // Todos los gastos del mes (diarios, recurrentes, cuotas) agrupados por
-  // medio de pago, para ver cuánto se movió por tarjeta vs. transferencia
-  const gastoMesTodo = chargesForMonth(
-    activeTx.filter((t) => t.type === 'gasto' && t.cur === cur),
-    month,
-    cards
-  ).sort((a, b) => String(b.date).localeCompare(String(a.date)));
-  const gastoTarjeta = gastoMesTodo.filter((t) => t.pay === 'credito');
-  const gastoTransferencia = gastoMesTodo.filter((t) => t.pay === 'transferencia');
-  const totalGastoTarjeta = gastoTarjeta.reduce((s, t) => s + t.amt, 0);
+  // Transferencias del mes (fecha del movimiento = este mes)
+  const gastoTransferencia = activeTx
+    .filter((t) => t.type === 'gasto' && t.pay === 'transferencia' && t.cur === cur && mk(t.date) === month)
+    .sort((a, b) => String(b.date).localeCompare(String(a.date)));
+  // Compras con tarjeta HECHAS este mes (fecha de la compra, no de la
+  // factura: el gasto en sí se contabiliza recién el mes que viene)
+  const gastoTarjeta = activeTx
+    .filter((t) => t.type === 'gasto' && t.pay === 'credito' && t.cur === cur && mk(t.date) === month)
+    .sort((a, b) => String(b.date).localeCompare(String(a.date)));
   const totalGastoTransferencia = gastoTransferencia.reduce((s, t) => s + t.amt, 0);
+  const totalGastoTarjeta = gastoTarjeta.reduce((s, t) => s + t.amt, 0);
 
   const todayD = Number(todayStr.slice(8, 10));
   const monthNum = Number(todayStr.slice(5, 7));
@@ -4332,12 +4332,67 @@ function MesTab({
   return (
     <div style={{ paddingBottom: 80 }}>
 
-      {/* Utilidades del mes */}
+      {/* Tarjeta / Transferencia */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-        <button onClick={onExchange} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, background: P.cd, border: `1px solid ${P.bd}`, borderRadius: 10, padding: '9px 0', fontSize: 12, fontWeight: 600, color: P.tx, cursor: 'pointer' }}>
-          💱 Comprar dólares
-        </button>
+        {[
+          { key: 'tarjeta', icon: '💳', label: 'Tarjeta', total: totalGastoTarjeta },
+          { key: 'transferencia', icon: '🏦', label: 'Transferencia', total: totalGastoTransferencia },
+        ].map((p) => (
+          <button
+            key={p.key}
+            onClick={() => setPagoView((v) => (v === p.key ? null : p.key))}
+            style={{
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 2,
+              background: pagoView === p.key ? P.ac : P.cd,
+              border: pagoView === p.key ? 'none' : `1px solid ${P.bd}`,
+              borderRadius: 10,
+              padding: '9px 4px',
+              cursor: 'pointer',
+            }}
+          >
+            <span style={{ fontSize: 12, fontWeight: 600, color: pagoView === p.key ? '#fff' : P.tx }}>{p.icon} {p.label}</span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: pagoView === p.key ? 'rgba(255,255,255,.9)' : P.sb }}>{fmtS(p.total, cur)}</span>
+          </button>
+        ))}
       </div>
+
+      {pagoView && (() => {
+        const items = pagoView === 'tarjeta' ? gastoTarjeta : gastoTransferencia;
+        return (
+          <div style={{ background: P.cd, border: `1px solid ${P.bd}`, borderRadius: 16, padding: '14px 14px 6px', marginBottom: 12 }}>
+            {items.length === 0 ? (
+              <div style={{ fontSize: 12, color: P.sb, textAlign: 'center', padding: '8px 0' }}>
+                Sin movimientos por {pagoView} este mes
+              </div>
+            ) : (
+              <>
+                {pagoView === 'tarjeta' && (
+                  <div style={{ fontSize: 10, color: P.sb, marginBottom: 4 }}>
+                    Compras hechas este mes. El gasto en sí se contabiliza recién en el resumen del mes que viene.
+                  </div>
+                )}
+                {items.map((t, i) => (
+                  <div key={t.id + '_' + i} onClick={() => onEdit(t)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 0', borderTop: `1px solid ${P.bd}`, cursor: 'pointer' }}>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: P.tx, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 190 }}>
+                        {t.desc || t.sub || t.cat}
+                      </div>
+                      <div style={{ fontSize: 11, color: P.sb }}>
+                        {t.cuotas > 1 ? `${t.cuotas} cuotas · ` : ''}{t.card ? t.card + ' · ' : ''}{(t.date || '').slice(8, 10)}/{(t.date || '').slice(5, 7)}
+                      </div>
+                    </div>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: P.rd, flexShrink: 0 }}>{fmtS(t.amt, cur)}</span>
+                  </div>
+                ))}
+              </>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Ingresos */}
       <SectionCard icon="💰" label="Ingresos" total={totalIngresos} color={P.gn} onAgregar={() => onAdd('ingreso')}>
@@ -4450,34 +4505,6 @@ function MesTab({
         </div>
       )}
 
-      {/* Tarjeta / Transferencia: todos los gastos del mes agrupados por medio de pago */}
-      {[
-        { key: 'tarjeta', icon: '💳', label: 'Tarjeta', items: gastoTarjeta, total: totalGastoTarjeta },
-        { key: 'transferencia', icon: '🏦', label: 'Transferencia', items: gastoTransferencia, total: totalGastoTransferencia },
-      ].map(({ key, icon, label, items, total }) => (
-        items.length > 0 && (
-          <div key={key} style={{ background: P.cd, border: `1px solid ${P.bd}`, borderRadius: 16, padding: '14px 14px 6px', marginBottom: 12 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
-              <span style={{ fontSize: 16 }}>{icon}</span>
-              <span style={{ fontSize: 15, fontWeight: 700, color: P.tx }}>{label}</span>
-              <span style={{ fontSize: 15, fontWeight: 700, color: P.rd, marginLeft: 'auto' }}>{fmtS(total, cur)}</span>
-            </div>
-            {items.map((t, i) => (
-              <div key={t.id + '_' + i} onClick={() => onEdit(t)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 0', borderTop: `1px solid ${P.bd}`, cursor: 'pointer' }}>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: P.tx, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 190 }}>
-                    {t.desc || t.sub || t.cat}
-                  </div>
-                  <div style={{ fontSize: 11, color: P.sb }}>
-                    {t.cuotaInfo ? `Cuota ${t.cuotaInfo} · ` : ''}{t.card ? t.card + ' · ' : ''}{(t.date || '').slice(8, 10)}/{(t.date || '').slice(5, 7)}
-                  </div>
-                </div>
-                <span style={{ fontSize: 14, fontWeight: 700, color: P.rd, flexShrink: 0 }}>{fmtS(t.amt, cur)}</span>
-              </div>
-            ))}
-          </div>
-        )
-      ))}
     </div>
   );
 }

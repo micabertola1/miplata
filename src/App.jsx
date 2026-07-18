@@ -5884,7 +5884,7 @@ function GoalsTab({
   // quién lo cargó (campo member, en espacios compartidos)
   const memberColors = [P.gn, P.ac, P.am, P.pu];
   const ahorroMembers = [];
-  const memberKey = (t) => t.member || 'Vos';
+  const memberKey = (t) => t.member || userName || 'Vos';
   const ahorroMeses = (() => {
     const base = month || td().slice(0, 7);
     const [y, m] = base.split('-').map(Number);
@@ -5922,7 +5922,7 @@ function GoalsTab({
   // fijos/suscripciones/cuotas del mes, estén tildados (ya pagados) o no
   // (todavía no se registró el pago). Se toma el monto de la última
   // instancia conocida de cada serie como lo que corresponde este mes.
-  const whoOf = (t) => t.member || 'Vos';
+  const whoOf = (t) => t.member || userName || 'Vos';
   const mtxAll = chargesForMonth(activeTx, month, cards).filter((t) => t.cur === cur);
 
   const doneThisMonthSerie = (serieId) =>
@@ -5939,11 +5939,13 @@ function GoalsTab({
   const ingresosPorMiembro = {};
   const gastosPorMiembro = {};
   const recurrentesPorMiembro = {};
+  const ahorradoPorMiembro = {};
   mtxAll.forEach((t) => {
     if (t.pending) return;
     const who = whoOf(t);
     if (t.type === 'ingreso') ingresosPorMiembro[who] = (ingresosPorMiembro[who] || 0) + t.amt;
     else if (t.type === 'gasto') gastosPorMiembro[who] = (gastosPorMiembro[who] || 0) + t.amt;
+    else if (t.type === 'ahorro') ahorradoPorMiembro[who] = (ahorradoPorMiembro[who] || 0) + t.amt;
   });
   Object.values(recTemplates).forEach((t) => {
     if (t.cur !== cur || doneThisMonthSerie(t.serieId)) return;
@@ -5952,17 +5954,21 @@ function GoalsTab({
   });
 
   const allMembers = Array.from(
-    new Set([...Object.keys(ingresosPorMiembro), ...Object.keys(gastosPorMiembro), ...Object.keys(recurrentesPorMiembro)])
+    new Set([...Object.keys(ingresosPorMiembro), ...Object.keys(gastosPorMiembro), ...Object.keys(recurrentesPorMiembro), ...Object.keys(ahorradoPorMiembro)])
   );
   const totIn2 = Object.values(ingresosPorMiembro).reduce((s, v) => s + v, 0);
   const totOut2 = Object.values(gastosPorMiembro).reduce((s, v) => s + v, 0);
   const totalComprometido = Object.values(recurrentesPorMiembro).reduce((s, v) => s + v, 0);
+  const totalYaAhorrado = Object.values(ahorradoPorMiembro).reduce((s, v) => s + v, 0);
   const disponiblePorMiembro = allMembers.map((who) => ({
     who,
     disponible:
-      (ingresosPorMiembro[who] || 0) - (gastosPorMiembro[who] || 0) - (recurrentesPorMiembro[who] || 0),
+      (ingresosPorMiembro[who] || 0) -
+      (gastosPorMiembro[who] || 0) -
+      (recurrentesPorMiembro[who] || 0) -
+      (ahorradoPorMiembro[who] || 0),
   }));
-  const disponibleProyectado = totIn2 - totOut2 - totalComprometido;
+  const disponibleProyectado = totIn2 - totOut2 - totalComprometido - totalYaAhorrado;
   const recomendado = Math.max(0, disponibleProyectado);
 
   return (
@@ -5989,9 +5995,13 @@ function GoalsTab({
             <div style={{ fontSize: 10, color: P.sb }}>RECURRENTES DEL MES</div>
             <div style={{ fontSize: mob ? 14 : 16, fontWeight: 700, color: P.am }}>{fmtS(totalComprometido, cur)}</div>
           </div>
+          <div style={{ flex: 1, minWidth: 90 }}>
+            <div style={{ fontSize: 10, color: P.sb }}>YA AHORRADO</div>
+            <div style={{ fontSize: mob ? 14 : 16, fontWeight: 700, color: P.ac }}>{fmtS(totalYaAhorrado, cur)}</div>
+          </div>
         </div>
         <div style={{ fontSize: 10, color: P.sb, marginBottom: 10 }}>
-          "Recurrentes del mes" incluye todos los recurrentes, fijos, suscripciones y cuotas de este mes, estén tildados o no.
+          "Recurrentes del mes" incluye todos los recurrentes, fijos, suscripciones y cuotas de este mes, estén tildados o no. "Ya ahorrado" es lo que ya cargaste como ahorro este mes.
         </div>
         <div
           style={{
@@ -6004,13 +6014,13 @@ function GoalsTab({
           {disponibleProyectado > 0 ? (
             <>
               <div style={{ fontSize: 13, color: P.tx }}>
-                Con lo que ya ingresó, gastaste y lo que todavía te falta pagar de recurrentes/fijos/suscripciones/cuotas, te queda:
+                Con lo que ya ingresó, gastaste, lo que todavía te falta pagar de recurrentes/fijos/suscripciones/cuotas y lo que ya ahorraste este mes, te queda{totalYaAhorrado > 0 ? ' además' : ''}:
               </div>
               <div style={{ fontSize: mob ? 20 : 24, fontWeight: 800, color: P.gn, marginTop: 4 }}>
                 {fmt(recomendado, cur)}
               </div>
               <div style={{ fontSize: 11, color: P.sb, marginTop: 2 }}>
-                Podrías ahorrar este monto este mes.
+                Podrías ahorrar este monto extra este mes.
               </div>
               {onAdd && (
                 <button
@@ -6023,7 +6033,7 @@ function GoalsTab({
             </>
           ) : (
             <div style={{ fontSize: 13, color: P.rd }}>
-              Entre lo que ya gastaste y lo que te falta pagar de recurrentes/fijos/suscripciones/cuotas, te faltarían{' '}
+              Entre lo que ya gastaste, lo que te falta pagar de recurrentes/fijos/suscripciones/cuotas y lo que ya ahorraste este mes, te faltarían{' '}
               <b>{fmt(Math.abs(disponibleProyectado), cur)}</b>. No parece un buen mes para ahorrar más.
             </div>
           )}

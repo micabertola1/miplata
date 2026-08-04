@@ -179,6 +179,20 @@ function mk(d) {
   const x = new Date(d);
   return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}`;
 }
+// Convierte lo tipeado en el campo de monto a número: acepta tanto un
+// número simple como una cuenta sin resolver (ej: "1500+300*2") si el
+// usuario no tocó "=" en la calculadora del monto.
+function evalAmount(raw) {
+  const s = String(raw).replace(/,/g, '.').trim();
+  if (!s) return NaN;
+  if (!/^[0-9+\-*/.() ]+$/.test(s)) return NaN;
+  try {
+    const result = Function('"use strict";return (' + s + ')')();
+    return Number.isFinite(result) ? result : NaN;
+  } catch {
+    return NaN;
+  }
+}
 function fmt(a, c) {
   const s = Math.abs(a).toLocaleString('es-AR', {
     minimumFractionDigits: 0,
@@ -6719,6 +6733,7 @@ function TxModal({
   const [cat, setCat] = useState(initial?.cat || cats[0].n);
   const [sub, setSub] = useState(initial?.sub || '');
   const [amt, setAmt] = useState(initial?.amt?.toString() || '');
+  const [showCalc, setShowCalc] = useState(false);
   const [curSel, setCurSel] = useState(initial?.cur || cur);
   const [desc, setDesc] = useState(initial?.desc || '');
   const [date, setDate] = useState(initial?.date?.slice(0, 10) || td());
@@ -6862,10 +6877,12 @@ function TxModal({
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
               <span style={{ fontSize: 40, fontWeight: 800, color: P.tx }}>{curSel === 'USD' ? 'US$' : '$'}</span>
               <input
-                type="number"
+                type="text"
+                inputMode="decimal"
                 placeholder="0"
                 value={amt}
-                onChange={(e) => setAmt(e.target.value)}
+                onChange={(e) => setAmt(e.target.value.replace(/[^0-9+\-*/.,() ]/g, ''))}
+                onFocus={() => setShowCalc(false)}
                 autoFocus
                 style={{
                   background: 'transparent',
@@ -6882,8 +6899,76 @@ function TxModal({
                   caretColor: P.bg === P_DARK.bg ? P.gn : P.ac,
                 }}
               />
+              <button
+                type="button"
+                onClick={() => setShowCalc((v) => !v)}
+                title="Calculadora"
+                style={{
+                  background: showCalc ? P.ac : P.c2,
+                  color: showCalc ? '#fff' : P.tx,
+                  border: `1px solid ${showCalc ? P.ac : P.bd}`,
+                  borderRadius: 10,
+                  width: 34,
+                  height: 34,
+                  fontSize: 16,
+                  cursor: 'pointer',
+                  flexShrink: 0,
+                }}
+              >
+                🧮
+              </button>
             </div>
-            <div style={{ fontSize: 12, fontWeight: 500, color: P.sb, marginTop: 8 }}>Tocá para escribir el monto</div>
+            <div style={{ fontSize: 12, fontWeight: 500, color: P.sb, marginTop: 8 }}>
+              {showCalc ? 'Podés escribir una cuenta, ej: 1500+300*2' : 'Tocá para escribir el monto'}
+            </div>
+
+            {showCalc && (
+              <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
+                {['7', '8', '9', '÷', '4', '5', '6', '×', '1', '2', '3', '−', 'C', '0', '.', '+'].map((k) => (
+                  <button
+                    key={k}
+                    type="button"
+                    onClick={() => {
+                      if (k === 'C') { setAmt(''); return; }
+                      const op = k === '×' ? '*' : k === '÷' ? '/' : k === '−' ? '-' : k;
+                      setAmt((prev) => prev + op);
+                    }}
+                    style={{
+                      background: P.c2,
+                      border: `1px solid ${P.bd}`,
+                      color: '+−×÷'.includes(k) ? P.ac : P.tx,
+                      borderRadius: 10,
+                      padding: '12px 0',
+                      fontSize: 16,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {k}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setAmt((prev) => prev.slice(0, -1))}
+                  style={{ background: P.c2, border: `1px solid ${P.bd}`, color: P.tx, borderRadius: 10, padding: '12px 0', fontSize: 16, fontWeight: 700, cursor: 'pointer' }}
+                >
+                  ⌫
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!/^[0-9+\-*/.,() ]+$/.test(amt)) return;
+                    try {
+                      const result = Function('"use strict";return (' + amt.replace(/,/g, '.') + ')')();
+                      if (Number.isFinite(result)) setAmt(String(Math.round(result * 100) / 100));
+                    } catch {}
+                  }}
+                  style={{ background: P.ac, border: 'none', color: '#fff', borderRadius: 10, padding: '12px 0', fontSize: 16, fontWeight: 700, cursor: 'pointer', gridColumn: 'span 3' }}
+                >
+                  = Calcular
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Categoría */}
@@ -7130,7 +7215,7 @@ function TxModal({
             {!confirmDel && (
               <button
                 onClick={() => {
-                  const amtNum = Number(String(amt).replace(',', '.'));
+                  const amtNum = evalAmount(amt);
                   if (!amtNum || amtNum <= 0) {
                     notify('Ingresá un monto mayor a 0.', 'error');
                     return;
@@ -7201,7 +7286,7 @@ function TxModal({
           {mode !== 'edit' && onSaveFav && (
             <button
               onClick={() => {
-                const amtNum = Number(String(amt).replace(',', '.'));
+                const amtNum = evalAmount(amt);
                 onSaveFav({
                   type,
                   cat,

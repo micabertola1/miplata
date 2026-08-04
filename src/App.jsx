@@ -4276,10 +4276,9 @@ function MesTab({
   };
   const recNoSusc = recListAll.filter((t) => !isSusc(t));
   const recList = recNoSusc.filter((t) => !isFijo(t.serieId));
-  // Fijos y Suscripciones que se pagan con tarjeta se muestran desplegados
-  // dentro del pill "Tarjeta" en vez de acá, para no duplicar
-  const fijosList = recNoSusc.filter((t) => isFijo(t.serieId) && t.pay !== 'credito');
-  const fijosTarjeta = recNoSusc.filter((t) => isFijo(t.serieId) && t.pay === 'credito');
+  const fijosList = recNoSusc.filter((t) => isFijo(t.serieId));
+  // Las suscripciones pagadas con tarjeta se muestran desplegadas dentro del
+  // pill "Tarjeta" en vez de acá, para no duplicar
   const suscripciones = recListAll.filter((t) => isSusc(t) && t.pay !== 'credito');
   const suscTarjeta = recListAll.filter((t) => isSusc(t) && t.pay === 'credito');
   const doneThisMonth = (serieId) =>
@@ -4321,12 +4320,12 @@ function MesTab({
     gastoTarjetaPorTarjeta[card].total += t.amt;
     gastoTarjetaPorTarjeta[card].items.push({ ...t, kind: t.cuotaInfo ? `Cuota ${t.cuotaInfo}` : 'Pago único' });
   });
-  [...fijosTarjeta, ...suscTarjeta].forEach((t) => {
+  suscTarjeta.forEach((t) => {
     if (t.cur !== cur) return;
     const card = t.card || 'Sin tarjeta';
     if (!gastoTarjetaPorTarjeta[card]) gastoTarjetaPorTarjeta[card] = { total: 0, items: [] };
     gastoTarjetaPorTarjeta[card].total += t.amt;
-    gastoTarjetaPorTarjeta[card].items.push({ ...t, kind: isSusc(t) ? 'Suscripción' : 'Fijo' });
+    gastoTarjetaPorTarjeta[card].items.push({ ...t, kind: 'Suscripción' });
   });
   const totalGastoTransferencia = gastoTransferencia.reduce((s, t) => s + t.amt, 0);
   const totalGastoTarjeta = Object.values(gastoTarjetaPorTarjeta).reduce((s, g) => s + g.total, 0);

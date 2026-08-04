@@ -4303,10 +4303,10 @@ function MesTab({
   const gastoTransferencia = activeTx
     .filter((t) => t.type === 'gasto' && t.pay === 'transferencia' && t.cur === cur && mk(t.date) === month)
     .sort((a, b) => String(b.date).localeCompare(String(a.date)));
-  // Gasto de tarjeta FACTURADO este mes: cuotas + pagos únicos no recurrentes,
-  // por tarjeta (los fijos/suscripciones con tarjeta se agregan aparte)
+  // Gasto de tarjeta FACTURADO este mes: cuotas + pagos únicos sueltos, por
+  // tarjeta (los recurrentes/fijos/suscripciones tienen su propia sección)
   const gastoTarjeta = chargesForMonth(
-    activeTx.filter((t) => t.type === 'gasto' && t.pay === 'credito' && t.cur === cur && !t.recurring),
+    activeTx.filter((t) => t.type === 'gasto' && t.pay === 'credito' && t.cur === cur && !t.recurring && !isSusc(t)),
     month,
     cards
   ).sort((a, b) => String(b.date).localeCompare(String(a.date)));

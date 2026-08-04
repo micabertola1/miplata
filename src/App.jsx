@@ -4276,29 +4276,24 @@ function MesTab({
   };
   const recNoSusc = recListAll.filter((t) => !isSusc(t));
   const recList = recNoSusc.filter((t) => !isFijo(t.serieId));
-  const fijosList = recNoSusc.filter((t) => isFijo(t.serieId));
-  const suscripciones = recListAll.filter((t) => isSusc(t));
+  // Fijos y Suscripciones que se pagan con tarjeta se muestran desplegados
+  // dentro del pill "Tarjeta" en vez de acá, para no duplicar
+  const fijosList = recNoSusc.filter((t) => isFijo(t.serieId) && t.pay !== 'credito');
+  const fijosTarjeta = recNoSusc.filter((t) => isFijo(t.serieId) && t.pay === 'credito');
+  const suscripciones = recListAll.filter((t) => isSusc(t) && t.pay !== 'credito');
+  const suscTarjeta = recListAll.filter((t) => isSusc(t) && t.pay === 'credito');
   const doneThisMonth = (serieId) =>
     activeTx.some((t) => t.serieId === serieId && mk(t.date) === month && !t.pending);
 
   const ingresos = activeTx.filter((t) => t.type === 'ingreso' && mk(t.date) === month);
 
-  // Cuotas: gastos en cuotas (credito, cuotas > 1) distribuidos al mes actual
-  const cuotasBase = activeTx.filter((t) => t.type === 'gasto' && t.pay === 'credito' && t.cuotas > 1 && t.cur === cur);
-  const cuotasMes = chargesForMonth(cuotasBase, month, cards);
-
   const totalIngresos = ingresos.reduce((s, t) => s + (t.cur === 'USD' ? t.amt * ((usdRates?.venta) || 1200) : t.amt), 0);
   const totalRecurrentes = recList.reduce((s, t) => s + (t.cur === 'USD' ? t.amt * ((usdRates?.venta) || 1200) : t.amt), 0);
   const totalFijos = fijosList.reduce((s, t) => s + (t.cur === 'USD' ? t.amt * ((usdRates?.venta) || 1200) : t.amt), 0);
   const totalSusc = suscripciones.reduce((s, t) => s + (t.cur === 'USD' ? t.amt * ((usdRates?.venta) || 1200) : t.amt), 0);
-  const totalCuotas = cuotasMes.reduce((s, t) => s + t.amt, 0);
-  const cuotasPorTarjeta = {};
-  cuotasMes.forEach((t) => {
-    const card = t.card || 'Sin tarjeta';
-    cuotasPorTarjeta[card] = (cuotasPorTarjeta[card] || 0) + t.amt;
-  });
 
   // Cuotas del mes que viene
+  const cuotasBase = activeTx.filter((t) => t.type === 'gasto' && t.pay === 'credito' && t.cuotas > 1 && t.cur === cur);
   const nextMonthKey = (() => {
     const [y, m] = month.split('-').map(Number);
     let ny = y, nm = m + 1;
@@ -4312,21 +4307,29 @@ function MesTab({
   const gastoTransferencia = activeTx
     .filter((t) => t.type === 'gasto' && t.pay === 'transferencia' && t.cur === cur && mk(t.date) === month)
     .sort((a, b) => String(b.date).localeCompare(String(a.date)));
-  // Gasto de tarjeta FACTURADO este mes: cuotas + pagos únicos, por tarjeta
+  // Gasto de tarjeta FACTURADO este mes: cuotas + pagos únicos no recurrentes,
+  // por tarjeta (los fijos/suscripciones con tarjeta se agregan aparte)
   const gastoTarjeta = chargesForMonth(
-    activeTx.filter((t) => t.type === 'gasto' && t.pay === 'credito' && t.cur === cur),
+    activeTx.filter((t) => t.type === 'gasto' && t.pay === 'credito' && t.cur === cur && !t.recurring),
     month,
     cards
   ).sort((a, b) => String(b.date).localeCompare(String(a.date)));
-  const totalGastoTransferencia = gastoTransferencia.reduce((s, t) => s + t.amt, 0);
-  const totalGastoTarjeta = gastoTarjeta.reduce((s, t) => s + t.amt, 0);
   const gastoTarjetaPorTarjeta = {};
   gastoTarjeta.forEach((t) => {
     const card = t.card || 'Sin tarjeta';
     if (!gastoTarjetaPorTarjeta[card]) gastoTarjetaPorTarjeta[card] = { total: 0, items: [] };
     gastoTarjetaPorTarjeta[card].total += t.amt;
-    gastoTarjetaPorTarjeta[card].items.push(t);
+    gastoTarjetaPorTarjeta[card].items.push({ ...t, kind: t.cuotaInfo ? `Cuota ${t.cuotaInfo}` : 'Pago único' });
   });
+  [...fijosTarjeta, ...suscTarjeta].forEach((t) => {
+    if (t.cur !== cur) return;
+    const card = t.card || 'Sin tarjeta';
+    if (!gastoTarjetaPorTarjeta[card]) gastoTarjetaPorTarjeta[card] = { total: 0, items: [] };
+    gastoTarjetaPorTarjeta[card].total += t.amt;
+    gastoTarjetaPorTarjeta[card].items.push({ ...t, kind: isSusc(t) ? 'Suscripción' : 'Fijo' });
+  });
+  const totalGastoTransferencia = gastoTransferencia.reduce((s, t) => s + t.amt, 0);
+  const totalGastoTarjeta = Object.values(gastoTarjetaPorTarjeta).reduce((s, g) => s + g.total, 0);
 
   const todayD = Number(todayStr.slice(8, 10));
   const monthNum = Number(todayStr.slice(5, 7));
@@ -4404,7 +4407,7 @@ function MesTab({
 
       {pagoView === 'tarjeta' && (
         <div style={{ marginBottom: 12 }}>
-          {gastoTarjeta.length === 0 ? (
+          {Object.keys(gastoTarjetaPorTarjeta).length === 0 ? (
             <div style={{ background: P.cd, border: `1px solid ${P.bd}`, borderRadius: 16, padding: '14px', fontSize: 12, color: P.sb, textAlign: 'center' }}>
               Sin gasto de tarjeta facturado este mes
             </div>
@@ -4423,7 +4426,7 @@ function MesTab({
                         {t.desc || t.sub || t.cat}
                       </div>
                       <div style={{ fontSize: 11, color: P.sb }}>
-                        {t.cuotaInfo ? `Cuota ${t.cuotaInfo}` : 'Pago único'} · {(t.date || '').slice(8, 10)}/{(t.date || '').slice(5, 7)}
+                        {t.kind} · {(t.date || '').slice(8, 10)}/{(t.date || '').slice(5, 7)}
                       </div>
                     </div>
                     <span style={{ fontSize: 14, fontWeight: 700, color: P.rd, flexShrink: 0 }}>{fmtS(t.amt, cur)}</span>
@@ -4517,43 +4520,6 @@ function MesTab({
           </div>
         )
       ))}
-
-      {/* Cuotas */}
-      {cuotasMes.length > 0 && (
-        <div style={{ background: P.cd, border: `1px solid ${P.bd}`, borderRadius: 16, padding: '14px 14px 6px', marginBottom: 12 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ fontSize: 16 }}>💳</span>
-                <span style={{ fontSize: 15, fontWeight: 700, color: P.tx }}>Cuotas</span>
-              </div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: P.rd, marginTop: 2 }}>{fmtS(totalCuotas, cur)}</div>
-            </div>
-          </div>
-          {Object.keys(cuotasPorTarjeta).length > 1 && (
-            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 8 }}>
-              {Object.entries(cuotasPorTarjeta).map(([card, total]) => (
-                <span key={card} style={{ fontSize: 11, color: P.sb, background: P.bg, borderRadius: 8, padding: '4px 9px' }}>
-                  {card}: <b style={{ color: P.rd }}>{fmtS(total, cur)}</b>
-                </span>
-              ))}
-            </div>
-          )}
-          {cuotasMes.map((t) => (
-            <div key={t.id} onClick={() => onEdit(t)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 0', borderTop: `1px solid ${P.bd}`, cursor: 'pointer' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-                <span style={{ fontSize: 18 }}>💳</span>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: P.tx, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 170 }}>{t.desc || t.sub || t.cat}</div>
-                  <div style={{ fontSize: 11, color: P.sb }}>Cuota {t.cuotaInfo} · {t.card || 'Tarjeta'}</div>
-                </div>
-              </div>
-              <span style={{ fontSize: 14, fontWeight: 700, color: P.rd, flexShrink: 0 }}>{fmtS(t.amt, cur)}</span>
-            </div>
-          ))}
-          <div style={{ fontSize: 10, color: P.sb, textAlign: 'center', padding: '8px 0 4px' }}>Tocá para editar</div>
-        </div>
-      )}
 
       {/* Cuotas del mes que viene */}
       {cuotasProximoMes.length > 0 && (

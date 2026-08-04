@@ -4276,7 +4276,7 @@ function MesTab({
   };
   const recNoSusc = recListAll.filter((t) => !isSusc(t));
   const recList = recNoSusc.filter((t) => !isFijo(t.serieId));
-  const fijosList = recNoSusc.filter((t) => isFijo(t.serieId));
+  const fijosList = recNoSusc.filter((t) => isFijo(t.serieId) && t.pay === 'transferencia');
   const suscripciones = recListAll.filter((t) => isSusc(t));
   const doneThisMonth = (serieId) =>
     activeTx.some((t) => t.serieId === serieId && mk(t.date) === month && !t.pending);

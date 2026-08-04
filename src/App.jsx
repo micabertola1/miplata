@@ -4265,6 +4265,7 @@ function MesTab({
   const recListAll = Object.values(recSeries).sort((a, b) =>
     (a.desc || a.cat) > (b.desc || b.cat) ? 1 : -1
   );
+  const recSerieIds = new Set(Object.keys(recSeries));
   // Fijos = el monto no varió entre las instancias ya registradas de la
   // serie (ej: alquiler, suscripción). Recurrentes = el monto varía entre
   // meses (ej: mantenimiento, luz). Con una sola instancia se asume Fijo.
@@ -4304,9 +4305,20 @@ function MesTab({
     .filter((t) => t.type === 'gasto' && t.pay === 'transferencia' && t.cur === cur && mk(t.date) === month)
     .sort((a, b) => String(b.date).localeCompare(String(a.date)));
   // Gasto de tarjeta FACTURADO este mes: cuotas + pagos únicos sueltos, por
-  // tarjeta (los recurrentes/fijos/suscripciones tienen su propia sección)
+  // tarjeta. Se excluye cualquier movimiento que pertenezca a una serie
+  // recurrente (recurrentes, fijos o suscripciones), tenga o no seteados
+  // los flags recurring/susc en esta instancia puntual — tienen su propia
+  // sección aparte y no deben duplicarse acá.
   const gastoTarjeta = chargesForMonth(
-    activeTx.filter((t) => t.type === 'gasto' && t.pay === 'credito' && t.cur === cur && !t.recurring && !isSusc(t)),
+    activeTx.filter(
+      (t) =>
+        t.type === 'gasto' &&
+        t.pay === 'credito' &&
+        t.cur === cur &&
+        !t.recurring &&
+        !isSusc(t) &&
+        !(t.serieId && recSerieIds.has(t.serieId))
+    ),
     month,
     cards
   ).sort((a, b) => String(b.date).localeCompare(String(a.date)));
@@ -4427,6 +4439,8 @@ function MesTab({
         </div>
       )}
 
+      {!pagoView && (
+      <>
       {/* Ingresos */}
       <SectionCard icon="💰" label="Ingresos" total={totalIngresos} color={P.gn} onAgregar={() => onAdd('ingreso')}>
         {ingresos.length === 0 ? (
@@ -4522,7 +4536,8 @@ function MesTab({
           <span style={{ fontSize: 15, fontWeight: 800, color: P.am }}>{fmtS(totalCuotasProximoMes, cur)}</span>
         </div>
       )}
-
+      </>
+      )}
     </div>
   );
 }

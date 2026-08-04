@@ -4841,6 +4841,19 @@ function HomeTab({
             : 'Ahorraste más de lo que te sobraba este mes'}
         </div>
 
+        {carry !== 0 && (
+          <div style={{ display: 'flex', gap: 20, marginTop: 10, paddingTop: 10, borderTop: '1px solid rgba(255,255,255,.12)' }}>
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 500, color: 'rgba(255,255,255,.45)', textTransform: 'uppercase', letterSpacing: 0.4 }}>Saldo mes anterior</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: carry >= 0 ? P.gn : P.rd }}>{fmtS(carry, cur)}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 500, color: 'rgba(255,255,255,.45)', textTransform: 'uppercase', letterSpacing: 0.4 }}>Total acumulado</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: bal + carry >= 0 ? P.gn : P.rd }}>{fmtS(bal + carry, cur)}</div>
+            </div>
+          </div>
+        )}
+
         {isGroup && memberRows.length > 0 && (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 6 }}>
             {memberRows.map(([who, m]) => {

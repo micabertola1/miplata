@@ -239,8 +239,12 @@ function td() {
 // Cargos de un mes: toda compra con tarjeta de crédito (pago único o en
 // cuotas) recién se factura en el resumen del mes SIGUIENTE al de la
 // compra, nunca en el mismo mes en que se cargó.
-function chargesForMonth(txs, monthKey, cards = []) {
+// afterVencimiento=true además excluye los cargos de tarjeta cuyo día
+// aproximado de vencimiento todavía no llegó (para que el balance/gastado
+// real recién los descuente cuando efectivamente tocaría pagarlos).
+function chargesForMonth(txs, monthKey, cards = [], afterVencimiento = false) {
   const [my, mm] = monthKey.split('-').map(Number);
+  const today = new Date();
   const out = [];
   for (const t of txs) {
     if (t.pay === 'credito') {
@@ -253,6 +257,11 @@ function chargesForMonth(txs, monthKey, cards = []) {
       }
       const idx = (my - sy) * 12 + (mm - sm);
       if (idx >= 0 && idx < n) {
+        if (afterVencimiento) {
+          const card = cards.find((c) => c.name === t.card);
+          const vencDay = card && Number(card.vencimiento) > 0 ? Number(card.vencimiento) : null;
+          if (vencDay && today < new Date(my, mm - 1, vencDay)) continue;
+        }
         out.push({
           ...t,
           amt: n > 1 ? Math.round((t.amt / n) * 100) / 100 : t.amt,
@@ -1683,7 +1692,7 @@ function MainApp({ user, onLogout }) {
     } catch {}
   }, [settings.theme]);
 
-  const mtx = chargesForMonth(activeTx, month, settings.cards).filter((t) => t.cur === cur);
+  const mtx = chargesForMonth(activeTx, month, settings.cards, true).filter((t) => t.cur === cur);
   // Los gastos PROGRAMADOS (pendientes de pago) no cuentan hasta marcarse pagados
   const paid = (t) => !t.pending;
   const totIn = mtx
@@ -1713,7 +1722,7 @@ function MainApp({ user, onLogout }) {
     );
     let s = 0;
     keys.forEach((k) => {
-      chargesForMonth(activeTx, k, settings.cards)
+      chargesForMonth(activeTx, k, settings.cards, true)
         .filter((t) => t.cur === cur && !t.pending)
         .forEach((t) => {
           if (t.type === 'ingreso') s += t.amt;
@@ -4650,7 +4659,7 @@ function HomeTab({
     return arr;
   })();
   const monthly = months6.map((mkey) => {
-    const items = chargesForMonth(activeTx, mkey, cards).filter(
+    const items = chargesForMonth(activeTx, mkey, cards, true).filter(
       (t) => t.cur === cur && !t.pending
     );
     return {
@@ -5970,7 +5979,7 @@ function GoalsTab({
   // (todavía no se registró el pago). Se toma el monto de la última
   // instancia conocida de cada serie como lo que corresponde este mes.
   const whoOf = (t) => t.member || userName || 'Vos';
-  const mtxAll = chargesForMonth(activeTx, month, cards).filter((t) => t.cur === cur);
+  const mtxAll = chargesForMonth(activeTx, month, cards, true).filter((t) => t.cur === cur);
 
   const doneThisMonthSerie = (serieId) =>
     activeTx.some((t) => t.serieId === serieId && mk(t.date) === month && !t.pending);

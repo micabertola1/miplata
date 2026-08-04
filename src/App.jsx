@@ -4277,10 +4277,7 @@ function MesTab({
   const recNoSusc = recListAll.filter((t) => !isSusc(t));
   const recList = recNoSusc.filter((t) => !isFijo(t.serieId));
   const fijosList = recNoSusc.filter((t) => isFijo(t.serieId));
-  // Las suscripciones pagadas con tarjeta se muestran desplegadas dentro del
-  // pill "Tarjeta" en vez de acá, para no duplicar
-  const suscripciones = recListAll.filter((t) => isSusc(t) && t.pay !== 'credito');
-  const suscTarjeta = recListAll.filter((t) => isSusc(t) && t.pay === 'credito');
+  const suscripciones = recListAll.filter((t) => isSusc(t));
   const doneThisMonth = (serieId) =>
     activeTx.some((t) => t.serieId === serieId && mk(t.date) === month && !t.pending);
 
@@ -4319,13 +4316,6 @@ function MesTab({
     if (!gastoTarjetaPorTarjeta[card]) gastoTarjetaPorTarjeta[card] = { total: 0, items: [] };
     gastoTarjetaPorTarjeta[card].total += t.amt;
     gastoTarjetaPorTarjeta[card].items.push({ ...t, kind: t.cuotaInfo ? `Cuota ${t.cuotaInfo}` : 'Pago único' });
-  });
-  suscTarjeta.forEach((t) => {
-    if (t.cur !== cur) return;
-    const card = t.card || 'Sin tarjeta';
-    if (!gastoTarjetaPorTarjeta[card]) gastoTarjetaPorTarjeta[card] = { total: 0, items: [] };
-    gastoTarjetaPorTarjeta[card].total += t.amt;
-    gastoTarjetaPorTarjeta[card].items.push({ ...t, kind: 'Suscripción' });
   });
   const totalGastoTransferencia = gastoTransferencia.reduce((s, t) => s + t.amt, 0);
   const totalGastoTarjeta = Object.values(gastoTarjetaPorTarjeta).reduce((s, g) => s + g.total, 0);

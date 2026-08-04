@@ -4284,17 +4284,29 @@ function MesTab({
   const ingresos = activeTx.filter((t) => t.type === 'ingreso' && mk(t.date) === month);
 
   // Cuotas: gastos en cuotas (credito, cuotas > 1) distribuidos al mes actual
-  const cuotasMes = chargesForMonth(
-    activeTx.filter((t) => t.type === 'gasto' && t.pay === 'credito' && t.cuotas > 1 && t.cur === cur),
-    month,
-    cards
-  );
+  const cuotasBase = activeTx.filter((t) => t.type === 'gasto' && t.pay === 'credito' && t.cuotas > 1 && t.cur === cur);
+  const cuotasMes = chargesForMonth(cuotasBase, month, cards);
 
   const totalIngresos = ingresos.reduce((s, t) => s + (t.cur === 'USD' ? t.amt * ((usdRates?.venta) || 1200) : t.amt), 0);
   const totalRecurrentes = recList.reduce((s, t) => s + (t.cur === 'USD' ? t.amt * ((usdRates?.venta) || 1200) : t.amt), 0);
   const totalFijos = fijosList.reduce((s, t) => s + (t.cur === 'USD' ? t.amt * ((usdRates?.venta) || 1200) : t.amt), 0);
   const totalSusc = suscripciones.reduce((s, t) => s + (t.cur === 'USD' ? t.amt * ((usdRates?.venta) || 1200) : t.amt), 0);
   const totalCuotas = cuotasMes.reduce((s, t) => s + t.amt, 0);
+  const cuotasPorTarjeta = {};
+  cuotasMes.forEach((t) => {
+    const card = t.card || 'Sin tarjeta';
+    cuotasPorTarjeta[card] = (cuotasPorTarjeta[card] || 0) + t.amt;
+  });
+
+  // Cuotas del mes que viene
+  const nextMonthKey = (() => {
+    const [y, m] = month.split('-').map(Number);
+    let ny = y, nm = m + 1;
+    if (nm > 12) { nm = 1; ny += 1; }
+    return `${ny}-${String(nm).padStart(2, '0')}`;
+  })();
+  const cuotasProximoMes = chargesForMonth(cuotasBase, nextMonthKey, cards);
+  const totalCuotasProximoMes = cuotasProximoMes.reduce((s, t) => s + t.amt, 0);
 
   // Transferencias del mes (fecha del movimiento = este mes)
   const gastoTransferencia = activeTx
@@ -4489,6 +4501,15 @@ function MesTab({
               <div style={{ fontSize: 16, fontWeight: 700, color: P.rd, marginTop: 2 }}>{fmtS(totalCuotas, cur)}</div>
             </div>
           </div>
+          {Object.keys(cuotasPorTarjeta).length > 1 && (
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 8 }}>
+              {Object.entries(cuotasPorTarjeta).map(([card, total]) => (
+                <span key={card} style={{ fontSize: 11, color: P.sb, background: P.bg, borderRadius: 8, padding: '4px 9px' }}>
+                  {card}: <b style={{ color: P.rd }}>{fmtS(total, cur)}</b>
+                </span>
+              ))}
+            </div>
+          )}
           {cuotasMes.map((t) => (
             <div key={t.id} onClick={() => onEdit(t)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 0', borderTop: `1px solid ${P.bd}`, cursor: 'pointer' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
@@ -4502,6 +4523,19 @@ function MesTab({
             </div>
           ))}
           <div style={{ fontSize: 10, color: P.sb, textAlign: 'center', padding: '8px 0 4px' }}>Tocá para editar</div>
+        </div>
+      )}
+
+      {/* Cuotas del mes que viene */}
+      {cuotasProximoMes.length > 0 && (
+        <div style={{ background: `${P.am}12`, border: `1px solid ${P.am}30`, borderRadius: 16, padding: '14px 14px', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 18 }}>📅</span>
+            <span style={{ fontSize: 13, color: P.tx }}>
+              El mes que viene tenés <b>{cuotasProximoMes.length}</b> cuota{cuotasProximoMes.length === 1 ? '' : 's'}
+            </span>
+          </div>
+          <span style={{ fontSize: 15, fontWeight: 800, color: P.am }}>{fmtS(totalCuotasProximoMes, cur)}</span>
         </div>
       )}
 

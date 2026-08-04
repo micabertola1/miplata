@@ -4844,7 +4844,7 @@ function HomeTab({
         {isGroup && memberRows.length > 0 && (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 6 }}>
             {memberRows.map(([who, m]) => {
-              const q = m.ingreso - m.gasto;
+              const q = m.ingreso - m.gasto - m.ahorro;
               return (
                 <span key={who} style={{ fontSize: 11, color: 'rgba(255,255,255,.55)' }}>
                   {who.split(' ')[0]}: <b style={{ color: q >= 0 ? P.gn : P.rd }}>{fmtS(q, cur)}</b>
@@ -5488,7 +5488,7 @@ function InsightsTab({
         {isGroup && memberRows.length > 0 && (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 6 }}>
             {memberRows.map(([who, m]) => {
-              const q = m.ingreso - m.gasto;
+              const q = m.ingreso - m.gasto - m.ahorro;
               return (
                 <span key={who} style={{ fontSize: 11, color: 'rgba(255,255,255,.55)' }}>
                   {who.split(' ')[0]}: <b style={{ color: q >= 0 ? P.gn : P.rd }}>{fmtS(q, cur)}</b>

@@ -1515,93 +1515,6 @@ function MainApp({ user, onLogout }) {
     }
   };
 
-  // ── Migración puntual: mover "Salida amigos"/"Salida pareja" de
-  // Alimentación a Entretenimiento en los gastos ya cargados ──
-  const migrateSalidasFn = async () => {
-    const subs = ['Salida amigos', 'Salida pareja'];
-    const personal = tx.filter((t) => t.cat === 'Alimentación' && subs.includes(t.sub));
-    const grupos = [];
-    Object.entries(groupTx).forEach(([gid, txs]) => {
-      (txs || []).forEach((t) => {
-        if (t.cat === 'Alimentación' && subs.includes(t.sub)) grupos.push({ ...t, groupId: gid });
-      });
-    });
-    const total = personal.length + grupos.length;
-    if (total === 0) {
-      notify('No encontramos gastos de "Salida amigos/pareja" en Alimentación para mover.', 'info');
-      return;
-    }
-    if (!window.confirm(`¿Mover ${total} gasto(s) de "Salida amigos/pareja" a la categoría Entretenimiento?`))
-      return;
-    try {
-      let batch = writeBatch(db);
-      let n = 0;
-      const bump = async () => {
-        n++;
-        if (n % 400 === 0) {
-          await batch.commit();
-          batch = writeBatch(db);
-        }
-      };
-      for (const t of personal) {
-        batch.update(doc(db, 'users', user.uid, 'transactions', t.id), { cat: 'Entretenimiento' });
-        await bump();
-      }
-      for (const t of grupos) {
-        batch.update(doc(db, 'groups', t.groupId, 'transactions', t.id), { cat: 'Entretenimiento' });
-        await bump();
-      }
-      if (n % 400 !== 0) await batch.commit();
-      notify(`Listo, movimos ${total} gasto(s) a Entretenimiento.`, 'success');
-    } catch (e) {
-      console.error('migrateSalidasFn error:', e);
-      notify('No pudimos mover los gastos. Probá de nuevo.', 'error');
-    }
-  };
-
-  // ── Migración puntual: pasar pay==='debito' (medio ya no existe) a
-  // 'transferencia' en los gastos ya cargados ──
-  const migrateDebitoFn = async () => {
-    const personal = tx.filter((t) => t.pay === 'debito');
-    const grupos = [];
-    Object.entries(groupTx).forEach(([gid, txs]) => {
-      (txs || []).forEach((t) => {
-        if (t.pay === 'debito') grupos.push({ ...t, groupId: gid });
-      });
-    });
-    const total = personal.length + grupos.length;
-    if (total === 0) {
-      notify('No encontramos gastos con medio de pago "Débito".', 'info');
-      return;
-    }
-    if (!window.confirm(`¿Pasar ${total} gasto(s) de "Débito" a "Transferencia"?`))
-      return;
-    try {
-      let batch = writeBatch(db);
-      let n = 0;
-      const bump = async () => {
-        n++;
-        if (n % 400 === 0) {
-          await batch.commit();
-          batch = writeBatch(db);
-        }
-      };
-      for (const t of personal) {
-        batch.update(doc(db, 'users', user.uid, 'transactions', t.id), { pay: 'transferencia' });
-        await bump();
-      }
-      for (const t of grupos) {
-        batch.update(doc(db, 'groups', t.groupId, 'transactions', t.id), { pay: 'transferencia' });
-        await bump();
-      }
-      if (n % 400 !== 0) await batch.commit();
-      notify(`Listo, pasamos ${total} gasto(s) a Transferencia.`, 'success');
-    } catch (e) {
-      console.error('migrateDebitoFn error:', e);
-      notify('No pudimos actualizar los gastos. Probá de nuevo.', 'error');
-    }
-  };
-
   // ── Goals CRUD ──
   const addGoalFn = async (g) => {
     await addDoc(collection(db, 'users', user.uid, 'goals'), g);
@@ -1682,6 +1595,45 @@ function MainApp({ user, onLogout }) {
       return (groupTx[grp.id] || []).map((t) => ({ ...t, groupId: grp.id }));
     return [];
   }, [viewScope, tx, myGroups, groupTx]);
+
+  // Categorías personalizadas: unión de las propias + las de todos los
+  // grupos compartidos, para que lo que agrega un integrante lo vea el otro
+  const mergedCustomCats = useMemo(() => {
+    const mergeInto = (base, extra) => {
+      Object.entries(extra || {}).forEach(([type, list]) => {
+        if (!base[type]) base[type] = [];
+        (list || []).forEach((cc) => {
+          if (!cc || !cc.n) return;
+          const ex = base[type].find((c) => c.n === cc.n);
+          if (ex) {
+            (cc.s || []).forEach((sub) => {
+              if (sub && !(ex.s || []).includes(sub)) ex.s = [...(ex.s || []), sub];
+            });
+          } else {
+            base[type].push({ ...cc, s: [...(cc.s || [])] });
+          }
+        });
+      });
+      return base;
+    };
+    let m = JSON.parse(JSON.stringify(settings.customCats || {}));
+    myGroups.forEach((g) => { m = mergeInto(m, g.customCats); });
+    return m;
+  }, [settings.customCats, myGroups]);
+  // Guarda las categorías nuevas en el espacio que se está viendo (personal
+  // o el grupo compartido), para que el resto del grupo también las vea
+  const saveCustomCats = async (cc) => {
+    if (viewScope !== 'personal') {
+      try {
+        await updateDoc(doc(db, 'groups', viewScope), { customCats: cc });
+      } catch (e) {
+        console.error('saveCustomCats (grupo) error:', e);
+        notify('No pudimos guardar las categorías del grupo.', 'error');
+      }
+    } else {
+      saveSettings({ customCats: cc });
+    }
+  };
 
   // Aplicar tema antes de renderizar
   Object.assign(P, (settings.theme || 'light') === 'dark' ? P_DARK : P_LIGHT);
@@ -2240,7 +2192,7 @@ function MainApp({ user, onLogout }) {
               carry={carry}
               budgets={settings.budgets || {}}
               onEdit={openEdit}
-              customCats={settings.customCats}
+              customCats={mergedCustomCats}
               isGroup={viewScope !== 'personal'}
               activeTx={activeTx}
               month={month}
@@ -2273,7 +2225,7 @@ function MainApp({ user, onLogout }) {
               budgets={settings.budgets || {}}
               saveBudgets={(b) => saveSettings({ budgets: b })}
               onAdd={openAdd}
-              customCats={settings.customCats}
+              customCats={mergedCustomCats}
               onGoFilter={goToFilter}
               hideHero
             />
@@ -2305,7 +2257,7 @@ function MainApp({ user, onLogout }) {
               onAdd: openAdd,
               onEdit: openEdit,
               onExport: () => exportCSV(true),
-              customCats: settings.customCats,
+              customCats: mergedCustomCats,
               pendingFilter,
             }}
           />
@@ -2326,8 +2278,6 @@ function MainApp({ user, onLogout }) {
             }
             onOpenSpaces={() => setMenuOpen(true)}
             onOpenCats={() => setShowCats(true)}
-            onMigrateSalidas={migrateSalidasFn}
-            onMigrateDebito={migrateDebitoFn}
           />
         )}
         {tab === 'goals' && (
@@ -2543,7 +2493,7 @@ function MainApp({ user, onLogout }) {
           setDefScope={(s) => saveSettings({ defScope: s })}
           myGroups={myGroups}
           viewScope={viewScope}
-          customCats={settings.customCats}
+          customCats={mergedCustomCats}
           userName={user.displayName || user.email}
           onSaveFav={saveFavorite}
           knownCards={[
@@ -2576,8 +2526,13 @@ function MainApp({ user, onLogout }) {
       {showCats && (
         <CategoryManager
           mob={mob}
-          customCats={settings.customCats || {}}
-          onSave={(cc) => saveSettings({ customCats: cc })}
+          customCats={mergedCustomCats}
+          onSave={saveCustomCats}
+          scopeLabel={
+            viewScope === 'personal'
+              ? '👤 Se guardan en tu espacio personal'
+              : '👥 Se guardan en ' + (myGroups.find((g) => g.id === viewScope)?.name || 'el grupo') + ', las ve todo el grupo'
+          }
           onClose={() => setShowCats(false)}
         />
       )}
@@ -2800,7 +2755,7 @@ function ExchangeModal({ mob, onSave, onClose }) {
 }
 
 /* ── PERSONALIZADOR DE CATEGORÍAS ── */
-function CategoryManager({ mob, customCats, onSave, onClose }) {
+function CategoryManager({ mob, customCats, onSave, onClose, scopeLabel }) {
   const [type, setType] = useState('gasto');
   const [draft, setDraft] = useState(() =>
     JSON.parse(JSON.stringify(customCats || {}))
@@ -2919,6 +2874,12 @@ function CategoryManager({ mob, customCats, onSave, onClose }) {
             ✕
           </button>
         </div>
+
+        {scopeLabel && (
+          <div style={{ fontSize: 11, color: P.sb, background: P.c2, borderRadius: 8, padding: '6px 10px', marginBottom: 12 }}>
+            {scopeLabel}
+          </div>
+        )}
 
         {/* Tipo */}
         <div
@@ -3786,7 +3747,7 @@ function TxListTab({ mob, cur, activeTx, onEdit, customCats, onAdd }) {
 }
 
 /* ── MES ── */
-function PerfilTab({ onExportAll, onExportMonth, onImport, cards, onSaveCards, theme, onToggleTheme, scopeLabel, onOpenSpaces, onOpenCats, onMigrateSalidas, onMigrateDebito }) {
+function PerfilTab({ onExportAll, onExportMonth, onImport, cards, onSaveCards, theme, onToggleTheme, scopeLabel, onOpenSpaces, onOpenCats }) {
   const [showAddCard, setShowAddCard] = useState(false);
   const [newCard, setNewCard] = useState({ name: '', cierre: '', vencimiento: '' });
   const [editingId, setEditingId] = useState(null);
@@ -3837,15 +3798,6 @@ function PerfilTab({ onExportAll, onExportMonth, onImport, cards, onSaveCards, t
         </button>
         {row('🏷️', 'Categorías', onOpenCats)}
       </div>
-
-      {/* Migraciones puntuales */}
-      {(onMigrateSalidas || onMigrateDebito) && (
-        <div style={sectionStyle}>
-          {sectionTitle('Mantenimiento')}
-          {onMigrateSalidas && row('🎉', 'Mover "Salidas" de Alimentación a Entretenimiento', onMigrateSalidas)}
-          {onMigrateDebito && row('🏦', 'Pasar "Débito" a "Transferencia"', onMigrateDebito)}
-        </div>
-      )}
 
       {/* Apariencia */}
       <div style={sectionStyle}>

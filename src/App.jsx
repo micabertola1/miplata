@@ -3100,6 +3100,7 @@ function CategoryManager({ mob, customCats, onSave, onClose, scopeLabel }) {
 /* ── IMPORT MODAL ── */
 function ImportModal({ mob, onImport, onClose, groups = [], defaultDest }) {
   const [parsed, setParsed] = useState(null);
+  const [rows, setRows] = useState([]);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(null);
@@ -3107,12 +3108,22 @@ function ImportModal({ mob, onImport, onClose, groups = [], defaultDest }) {
   const [dest, setDest] = useState(defaultDest || 'personal');
   const [parsing, setParsing] = useState(false);
 
+  const loadParsed = (res) => {
+    setParsed(res);
+    setRows(
+      (res.valid || []).map((t, i) => ({ ...t, _id: i, _include: true }))
+    );
+  };
+  const updateRow = (id, patch) =>
+    setRows((rs) => rs.map((r) => (r._id === id ? { ...r, ...patch } : r)));
+
   const handleFile = (e) => {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
     setFileName(file.name);
     setError(null);
     setParsed(null);
+    setRows([]);
     const isExcel = /\.xlsx?$/i.test(file.name);
     const isPDF = /\.pdf$/i.test(file.name);
     const reader = new FileReader();
@@ -3135,7 +3146,7 @@ function ImportModal({ mob, onImport, onClose, groups = [], defaultDest }) {
           const res = mapParsedRows(headers, rows);
           if (!res.valid.length && !res.invalid.length)
             setError('No se encontraron filas de datos en el Excel.');
-          else setParsed(res);
+          else loadParsed(res);
         } catch (err) {
           setError(err.message || 'No se pudo leer el Excel.');
         }
@@ -3148,7 +3159,7 @@ function ImportModal({ mob, onImport, onClose, groups = [], defaultDest }) {
           const res = await parseBankPDF(reader.result);
           if (!res.valid.length && !res.invalid.length)
             setError('No se encontraron movimientos en el PDF.');
-          else setParsed(res);
+          else loadParsed(res);
         } catch (err) {
           setError(err.message || 'No se pudo leer el PDF.');
         }
@@ -3161,7 +3172,7 @@ function ImportModal({ mob, onImport, onClose, groups = [], defaultDest }) {
           const res = mapImportRows(reader.result);
           if (!res.valid.length && !res.invalid.length)
             setError('No se encontraron filas de datos en el archivo.');
-          else setParsed(res);
+          else loadParsed(res);
         } catch (err) {
           setError(err.message || 'No se pudo leer el archivo.');
         }
@@ -3170,11 +3181,16 @@ function ImportModal({ mob, onImport, onClose, groups = [], defaultDest }) {
     }
   };
 
+  const includedRows = rows.filter((r) => r._include);
+
   const confirm = async () => {
-    if (!parsed || !parsed.valid.length) return;
+    if (!includedRows.length) return;
     setBusy(true);
     try {
-      const result = await onImport(parsed.valid, dest);
+      const result = await onImport(
+        includedRows.map(({ _id, _include, ...t }) => t),
+        dest
+      );
       setDone(result);
     } catch (err) {
       setError('Error al importar: ' + (err && (err.code || err.message)));
@@ -3346,7 +3362,7 @@ function ImportModal({ mob, onImport, onClose, groups = [], defaultDest }) {
             {parsed && (
               <div style={{ marginBottom: 14 }}>
                 <div style={{ fontSize: 13, marginBottom: 8 }}>
-                  <b style={{ color: P.gn }}>{parsed.valid.length}</b> listos
+                  <b style={{ color: P.gn }}>{includedRows.length}</b> de {rows.length} listos
                   para importar
                   {parsed.invalid.length > 0 && (
                     <>
@@ -3357,31 +3373,55 @@ function ImportModal({ mob, onImport, onClose, groups = [], defaultDest }) {
                   )}
                 </div>
 
-                {parsed.valid.slice(0, 6).map((t, i) => (
-                  <div
-                    key={i}
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      fontSize: 12,
-                      padding: '5px 0',
-                      borderBottom: `1px solid ${P.bd}`,
-                      color: P.tx,
-                    }}
-                  >
-                    <span>
-                      {t.type === 'gasto' ? '📉' : '📈'} {t.date} · {t.cat}
-                    </span>
-                    <span style={{ fontWeight: 600 }}>
-                      {fmt(t.amt, t.cur)}
-                    </span>
-                  </div>
-                ))}
-                {parsed.valid.length > 6 && (
-                  <div style={{ fontSize: 11, color: P.sb, paddingTop: 6 }}>
-                    …y {parsed.valid.length - 6} más
-                  </div>
-                )}
+                <div style={{ maxHeight: mob ? '38vh' : '42vh', overflowY: 'auto', border: `1px solid ${P.bd}`, borderRadius: 12 }}>
+                  {rows.map((t) => (
+                    <div
+                      key={t._id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        padding: '7px 8px',
+                        borderBottom: `1px solid ${P.bd}`,
+                        opacity: t._include ? 1 : 0.4,
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={t._include}
+                        onChange={(e) => updateRow(t._id, { _include: e.target.checked })}
+                        style={{ flexShrink: 0, cursor: 'pointer' }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => updateRow(t._id, { type: t.type === 'gasto' ? 'ingreso' : 'gasto' })}
+                        title="Tocá para cambiar entre gasto/ingreso"
+                        style={{ background: 'transparent', border: 'none', fontSize: 15, cursor: 'pointer', flexShrink: 0, padding: 0 }}
+                      >
+                        {t.type === 'gasto' ? '📉' : '📈'}
+                      </button>
+                      <input
+                        type="date"
+                        value={t.date || ''}
+                        onChange={(e) => updateRow(t._id, { date: e.target.value })}
+                        style={{ background: P.c2, border: `1px solid ${P.bd}`, borderRadius: 6, color: P.tx, fontSize: 11, padding: '4px 3px', width: 108, flexShrink: 0 }}
+                      />
+                      <input
+                        type="text"
+                        value={t.cat || ''}
+                        onChange={(e) => updateRow(t._id, { cat: e.target.value })}
+                        placeholder="Categoría"
+                        style={{ background: P.c2, border: `1px solid ${P.bd}`, borderRadius: 6, color: P.tx, fontSize: 12, padding: '4px 6px', flex: 1, minWidth: 0 }}
+                      />
+                      <input
+                        type="number"
+                        value={t.amt ?? ''}
+                        onChange={(e) => updateRow(t._id, { amt: Number(e.target.value) })}
+                        style={{ background: P.c2, border: `1px solid ${P.bd}`, borderRadius: 6, color: P.tx, fontSize: 12, fontWeight: 600, padding: '4px 6px', width: 78, flexShrink: 0, textAlign: 'right' }}
+                      />
+                    </div>
+                  ))}
+                </div>
 
                 {parsed.invalid.length > 0 && (
                   <div style={{ fontSize: 11, color: P.sb, marginTop: 10 }}>
@@ -3402,12 +3442,12 @@ function ImportModal({ mob, onImport, onClose, groups = [], defaultDest }) {
               </button>
               <button
                 onClick={confirm}
-                disabled={busy || !parsed || !parsed.valid.length}
+                disabled={busy || !includedRows.length}
                 style={{
                   ...btn(P.ac, '#fff'),
-                  opacity: busy || !parsed || !parsed.valid.length ? 0.5 : 1,
+                  opacity: busy || !includedRows.length ? 0.5 : 1,
                   cursor:
-                    busy || !parsed || !parsed.valid.length
+                    busy || !includedRows.length
                       ? 'default'
                       : 'pointer',
                 }}
@@ -3415,7 +3455,7 @@ function ImportModal({ mob, onImport, onClose, groups = [], defaultDest }) {
                 {busy
                   ? 'Importando…'
                   : parsed
-                  ? `Importar ${parsed.valid.length}`
+                  ? `Importar ${includedRows.length}`
                   : 'Importar'}
               </button>
             </div>

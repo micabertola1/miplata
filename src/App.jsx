@@ -380,8 +380,13 @@ function mapParsedRows(headers, rows) {
     throw new Error('El archivo está vacío o no tiene filas de datos.');
   const norm = headers.map((h) => String(h == null ? '' : h).toLowerCase().trim());
   const idx = {};
-  for (const [field, aliases] of Object.entries(COL_ALIASES))
-    idx[field] = norm.findIndex((h) => aliases.includes(h));
+  for (const [field, aliases] of Object.entries(COL_ALIASES)) {
+    // Coincidencia exacta primero; si el encabezado del excel no calza
+    // justo (ej: "Rubro del gasto"), probamos si contiene algún alias.
+    let i = norm.findIndex((h) => aliases.includes(h));
+    if (i === -1) i = norm.findIndex((h) => aliases.some((a) => h.includes(a)));
+    idx[field] = i;
+  }
   if (idx.fecha === -1 || idx.monto === -1)
     throw new Error(
       'Faltan columnas obligatorias. Necesito al menos "fecha" y "monto" en los encabezados.'
@@ -2519,6 +2524,7 @@ function MainApp({ user, onLogout }) {
           onImport={importTx}
           groups={myGroups}
           defaultDest={viewScope}
+          customCats={mergedCustomCats}
           onClose={() => setShowImport(false)}
         />
       )}
@@ -3098,7 +3104,7 @@ function CategoryManager({ mob, customCats, onSave, onClose, scopeLabel }) {
 }
 
 /* ── IMPORT MODAL ── */
-function ImportModal({ mob, onImport, onClose, groups = [], defaultDest }) {
+function ImportModal({ mob, onImport, onClose, groups = [], defaultDest, customCats }) {
   const [parsed, setParsed] = useState(null);
   const [rows, setRows] = useState([]);
   const [error, setError] = useState(null);
@@ -3373,54 +3379,73 @@ function ImportModal({ mob, onImport, onClose, groups = [], defaultDest }) {
                   )}
                 </div>
 
-                <div style={{ maxHeight: mob ? '38vh' : '42vh', overflowY: 'auto', border: `1px solid ${P.bd}`, borderRadius: 12 }}>
-                  {rows.map((t) => (
-                    <div
-                      key={t._id}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 6,
-                        padding: '7px 8px',
-                        borderBottom: `1px solid ${P.bd}`,
-                        opacity: t._include ? 1 : 0.4,
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={t._include}
-                        onChange={(e) => updateRow(t._id, { _include: e.target.checked })}
-                        style={{ flexShrink: 0, cursor: 'pointer' }}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => updateRow(t._id, { type: t.type === 'gasto' ? 'ingreso' : 'gasto' })}
-                        title="Tocá para cambiar entre gasto/ingreso"
-                        style={{ background: 'transparent', border: 'none', fontSize: 15, cursor: 'pointer', flexShrink: 0, padding: 0 }}
+                <div style={{ maxHeight: mob ? '42vh' : '46vh', overflowY: 'auto', border: `1px solid ${P.bd}`, borderRadius: 12 }}>
+                  {rows.map((t) => {
+                    const catOptions = getCats(t.type, customCats);
+                    return (
+                      <div
+                        key={t._id}
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 5,
+                          padding: '8px',
+                          borderBottom: `1px solid ${P.bd}`,
+                          opacity: t._include ? 1 : 0.4,
+                        }}
                       >
-                        {t.type === 'gasto' ? '📉' : '📈'}
-                      </button>
-                      <input
-                        type="date"
-                        value={t.date || ''}
-                        onChange={(e) => updateRow(t._id, { date: e.target.value })}
-                        style={{ background: P.c2, border: `1px solid ${P.bd}`, borderRadius: 6, color: P.tx, fontSize: 11, padding: '4px 3px', width: 108, flexShrink: 0 }}
-                      />
-                      <input
-                        type="text"
-                        value={t.cat || ''}
-                        onChange={(e) => updateRow(t._id, { cat: e.target.value })}
-                        placeholder="Categoría"
-                        style={{ background: P.c2, border: `1px solid ${P.bd}`, borderRadius: 6, color: P.tx, fontSize: 12, padding: '4px 6px', flex: 1, minWidth: 0 }}
-                      />
-                      <input
-                        type="number"
-                        value={t.amt ?? ''}
-                        onChange={(e) => updateRow(t._id, { amt: Number(e.target.value) })}
-                        style={{ background: P.c2, border: `1px solid ${P.bd}`, borderRadius: 6, color: P.tx, fontSize: 12, fontWeight: 600, padding: '4px 6px', width: 78, flexShrink: 0, textAlign: 'right' }}
-                      />
-                    </div>
-                  ))}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <input
+                            type="checkbox"
+                            checked={t._include}
+                            onChange={(e) => updateRow(t._id, { _include: e.target.checked })}
+                            style={{ flexShrink: 0, cursor: 'pointer' }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => updateRow(t._id, { type: t.type === 'gasto' ? 'ingreso' : 'gasto', cat: '' })}
+                            title="Tocá para cambiar entre gasto/ingreso"
+                            style={{ background: 'transparent', border: 'none', fontSize: 15, cursor: 'pointer', flexShrink: 0, padding: 0 }}
+                          >
+                            {t.type === 'gasto' ? '📉' : '📈'}
+                          </button>
+                          <input
+                            type="date"
+                            value={t.date || ''}
+                            onChange={(e) => updateRow(t._id, { date: e.target.value })}
+                            style={{ background: P.c2, border: `1px solid ${P.bd}`, borderRadius: 6, color: P.tx, fontSize: 11, padding: '4px 3px', width: 108, flexShrink: 0 }}
+                          />
+                          <input
+                            type="number"
+                            value={t.amt ?? ''}
+                            onChange={(e) => updateRow(t._id, { amt: Number(e.target.value) })}
+                            style={{ background: P.c2, border: `1px solid ${P.bd}`, borderRadius: 6, color: P.tx, fontSize: 12, fontWeight: 600, padding: '4px 6px', flex: 1, minWidth: 0, textAlign: 'right' }}
+                          />
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <select
+                            value={catOptions.some((c) => c.n === t.cat) ? t.cat : ''}
+                            onChange={(e) => updateRow(t._id, { cat: e.target.value })}
+                            style={{ background: P.c2, border: `1px solid ${P.bd}`, borderRadius: 6, color: P.tx, fontSize: 12, padding: '4px 4px', flexShrink: 0, maxWidth: 120, colorScheme: P.bg === P_DARK.bg ? 'dark' : 'light' }}
+                          >
+                            {!catOptions.some((c) => c.n === t.cat) && (
+                              <option value="" style={{ background: P.cd, color: P.tx }}>{t.cat ? `${t.cat} (?)` : 'Categoría'}</option>
+                            )}
+                            {catOptions.map((c) => (
+                              <option key={c.n} value={c.n} style={{ background: P.cd, color: P.tx }}>{c.i} {c.n}</option>
+                            ))}
+                          </select>
+                          <input
+                            type="text"
+                            value={t.desc || ''}
+                            onChange={(e) => updateRow(t._id, { desc: e.target.value })}
+                            placeholder="Descripción"
+                            style={{ background: P.c2, border: `1px solid ${P.bd}`, borderRadius: 6, color: P.tx, fontSize: 12, padding: '4px 6px', flex: 1, minWidth: 0 }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
 
                 {parsed.invalid.length > 0 && (

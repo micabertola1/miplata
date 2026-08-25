@@ -4325,6 +4325,12 @@ function MesTab({
   const ingresos = activeTx.filter((t) => t.type === 'ingreso' && mk(t.date) === month);
 
   const totalIngresos = ingresos.reduce((s, t) => s + (t.cur === 'USD' ? t.amt * ((usdRates?.venta) || 1200) : t.amt), 0);
+  const ingresosPorMiembro = {};
+  ingresos.forEach((t) => {
+    if (!t.member) return;
+    const v = t.cur === 'USD' ? t.amt * ((usdRates?.venta) || 1200) : t.amt;
+    ingresosPorMiembro[t.member] = (ingresosPorMiembro[t.member] || 0) + v;
+  });
   const totalRecurrentes = recList.reduce((s, t) => s + (t.cur === 'USD' ? t.amt * ((usdRates?.venta) || 1200) : t.amt), 0);
   const totalFijos = fijosList.reduce((s, t) => s + (t.cur === 'USD' ? t.amt * ((usdRates?.venta) || 1200) : t.amt), 0);
   const totalSusc = suscripciones.reduce((s, t) => s + (t.cur === 'USD' ? t.amt * ((usdRates?.venta) || 1200) : t.amt), 0);
@@ -4483,6 +4489,15 @@ function MesTab({
       <>
       {/* Ingresos */}
       <SectionCard icon="💰" label="Ingresos" total={totalIngresos} color={P.gn} onAgregar={() => onAdd('ingreso')}>
+        {Object.keys(ingresosPorMiembro).length > 1 && (
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 8 }}>
+            {Object.entries(ingresosPorMiembro).map(([who, total]) => (
+              <span key={who} style={{ fontSize: 11, color: P.sb, background: P.bg, borderRadius: 8, padding: '4px 9px' }}>
+                {who.split(' ')[0]}: <b style={{ color: P.gn }}>{fmtS(total, cur)}</b>
+              </span>
+            ))}
+          </div>
+        )}
         {ingresos.length === 0 ? (
           <div style={{ fontSize: 12, color: P.sb, textAlign: 'center', padding: '8px 0' }}>Sin ingresos este mes</div>
         ) : ingresos.map((t) => (

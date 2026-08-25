@@ -1173,6 +1173,7 @@ function MainApp({ user, onLogout }) {
           favorites: merged.favorites || [],
           savings: merged.savings || [],
           cards: merged.cards || [],
+          clients: merged.clients || [],
           theme: merged.theme || 'light',
           name: user.displayName,
           email: user.email,
@@ -1639,6 +1640,36 @@ function MainApp({ user, onLogout }) {
       saveSettings({ customCats: cc });
     }
   };
+
+  // Clientes (Ingreso > Trabajo > Clientes): unión de los propios + los de
+  // todos los grupos compartidos, igual que las categorías personalizadas
+  const mergedClients = useMemo(() => {
+    const set = new Set(settings.clients || []);
+    myGroups.forEach((g) => (g.clients || []).forEach((c) => set.add(c)));
+    return [...set];
+  }, [settings.clients, myGroups]);
+  const saveClient = async (name) => {
+    if (viewScope !== 'personal') {
+      const grp = myGroups.find((g) => g.id === viewScope);
+      try {
+        await updateDoc(doc(db, 'groups', viewScope), {
+          clients: [...new Set([...(grp?.clients || []), name])],
+        });
+      } catch (e) {
+        console.error('saveClient (grupo) error:', e);
+        notify('No pudimos guardar el cliente en el grupo.', 'error');
+      }
+    } else {
+      saveSettings({ clients: [...new Set([...(settings.clients || []), name])] });
+    }
+  };
+  // Precarga los clientes que Mica ya tenía, la primera vez que se usa esto
+  const seededClients = useRef(false);
+  useEffect(() => {
+    if (seededClients.current || !dataLoaded || settings.clients) return;
+    seededClients.current = true;
+    saveSettings({ clients: ['Falfer', 'Nay', 'Nati', 'Jacqui', 'Asesoría Ads'] });
+  }, [dataLoaded, settings.clients]);
 
   // Aplicar tema antes de renderizar
   Object.assign(P, (settings.theme || 'light') === 'dark' ? P_DARK : P_LIGHT);
@@ -2515,6 +2546,8 @@ function MainApp({ user, onLogout }) {
             if (!name || cs.some((c) => c.name === name)) return;
             saveSettings({ cards: [...cs, { id: String(Date.now()), name, cierre: '', vencimiento: '' }] });
           }}
+          knownClients={mergedClients}
+          onAddClient={saveClient}
         />
       )}
 
@@ -6815,6 +6848,8 @@ function TxModal({
   knownMembers = [],
   savedCards = [],
   onAddCard,
+  knownClients = [],
+  onAddClient,
 }) {
   const [type, setType] = useState(initial?.type || 'gasto');
   const cats = getCats(type, customCats);
@@ -6843,8 +6878,10 @@ function TxModal({
   const [efundAmt, setEfundAmt] = useState(
     initial?.efundAmt != null ? String(initial.efundAmt) : ''
   );
+  const [newClient, setNewClient] = useState('');
   const isG = type === 'gasto';
   const isSav = type === 'ahorro';
+  const isClientSub = type === 'ingreso' && sub === 'Clientes';
 
   // Scope: personal or a group.
   // Al EDITAR, respetar el scope real del movimiento (no los defaults).
@@ -7102,9 +7139,66 @@ function TxModal({
             )}
           </div>
 
+          {/* Cliente (solo Ingreso > Trabajo > Clientes) */}
+          {isClientSub && (
+            <div style={quickFieldStyle}>
+              <Lbl>Cliente</Lbl>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
+                {knownClients.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setDesc(c)}
+                    style={{
+                      background: desc === c ? P.ac : P.cd,
+                      color: desc === c ? '#fff' : P.tx,
+                      border: `1px solid ${desc === c ? P.ac : P.bd}`,
+                      borderRadius: 20,
+                      padding: '7px 14px',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
+              <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                <input
+                  type="text"
+                  placeholder="Nuevo cliente..."
+                  value={newClient}
+                  onChange={(e) => setNewClient(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key !== 'Enter' || !newClient.trim()) return;
+                    const name = newClient.trim();
+                    setDesc(name);
+                    if (onAddClient && !knownClients.includes(name)) onAddClient(name);
+                    setNewClient('');
+                  }}
+                  style={{ ...iS, flex: 1 }}
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    const name = newClient.trim();
+                    if (!name) return;
+                    setDesc(name);
+                    if (onAddClient && !knownClients.includes(name)) onAddClient(name);
+                    setNewClient('');
+                  }}
+                  style={{ background: P.gb, color: P.gn, border: `1px solid ${P.gn}25`, borderRadius: 10, padding: '0 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+                >
+                  + Agregar
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Nota */}
           <div style={quickFieldStyle}>
-            <Lbl>Nota</Lbl>
+            <Lbl>{isClientSub ? 'Nota (opcional)' : 'Nota'}</Lbl>
             <input type="text" placeholder="Ej: Sueldo, Super, Alquiler..." value={desc} onChange={(e) => setDesc(e.target.value)} style={{ background: 'transparent', border: 'none', color: P.tx, fontSize: 13, fontWeight: 600, width: '100%', padding: 0, outline: 'none' }} />
           </div>
 

@@ -4279,6 +4279,7 @@ function MesTab({
 }) {
   const [usdRates, setUsdRates] = useState(null);
   const [pagoView, setPagoView] = useState(null);
+  const [showByClient, setShowByClient] = useState(false);
   useEffect(() => {
     fetch('https://api.bluelytics.com.ar/v2/latest')
       .then((r) => r.json())
@@ -4331,6 +4332,17 @@ function MesTab({
     const v = t.cur === 'USD' ? t.amt * ((usdRates?.venta) || 1200) : t.amt;
     ingresosPorMiembro[t.member] = (ingresosPorMiembro[t.member] || 0) + v;
   });
+  // Ingresos por cliente: agrupa por lo que se escribió en "Descripción"
+  // (ej: nombre del cliente), útil sobre todo para ingresos de Trabajo
+  const ingresosPorCliente = {};
+  ingresos.forEach((t) => {
+    const key = (t.desc || '').trim() || t.sub || t.cat;
+    const v = t.cur === 'USD' ? t.amt * ((usdRates?.venta) || 1200) : t.amt;
+    if (!ingresosPorCliente[key]) ingresosPorCliente[key] = { total: 0, items: [] };
+    ingresosPorCliente[key].total += v;
+    ingresosPorCliente[key].items.push(t);
+  });
+  const clientesOrdenados = Object.entries(ingresosPorCliente).sort((a, b) => b[1].total - a[1].total);
   const totalRecurrentes = recList.reduce((s, t) => s + (t.cur === 'USD' ? t.amt * ((usdRates?.venta) || 1200) : t.amt), 0);
   const totalFijos = fijosList.reduce((s, t) => s + (t.cur === 'USD' ? t.amt * ((usdRates?.venta) || 1200) : t.amt), 0);
   const totalSusc = suscripciones.reduce((s, t) => s + (t.cur === 'USD' ? t.amt * ((usdRates?.venta) || 1200) : t.amt), 0);
@@ -4498,8 +4510,29 @@ function MesTab({
             ))}
           </div>
         )}
+        {ingresos.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setShowByClient((v) => !v)}
+            style={{ background: showByClient ? P.gb : 'transparent', color: showByClient ? P.gn : P.sb, border: `1px solid ${showByClient ? P.gn + '30' : P.bd}`, borderRadius: 8, padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer', marginBottom: 8 }}
+          >
+            👥 {showByClient ? 'Ver todo' : 'Ver por cliente'}
+          </button>
+        )}
         {ingresos.length === 0 ? (
           <div style={{ fontSize: 12, color: P.sb, textAlign: 'center', padding: '8px 0' }}>Sin ingresos este mes</div>
+        ) : showByClient ? (
+          clientesOrdenados.map(([cliente, { total, items }]) => (
+            <div key={cliente} style={{ padding: '9px 0', borderTop: `1px solid ${P.bd}` }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: 13, fontWeight: 600, color: P.tx, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 160 }}>{cliente}</span>
+                <span style={{ fontSize: 14, fontWeight: 700, color: P.gn, flexShrink: 0 }}>{fmtS(total, cur)}</span>
+              </div>
+              {items.length > 1 && (
+                <div style={{ fontSize: 10, color: P.sb, marginTop: 2 }}>{items.length} ingresos</div>
+              )}
+            </div>
+          ))
         ) : ingresos.map((t) => (
           <div key={t.id} onClick={() => onEdit(t)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 0', borderTop: `1px solid ${P.bd}`, cursor: 'pointer' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>

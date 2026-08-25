@@ -4328,9 +4328,10 @@ function MesTab({
   const totalIngresos = ingresos.reduce((s, t) => s + (t.cur === 'USD' ? t.amt * ((usdRates?.venta) || 1200) : t.amt), 0);
   const ingresosPorMiembro = {};
   ingresos.forEach((t) => {
-    if (!t.member) return;
+    const who = t.member || t.createdByName;
+    if (!who) return;
     const v = t.cur === 'USD' ? t.amt * ((usdRates?.venta) || 1200) : t.amt;
-    ingresosPorMiembro[t.member] = (ingresosPorMiembro[t.member] || 0) + v;
+    ingresosPorMiembro[who] = (ingresosPorMiembro[who] || 0) + v;
   });
   // Ingresos por cliente: agrupa por lo que se escribió en "Descripción"
   // (ej: nombre del cliente), útil sobre todo para ingresos de Trabajo
@@ -4501,7 +4502,7 @@ function MesTab({
       <>
       {/* Ingresos */}
       <SectionCard icon="💰" label="Ingresos" total={totalIngresos} color={P.gn} onAgregar={() => onAdd('ingreso')}>
-        {Object.keys(ingresosPorMiembro).length > 1 && (
+        {Object.keys(ingresosPorMiembro).length > 0 && (
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 8 }}>
             {Object.entries(ingresosPorMiembro).map(([who, total]) => (
               <span key={who} style={{ fontSize: 11, color: P.sb, background: P.bg, borderRadius: 8, padding: '4px 9px' }}>

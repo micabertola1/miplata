@@ -1034,6 +1034,7 @@ function MainApp({ user, onLogout }) {
   const [myGroups, setMyGroups] = useState([]); // [{id, name, members}]
   const [groupTx, setGroupTx] = useState({}); // {groupId: [tx]}
   const [dataLoaded, setDataLoaded] = useState(false);
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
 
   const [tab, setTab] = useState('dashboard');
   const [pendingFilter, setPendingFilter] = useState(null);
@@ -1108,6 +1109,7 @@ function MainApp({ user, onLogout }) {
     unsubs.push(
       onSnapshot(doc(db, 'users', user.uid), (snap) => {
         if (snap.exists()) setSettings((s) => ({ ...s, ...snap.data() }));
+        setSettingsLoaded(true);
       })
     );
 
@@ -1663,13 +1665,18 @@ function MainApp({ user, onLogout }) {
       saveSettings({ clients: [...new Set([...(settings.clients || []), name])] });
     }
   };
-  // Precarga los clientes que Mica ya tenía, la primera vez que se usa esto
+  // Precarga los clientes que Mica ya tenía, la primera vez que se usa esto.
+  // OJO: escribe SOLO el campo "clients" con updateDoc (nunca setDoc con los
+  // demás campos de settings), para no pisar cards/customCats/etc. si este
+  // efecto llega a dispararse antes de que el resto de settings haya cargado.
   const seededClients = useRef(false);
   useEffect(() => {
-    if (seededClients.current || !dataLoaded || settings.clients) return;
+    if (seededClients.current || !settingsLoaded || settings.clients) return;
     seededClients.current = true;
-    saveSettings({ clients: ['Falfer', 'Nay', 'Nati', 'Jacqui', 'Asesoría Ads'] });
-  }, [dataLoaded, settings.clients]);
+    updateDoc(doc(db, 'users', user.uid), {
+      clients: ['Falfer', 'Nay', 'Nati', 'Jacqui', 'Asesoría Ads'],
+    }).catch((e) => console.error('seed clients error:', e));
+  }, [settingsLoaded, settings.clients, user]);
 
   // Aplicar tema antes de renderizar
   Object.assign(P, (settings.theme || 'light') === 'dark' ? P_DARK : P_LIGHT);

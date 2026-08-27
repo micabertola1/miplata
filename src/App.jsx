@@ -4342,12 +4342,13 @@ function MesTab({
   const recSerieIds = new Set(Object.keys(recSeries));
   // Fijos = el monto no varió entre las instancias ya registradas de la
   // serie (ej: alquiler, suscripción). Recurrentes = el monto varía entre
-  // meses (ej: mantenimiento, luz). Con una sola instancia se asume Fijo.
+  // meses (ej: mantenimiento, luz, Edemsa). Con una sola instancia todavía
+  // no hay forma de saber si es fijo o variable, así que arranca como
+  // Recurrente (no Fijo) hasta que se repita el mismo monto al menos 2 veces.
   const isFijo = (serieId) => {
-    const montos = new Set(
-      activeTx.filter((t) => t.serieId === serieId && t.recurring).map((t) => t.amt)
-    );
-    return montos.size <= 1;
+    const montos = activeTx.filter((t) => t.serieId === serieId && t.recurring).map((t) => t.amt);
+    if (montos.length < 2) return false;
+    return new Set(montos).size <= 1;
   };
   const recNoSusc = recListAll.filter((t) => !isSusc(t));
   const recList = recNoSusc.filter((t) => !isFijo(t.serieId));

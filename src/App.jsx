@@ -236,18 +236,21 @@ function td() {
     day: '2-digit',
   }).format(new Date());
 }
-// Cargos de un mes: toda compra con tarjeta de crédito (pago único o en
-// cuotas) recién se factura en el resumen del mes SIGUIENTE al de la
+// Cargos de un mes: toda compra SUELTA con tarjeta de crédito (pago único o
+// en cuotas) recién se factura en el resumen del mes SIGUIENTE al de la
 // compra, nunca en el mismo mes en que se cargó.
-// afterVencimiento=true además excluye los cargos de tarjeta cuyo día
+// afterVencimiento=true además excluye esos cargos sueltos cuyo día
 // aproximado de vencimiento todavía no llegó (para que el balance/gastado
 // real recién los descuente cuando efectivamente tocaría pagarlos).
+// Los recurrentes con tarjeta (ej: Sportclub) NO se corren de mes ni se
+// esperan a un vencimiento: se descuentan directo el mes en que se tildan
+// (que es cuando queda cargada la instancia con esa fecha).
 function chargesForMonth(txs, monthKey, cards = [], afterVencimiento = false) {
   const [my, mm] = monthKey.split('-').map(Number);
   const today = new Date();
   const out = [];
   for (const t of txs) {
-    if (t.pay === 'credito') {
+    if (t.pay === 'credito' && !t.recurring) {
       const n = t.cuotas > 1 ? t.cuotas : 1;
       let [sy, sm, sd] = String(t.date).slice(0, 10).split('-').map(Number);
       sm += 1;
@@ -4583,19 +4586,11 @@ function MesTab({
     (a.desc || a.cat) > (b.desc || b.cat) ? 1 : -1
   );
   const recSerieIds = new Set(Object.keys(recSeries));
-  // Fijos = el monto no varió entre las instancias ya registradas de la
-  // serie (ej: alquiler, suscripción). Recurrentes = el monto varía entre
-  // meses (ej: mantenimiento, luz, Edemsa). Con una sola instancia todavía
-  // no hay forma de saber si es fijo o variable, así que arranca como
-  // Recurrente (no Fijo) hasta que se repita el mismo monto al menos 2 veces.
-  const isFijo = (serieId) => {
-    const montos = activeTx.filter((t) => t.serieId === serieId && t.recurring).map((t) => t.amt);
-    if (montos.length < 2) return false;
-    return new Set(montos).size <= 1;
-  };
-  const recNoSusc = recListAll.filter((t) => !isSusc(t));
-  const recList = recNoSusc.filter((t) => !isFijo(t.serieId));
-  const fijosList = recNoSusc.filter((t) => isFijo(t.serieId) && t.pay === 'transferencia');
+  // Un solo listado de Recurrentes (antes se separaba en Fijos/Recurrentes
+  // según si el monto variaba o no; se unificó porque en la práctica es lo
+  // mismo, solo que algunos meses cambia el monto — y eso se edita
+  // directamente tildando el mes y ajustando esa instancia).
+  const recList = recListAll.filter((t) => !isSusc(t));
   const suscripciones = recListAll.filter((t) => isSusc(t));
   const doneThisMonth = (serieId) =>
     activeTx.some((t) => t.serieId === serieId && mk(t.date) === month && !t.pending);
@@ -4622,7 +4617,6 @@ function MesTab({
   });
   const clientesOrdenados = Object.entries(ingresosPorCliente).sort((a, b) => b[1].total - a[1].total);
   const totalRecurrentes = recList.reduce((s, t) => s + (t.cur === 'USD' ? t.amt * ((usdRates?.venta) || 1200) : t.amt), 0);
-  const totalFijos = fijosList.reduce((s, t) => s + (t.cur === 'USD' ? t.amt * ((usdRates?.venta) || 1200) : t.amt), 0);
   const totalSusc = suscripciones.reduce((s, t) => s + (t.cur === 'USD' ? t.amt * ((usdRates?.venta) || 1200) : t.amt), 0);
 
   // Cuotas del mes que viene
@@ -4822,10 +4816,9 @@ function MesTab({
         ))}
       </SectionCard>
 
-      {/* Recurrentes / Fijos / Suscripciones (mismo layout, distinta fuente de datos) */}
+      {/* Recurrentes / Suscripciones (mismo layout, distinta fuente de datos) */}
       {[
         { key: 'rec', icon: '🔁', label: 'Recurrentes', items: recList, total: totalRecurrentes, removeLabel: 'de los recurrentes' },
-        { key: 'fijos', icon: '📌', label: 'Fijos', items: fijosList, total: totalFijos, removeLabel: 'de los fijos' },
         { key: 'susc', icon: '📲', label: 'Suscripciones', items: suscripciones, total: totalSusc, removeLabel: 'de las suscripciones' },
       ].map(({ key, icon, label, items, total, removeLabel }) => (
         items.length > 0 && (

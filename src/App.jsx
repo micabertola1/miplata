@@ -2446,6 +2446,31 @@ function MainApp({ user, onLogout }) {
         ))}
       </nav>
 
+      {/* Botón flotante: bot que clasifica solo */}
+      <button
+        onClick={() => setShowBot(true)}
+        title="Escribí un movimiento y lo clasifico solo"
+        style={{
+          position: 'fixed',
+          right: 16,
+          bottom: 72,
+          width: 52,
+          height: 52,
+          borderRadius: '50%',
+          background: P.cd,
+          border: `1px solid ${P.bd}`,
+          boxShadow: '0 4px 14px rgba(0,0,0,0.22)',
+          fontSize: 24,
+          cursor: 'pointer',
+          zIndex: 90,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        💸
+      </button>
+
       {showQuickAdd && (
         <div
           onClick={() => setShowQuickAdd(false)}
@@ -2502,26 +2527,6 @@ function MainApp({ user, onLogout }) {
                 <span style={{ fontSize: 15, fontWeight: 700, color: o.c }}>{o.l}</span>
               </button>
             ))}
-            <button
-              onClick={() => {
-                setShowQuickAdd(false);
-                setShowBot(true);
-              }}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 12,
-                background: `linear-gradient(135deg,${P.ac}14,${P.gn}0E)`,
-                border: `1px solid ${P.ac}30`,
-                borderRadius: 14,
-                padding: '14px 16px',
-                cursor: 'pointer',
-                textAlign: 'left',
-              }}
-            >
-              <span style={{ fontSize: 20 }}>🤖</span>
-              <span style={{ fontSize: 15, fontWeight: 700, color: P.ac }}>Escribir y clasificar solo</span>
-            </button>
             <button
               onClick={() => setShowQuickAdd(false)}
               style={{

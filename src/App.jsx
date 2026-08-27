@@ -330,6 +330,88 @@ function parseAmount(s) {
   return isNaN(n) ? NaN : Math.round(Math.abs(n) * 100) / 100;
 }
 
+// Palabras conocidas → categoría, para el clasificador gratis por palabras
+// clave (sin IA). Solo se usa si esa categoría existe realmente en la lista
+// (para no sugerir categorías que el usuario no tiene).
+const KEYWORD_CATS = {
+  gasto: {
+    'Alimentación': ['super', 'supermercado', 'verduler', 'carnicer', 'almacen', 'dietetica', 'panaderia', 'kiosco'],
+    'Transporte': ['nafta', 'combustible', 'uber', 'cabify', 'colectivo', 'sube', 'taxi', 'peaje', 'patente'],
+    'Bienestar': ['gimnasio', 'farmacia', 'doctor', 'medico', 'médico', 'psicolog', 'dentista'],
+    'Entretenimiento': ['netflix', 'spotify', 'cine', 'bar', 'boliche', 'salida', 'streaming', 'hbo', 'disney', 'previa', 'birra', 'recital'],
+    'Vivienda': ['luz', 'gas', 'agua', 'internet', 'expensas', 'alquiler', 'wifi', 'edemsa'],
+    'Tarjetas': ['resumen', 'intereses'],
+    'Compras': ['ropa', 'zapatillas', 'shopping', 'regalo'],
+  },
+  ingreso: {
+    'Trabajo': ['sueldo', 'honorario', 'factura', 'freelance', 'consultoria', 'proyecto'],
+    'Inversiones': ['dividendo', 'rendimiento'],
+    'Otros': ['venta', 'reembolso'],
+  },
+  ahorro: {
+    'Dólares': ['dolar', 'dólar', 'usd'],
+    'Inversiones': ['plazo fijo', 'cripto', 'bitcoin', 'accion', 'acción', 'bono', 'fondo'],
+  },
+};
+
+// Clasificador gratis por palabras clave (sin IA): interpreta frases tipo
+// "gasté 8500 en el super" / "cobré 60000 de Falfer" / "ahorré 5000 en dólares".
+function guessTransaction(raw, { categories = {}, clients = [], defaultCur = 'ARS' } = {}) {
+  const text = (raw || '').toLowerCase();
+
+  let type = 'gasto';
+  if (/\b(ahorr|apart[ée]|fondo de emergencia)\b/.test(text)) type = 'ahorro';
+  else if (/\b(cobr[ée]|ingres[oó]|me pagaron|deposit[oó]|entr[oó] plata)\b/.test(text)) type = 'ingreso';
+
+  const numMatches = raw.match(/\d[\d.,]*\d|\d/g) || [];
+  const amounts = numMatches.map(parseAmount).filter((n) => !isNaN(n) && n > 0);
+  const amt = amounts.length ? Math.max(...amounts) : 0;
+
+  let pay;
+  if (type === 'gasto') {
+    if (/tarjeta|cr[eé]dito|cuotas/.test(text)) pay = 'credito';
+    else if (/efectivo|cash/.test(text)) pay = 'efectivo';
+    else pay = 'transferencia';
+  }
+
+  const cats = categories[type] || [];
+  const clientMatch = clients.find((c) => c && text.includes(c.toLowerCase()));
+  if (type === 'ingreso' && clientMatch && cats.some((c) => c.n === 'Trabajo')) {
+    return { type, cat: 'Trabajo', sub: 'Clientes', amt, cur: defaultCur, desc: clientMatch, pay };
+  }
+
+  let bestCat = null;
+  let bestSub = '';
+  for (const c of cats) {
+    if (text.includes(c.n.toLowerCase())) bestCat = c.n;
+    for (const s of c.s || []) {
+      if (s && text.includes(s.toLowerCase())) {
+        bestCat = c.n;
+        bestSub = s;
+      }
+    }
+  }
+  if (!bestCat) {
+    for (const [catName, words] of Object.entries(KEYWORD_CATS[type] || {})) {
+      if (words.some((w) => text.includes(w)) && cats.some((c) => c.n === catName)) {
+        bestCat = catName;
+        break;
+      }
+    }
+  }
+  if (!bestCat) bestCat = cats[0]?.n || 'Otros';
+
+  let desc = raw
+    .replace(/^\s*(gast[eé]|pagu[eé]|compr[eé]|cobr[eé]|ahorr[eé]|ingres[oó])\s*/i, '')
+    .replace(/\$?\s?[\d.,]+/, '')
+    .replace(/\b(en|de|del|con|por|para)\b/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!desc) desc = bestCat;
+
+  return { type, cat: bestCat, sub: bestSub, amt, cur: defaultCur, desc, pay };
+}
+
 function parseDateStr(s) {
   if (!s) return null;
   const t = String(s).trim();
@@ -2614,7 +2696,6 @@ function MainApp({ user, onLogout }) {
           mob={mob}
           cur={cur}
           customCats={mergedCustomCats}
-          cards={(settings.cards || []).map((c) => c.name)}
           clients={mergedClients}
           onClose={() => setShowBot(false)}
           onResult={(guess) => {
@@ -3573,49 +3654,32 @@ function ImportModal({ mob, onImport, onClose, groups = [], defaultDest, customC
 }
 
 /* ── BOT: clasifica texto libre con IA ── */
-function BotModal({ mob, cur, customCats, cards = [], clients = [], onClose, onResult }) {
+function BotModal({ mob, cur, customCats, clients = [], onClose, onResult }) {
   const [text, setText] = useState('');
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
 
-  const send = async () => {
+  const send = () => {
     const t = text.trim();
     if (!t || busy) return;
-    setBusy(true);
     setError(null);
     try {
-      const r = await fetch('/api/parse-tx', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          text: t,
-          categories: {
-            gasto: getCats('gasto', customCats),
-            ingreso: getCats('ingreso', customCats),
-            ahorro: getCats('ahorro', customCats),
-          },
-          cards,
-          clients,
-          today: td(),
-          defaultCur: cur,
-        }),
+      const g = guessTransaction(t, {
+        categories: {
+          gasto: getCats('gasto', customCats),
+          ingreso: getCats('ingreso', customCats),
+          ahorro: getCats('ahorro', customCats),
+        },
+        clients,
+        defaultCur: cur,
       });
-      const data = await r.json();
-      if (!r.ok) throw new Error(data.error || 'No se pudo interpretar el mensaje.');
-      const g = data.result;
-      onResult({
-        type: g.type,
-        cat: g.cat,
-        sub: g.sub || '',
-        amt: g.amt,
-        cur: g.cur || cur,
-        desc: g.desc || '',
-        pay: g.type === 'gasto' ? g.pay || 'transferencia' : undefined,
-      });
+      if (!g.amt) {
+        setError('No encontré un monto en el texto. Probá poniendo el número, ej: "gasté 8500 en el super".');
+        return;
+      }
+      onResult(g);
     } catch (e) {
-      setError(e.message || 'No se pudo interpretar el mensaje. Probá describirlo distinto.');
+      setError('No se pudo interpretar el mensaje. Probá describirlo distinto.');
     }
-    setBusy(false);
   };
 
   return (
@@ -3681,7 +3745,7 @@ function BotModal({ mob, cur, customCats, cards = [], clients = [], onClose, onR
         )}
         <button
           onClick={send}
-          disabled={busy || !text.trim()}
+          disabled={!text.trim()}
           style={{
             width: '100%',
             marginTop: 12,
@@ -3690,13 +3754,13 @@ function BotModal({ mob, cur, customCats, cards = [], clients = [], onClose, onR
             color: '#fff',
             padding: '14px',
             borderRadius: 14,
-            cursor: busy || !text.trim() ? 'default' : 'pointer',
-            opacity: busy || !text.trim() ? 0.5 : 1,
+            cursor: !text.trim() ? 'default' : 'pointer',
+            opacity: !text.trim() ? 0.5 : 1,
             fontSize: 14,
             fontWeight: 700,
           }}
         >
-          {busy ? 'Pensando…' : 'Clasificar'}
+          Clasificar
         </button>
       </div>
     </div>

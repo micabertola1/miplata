@@ -1770,6 +1770,7 @@ function MainApp({ user, onLogout }) {
     setModal('add');
   };
   const [showQuickAdd, setShowQuickAdd] = useState(false);
+  const [showBot, setShowBot] = useState(false);
   // Abrir el formulario PRE-CARGADO como nuevo (sin id, fecha hoy)
   const openPrefill = (data) => {
     if (!data) return;
@@ -2502,6 +2503,26 @@ function MainApp({ user, onLogout }) {
               </button>
             ))}
             <button
+              onClick={() => {
+                setShowQuickAdd(false);
+                setShowBot(true);
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+                background: `linear-gradient(135deg,${P.ac}14,${P.gn}0E)`,
+                border: `1px solid ${P.ac}30`,
+                borderRadius: 14,
+                padding: '14px 16px',
+                cursor: 'pointer',
+                textAlign: 'left',
+              }}
+            >
+              <span style={{ fontSize: 20 }}>🤖</span>
+              <span style={{ fontSize: 15, fontWeight: 700, color: P.ac }}>Escribir y clasificar solo</span>
+            </button>
+            <button
               onClick={() => setShowQuickAdd(false)}
               style={{
                 background: 'transparent',
@@ -2580,6 +2601,21 @@ function MainApp({ user, onLogout }) {
               : '👥 Se guardan en ' + (myGroups.find((g) => g.id === viewScope)?.name || 'el grupo') + ', las ve todo el grupo'
           }
           onClose={() => setShowCats(false)}
+        />
+      )}
+
+      {showBot && (
+        <BotModal
+          mob={mob}
+          cur={cur}
+          customCats={mergedCustomCats}
+          cards={(settings.cards || []).map((c) => c.name)}
+          clients={mergedClients}
+          onClose={() => setShowBot(false)}
+          onResult={(guess) => {
+            setShowBot(false);
+            openAdd(guess.type, guess);
+          }}
         />
       )}
 
@@ -3526,6 +3562,137 @@ function ImportModal({ mob, onImport, onClose, groups = [], defaultDest, customC
             </div>
           </>
         )}
+      </div>
+    </div>
+  );
+}
+
+/* ── BOT: clasifica texto libre con IA ── */
+function BotModal({ mob, cur, customCats, cards = [], clients = [], onClose, onResult }) {
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+
+  const send = async () => {
+    const t = text.trim();
+    if (!t || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await fetch('/api/parse-tx', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          text: t,
+          categories: {
+            gasto: getCats('gasto', customCats),
+            ingreso: getCats('ingreso', customCats),
+            ahorro: getCats('ahorro', customCats),
+          },
+          cards,
+          clients,
+          today: td(),
+          defaultCur: cur,
+        }),
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || 'No se pudo interpretar el mensaje.');
+      const g = data.result;
+      onResult({
+        type: g.type,
+        cat: g.cat,
+        sub: g.sub || '',
+        amt: g.amt,
+        cur: g.cur || cur,
+        desc: g.desc || '',
+        pay: g.type === 'gasto' ? g.pay || 'transferencia' : undefined,
+      });
+    } catch (e) {
+      setError(e.message || 'No se pudo interpretar el mensaje. Probá describirlo distinto.');
+    }
+    setBusy(false);
+  };
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(42,38,33,0.25)',
+        display: 'flex',
+        alignItems: mob ? 'flex-end' : 'center',
+        justifyContent: 'center',
+        zIndex: 200,
+        backdropFilter: 'blur(6px)',
+      }}
+      onClick={onClose}
+    >
+      <div
+        style={{
+          background: P.cd,
+          borderRadius: mob ? '22px 22px 0 0' : 22,
+          padding: mob ? '18px 16px 28px' : 26,
+          width: '100%',
+          maxWidth: mob ? '100%' : 460,
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+          <span style={{ fontSize: 17, fontWeight: 700 }}>🤖 Escribí tu movimiento</span>
+          <button onClick={onClose} style={{ background: 'transparent', border: 'none', fontSize: 18, cursor: 'pointer', color: P.sb }}>✕</button>
+        </div>
+        <p style={{ fontSize: 12, color: P.sb, margin: '0 0 12px' }}>
+          Contame qué pasó y yo lo clasifico. Ej: <i>"gasté 8500 en el super"</i>, <i>"cobré 60000 de Falfer"</i>, <i>"pagué la luz 15000 con tarjeta"</i>.
+        </p>
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              send();
+            }
+          }}
+          placeholder="Escribí acá..."
+          autoFocus
+          rows={3}
+          style={{
+            width: '100%',
+            background: P.c2,
+            border: `1px solid ${P.bd}`,
+            borderRadius: 14,
+            padding: '12px 14px',
+            color: P.tx,
+            fontSize: 14,
+            resize: 'none',
+            boxSizing: 'border-box',
+            outline: 'none',
+          }}
+        />
+        {error && (
+          <div style={{ background: P.rd + '14', color: P.rd, borderRadius: 10, padding: '10px 12px', fontSize: 12, marginTop: 10 }}>
+            ⚠️ {error}
+          </div>
+        )}
+        <button
+          onClick={send}
+          disabled={busy || !text.trim()}
+          style={{
+            width: '100%',
+            marginTop: 12,
+            background: P.ac,
+            border: 'none',
+            color: '#fff',
+            padding: '14px',
+            borderRadius: 14,
+            cursor: busy || !text.trim() ? 'default' : 'pointer',
+            opacity: busy || !text.trim() ? 0.5 : 1,
+            fontSize: 14,
+            fontWeight: 700,
+          }}
+        >
+          {busy ? 'Pensando…' : 'Clasificar'}
+        </button>
       </div>
     </div>
   );

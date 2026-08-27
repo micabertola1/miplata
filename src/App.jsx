@@ -4855,7 +4855,17 @@ function MesTab({
                   >
                     {done ? '✓' : ''}
                   </button>
-                  <div onClick={() => onEdit(t)} style={{ flex: 1, minWidth: 0, cursor: 'pointer' }} title="Tocá para editar (monto, día, etc.)">
+                  <div
+                    onClick={() => {
+                      if (!done) {
+                        notify('Tildá el círculo primero para cargar este mes; recién ahí podés editar el monto sin tocar meses anteriores.', 'info');
+                        return;
+                      }
+                      onEdit(t);
+                    }}
+                    style={{ flex: 1, minWidth: 0, cursor: 'pointer' }}
+                    title={done ? 'Tocá para editar (monto, día, etc.)' : 'Tildá primero para poder editar este mes'}
+                  >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                       <span style={{ fontSize: 13, fontWeight: 600, color: done ? P.sb : P.tx, textDecoration: done ? 'line-through' : 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 140 }}>
                         {t.paused ? '⏸ ' : ''}{t.desc || t.sub || t.cat}

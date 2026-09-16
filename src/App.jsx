@@ -6360,11 +6360,20 @@ function GoalsTab({
         if (!gastoMembers.includes(who)) gastoMembers.push(who);
       });
       const totalGasto = gastoTx.reduce((s, t) => s + t.amt, 0);
-      const ingresoMes = activeTx
-        .filter((t) => t.type === 'ingreso' && t.cur === cur && mk(t.date) === key)
-        .reduce((s, t) => s + t.amt, 0);
+      const ingresoTx = activeTx.filter((t) => t.type === 'ingreso' && t.cur === cur && mk(t.date) === key);
+      const ingresoMes = ingresoTx.reduce((s, t) => s + t.amt, 0);
+      const ingresoPorMiembro = {};
+      ingresoTx.forEach((t) => {
+        const who = memberKey(t);
+        ingresoPorMiembro[who] = (ingresoPorMiembro[who] || 0) + t.amt;
+      });
       const pct = ingresoMes > 0 ? Math.round((totalGasto / ingresoMes) * 100) : null;
-      arr.push({ key, label: MO[mm - 1], total: totalGasto, byMember, pct });
+      const pctByMember = {};
+      gastoMembers.forEach((who) => {
+        const ing = ingresoPorMiembro[who] || 0;
+        pctByMember[who] = ing > 0 ? Math.round(((byMember[who] || 0) / ing) * 100) : null;
+      });
+      arr.push({ key, label: MO[mm - 1], total: totalGasto, byMember, pct, pctByMember });
     }
     return arr;
   })();
@@ -6640,13 +6649,27 @@ function GoalsTab({
                   )}
                 </div>
                 <span style={{ fontSize: 10, fontWeight: isCur ? 700 : 500, color: isCur ? P.tx : P.sb }}>{m.label}</span>
-                <span style={{ fontSize: 9, fontWeight: 600, color: over ? P.rd : P.sb }}>{m.pct != null ? `${m.pct}%` : '—'}</span>
+                {gastoMembers.length > 1 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
+                    {gastoMembers.map((who, i) => {
+                      const p = m.pctByMember[who];
+                      if (p == null) return null;
+                      return (
+                        <span key={who} style={{ fontSize: 8, fontWeight: 700, color: p > 100 ? P.rd : memberColors[i % memberColors.length] }}>
+                          {p}%
+                        </span>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <span style={{ fontSize: 9, fontWeight: 600, color: over ? P.rd : P.sb }}>{m.pct != null ? `${m.pct}%` : '—'}</span>
+                )}
               </div>
             );
           })}
         </div>
         <div style={{ fontSize: 10, color: P.sb, marginTop: 6, textAlign: 'center' }}>
-          % = cuánto de lo que ingresó ese mes se gastó
+          % = cuánto de lo que ingresó ese mes se gastó{gastoMembers.length > 1 ? ', por persona' : ''}
         </div>
       </Box>
 

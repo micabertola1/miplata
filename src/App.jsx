@@ -6326,7 +6326,11 @@ function GoalsTab({
         if (!ahorroMembers.includes(who)) ahorroMembers.push(who);
       });
       const total = monthTx.reduce((s, t) => s + netAmt(t), 0);
-      arr.push({ key, label: MO[mm - 1], total, byMember });
+      const ingresoMes = activeTx
+        .filter((t) => t.type === 'ingreso' && t.cur === cur && mk(t.date) === key)
+        .reduce((s, t) => s + t.amt, 0);
+      const pct = ingresoMes > 0 ? Math.round((total / ingresoMes) * 100) : null;
+      arr.push({ key, label: MO[mm - 1], total, byMember, pct });
     }
     return arr;
   })();
@@ -6544,9 +6548,13 @@ function GoalsTab({
                   )}
                 </div>
                 <span style={{ fontSize: 10, fontWeight: isCur ? 700 : 500, color: isCur ? P.gn : P.sb }}>{m.label}</span>
+                <span style={{ fontSize: 9, fontWeight: 600, color: P.sb }}>{m.pct != null ? `${m.pct}%` : '—'}</span>
               </div>
             );
           })}
+        </div>
+        <div style={{ fontSize: 10, color: P.sb, marginTop: 6, textAlign: 'center' }}>
+          % = cuánto de lo que ingresó ese mes se ahorró
         </div>
       </Box>
 

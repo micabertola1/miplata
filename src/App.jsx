@@ -6328,11 +6328,20 @@ function GoalsTab({
         if (!ahorroMembers.includes(who)) ahorroMembers.push(who);
       });
       const total = monthTx.reduce((s, t) => s + netAmt(t), 0);
-      const ingresoMes = activeTx
-        .filter((t) => t.type === 'ingreso' && t.cur === cur && mk(t.date) === key)
-        .reduce((s, t) => s + t.amt, 0);
+      const ingresoTx = activeTx.filter((t) => t.type === 'ingreso' && t.cur === cur && mk(t.date) === key);
+      const ingresoMes = ingresoTx.reduce((s, t) => s + t.amt, 0);
+      const ingresoPorMiembroM = {};
+      ingresoTx.forEach((t) => {
+        const who = memberKey(t);
+        ingresoPorMiembroM[who] = (ingresoPorMiembroM[who] || 0) + t.amt;
+      });
       const pct = ingresoMes > 0 ? Math.round((total / ingresoMes) * 100) : null;
-      arr.push({ key, label: MO[mm - 1], total, byMember, pct });
+      const pctByMember = {};
+      ahorroMembers.forEach((who) => {
+        const ing = ingresoPorMiembroM[who] || 0;
+        pctByMember[who] = ing > 0 ? Math.round(((byMember[who] || 0) / ing) * 100) : null;
+      });
+      arr.push({ key, label: MO[mm - 1], total, byMember, pct, pctByMember });
     }
     return arr;
   })();
@@ -6379,9 +6388,7 @@ function GoalsTab({
     }
     return arr;
   })();
-  const maxGastoMes = Math.max(...gastoMeses.map((m) => m.total), 1);
   const ahorroTotal6m = ahorroMeses.reduce((s, m) => s + m.total, 0);
-  const maxAhorroMes = Math.max(...ahorroMeses.map((m) => m.total), 1);
   // Mismo color para la misma persona en Ahorro y en Gasto (en vez de
   // depender del orden en que aparece en cada gráfico por separado)
   const allChartMembers = Array.from(new Set([...ahorroMembers, ...gastoMembers])).sort();
@@ -6574,32 +6581,35 @@ function GoalsTab({
                 style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, cursor: onGoFilter ? 'pointer' : 'default' }}
                 title={fmtS(m.total, cur)}
               >
-                <div style={{ width: '100%', height: 70, display: 'flex', flexDirection: 'column-reverse', alignItems: 'stretch' }}>
-                  {m.total > 0 ? (
-                    ahorroMembers.map((who) => {
-                      const amt = m.byMember[who] || 0;
-                      if (amt <= 0) return null;
-                      const h = Math.max(4, (amt / maxAhorroMes) * 100);
+                <div style={{ width: '100%', height: 70, display: 'flex', alignItems: 'flex-end', gap: 2 }}>
+                  {ahorroMembers.length > 1 ? (
+                    allChartMembers.filter((w) => ahorroMembers.includes(w)).map((who) => {
+                      const p = Math.min(100, m.pctByMember[who] ?? 0);
                       const c = colorForMember(who);
                       return (
-                        <div
-                          key={who}
-                          style={{
-                            width: '100%',
-                            height: `${h}%`,
-                            borderRadius: 3,
-                            background: isCur ? c : `${c}66`,
-                            marginTop: 1,
-                          }}
-                        />
+                        <div key={who} style={{ flex: 1, height: '100%', display: 'flex', alignItems: 'flex-end' }}>
+                          <div style={{ width: '100%', height: `${Math.max(4, p)}%`, borderRadius: 3, background: isCur ? c : `${c}66` }} />
+                        </div>
                       );
                     })
                   ) : (
-                    <div style={{ width: '100%', height: '4%', borderRadius: 3, background: P.bd }} />
+                    <div style={{ width: '100%', height: `${Math.max(4, Math.min(100, m.pct ?? 0))}%`, borderRadius: 3, background: isCur ? P.gn : `${P.gn}66` }} />
                   )}
                 </div>
                 <span style={{ fontSize: 10, fontWeight: isCur ? 700 : 500, color: isCur ? P.gn : P.sb }}>{m.label}</span>
-                <span style={{ fontSize: 9, fontWeight: 600, color: P.sb }}>{m.pct != null ? `${m.pct}%` : '—'}</span>
+                {ahorroMembers.length > 1 ? (
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    {allChartMembers.filter((w) => ahorroMembers.includes(w)).map((who) => {
+                      const p = m.pctByMember[who];
+                      if (p == null) return null;
+                      return (
+                        <span key={who} style={{ fontSize: 8, fontWeight: 700, color: colorForMember(who) }}>{p}%</span>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <span style={{ fontSize: 9, fontWeight: 600, color: P.sb }}>{m.pct != null ? `${m.pct}%` : '—'}</span>
+                )}
               </div>
             );
           })}
@@ -6632,34 +6642,26 @@ function GoalsTab({
             const over = m.pct != null && m.pct > 100;
             return (
               <div key={m.key} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }} title={fmtS(m.total, cur)}>
-                <div style={{ width: '100%', height: 70, display: 'flex', flexDirection: 'column-reverse', alignItems: 'stretch' }}>
-                  {m.total > 0 ? (
-                    gastoMembers.map((who) => {
-                      const amt = m.byMember[who] || 0;
-                      if (amt <= 0) return null;
-                      const h = Math.max(4, (amt / maxGastoMes) * 100);
+                <div style={{ width: '100%', height: 70, display: 'flex', alignItems: 'flex-end', gap: 2 }}>
+                  {gastoMembers.length > 1 ? (
+                    allChartMembers.filter((w) => gastoMembers.includes(w)).map((who) => {
+                      const p = m.pctByMember[who] ?? 0;
+                      const over2 = p > 100;
                       const c = colorForMember(who);
                       return (
-                        <div
-                          key={who}
-                          style={{
-                            width: '100%',
-                            height: `${h}%`,
-                            borderRadius: 3,
-                            background: over ? P.rd : isCur ? c : `${c}66`,
-                            marginTop: 1,
-                          }}
-                        />
+                        <div key={who} style={{ flex: 1, height: '100%', display: 'flex', alignItems: 'flex-end' }}>
+                          <div style={{ width: '100%', height: `${Math.max(4, Math.min(100, p))}%`, borderRadius: 3, background: over2 ? P.rd : isCur ? c : `${c}66` }} />
+                        </div>
                       );
                     })
                   ) : (
-                    <div style={{ width: '100%', height: '4%', borderRadius: 3, background: P.bd }} />
+                    <div style={{ width: '100%', height: `${Math.max(4, Math.min(100, m.pct ?? 0))}%`, borderRadius: 3, background: over ? P.rd : isCur ? P.am : `${P.am}66` }} />
                   )}
                 </div>
                 <span style={{ fontSize: 10, fontWeight: isCur ? 700 : 500, color: isCur ? P.tx : P.sb }}>{m.label}</span>
                 {gastoMembers.length > 1 ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
-                    {gastoMembers.map((who) => {
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    {allChartMembers.filter((w) => gastoMembers.includes(w)).map((who) => {
                       const p = m.pctByMember[who];
                       if (p == null) return null;
                       return (

@@ -6297,7 +6297,9 @@ function GoalsTab({
   // Ahorro mes a mes: cuánto se cargó como tipo "ahorro" en cada uno de los
   // últimos 6 meses (separado de Patrimonio, que es el saldo manual), separado por
   // quién lo cargó (campo member, en espacios compartidos)
-  const memberColors = [P.gn, P.ac, P.am, P.pu];
+  // Terracota + verde para diferenciar a las dos personas; colores extra
+  // por si el espacio tiene más de dos integrantes
+  const memberColors = ['#C1592F', P.gn, P.ac, P.pu];
   const ahorroMembers = [];
   const memberKey = (t) => t.member || userName || 'Vos';
   const ahorroMeses = (() => {
@@ -6380,6 +6382,10 @@ function GoalsTab({
   const maxGastoMes = Math.max(...gastoMeses.map((m) => m.total), 1);
   const ahorroTotal6m = ahorroMeses.reduce((s, m) => s + m.total, 0);
   const maxAhorroMes = Math.max(...ahorroMeses.map((m) => m.total), 1);
+  // Mismo color para la misma persona en Ahorro y en Gasto (en vez de
+  // depender del orden en que aparece en cada gráfico por separado)
+  const allChartMembers = Array.from(new Set([...ahorroMembers, ...gastoMembers])).sort();
+  const colorForMember = (who) => memberColors[allChartMembers.indexOf(who) % memberColors.length];
 
   // Análisis del mes: ingreso vs. egreso ya pagado vs. TODOS los recurrentes/
   // fijos/suscripciones/cuotas del mes, estén tildados (ya pagados) o no
@@ -6550,9 +6556,9 @@ function GoalsTab({
         </div>
         {ahorroMembers.length > 1 && (
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 10 }}>
-            {ahorroMembers.map((who, i) => (
+            {ahorroMembers.map((who) => (
               <div key={who} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                <span style={{ width: 8, height: 8, borderRadius: '50%', background: memberColors[i % memberColors.length] }} />
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: colorForMember(who) }} />
                 <span style={{ fontSize: 10, color: P.sb }}>{who}</span>
               </div>
             ))}
@@ -6570,10 +6576,11 @@ function GoalsTab({
               >
                 <div style={{ width: '100%', height: 70, display: 'flex', flexDirection: 'column-reverse', alignItems: 'stretch' }}>
                   {m.total > 0 ? (
-                    ahorroMembers.map((who, i) => {
+                    ahorroMembers.map((who) => {
                       const amt = m.byMember[who] || 0;
                       if (amt <= 0) return null;
                       const h = Math.max(4, (amt / maxAhorroMes) * 100);
+                      const c = colorForMember(who);
                       return (
                         <div
                           key={who}
@@ -6581,7 +6588,7 @@ function GoalsTab({
                             width: '100%',
                             height: `${h}%`,
                             borderRadius: 3,
-                            background: isCur ? memberColors[i % memberColors.length] : `${memberColors[i % memberColors.length]}66`,
+                            background: isCur ? c : `${c}66`,
                             marginTop: 1,
                           }}
                         />
@@ -6611,9 +6618,9 @@ function GoalsTab({
         </div>
         {gastoMembers.length > 1 && (
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 10 }}>
-            {gastoMembers.map((who, i) => (
+            {gastoMembers.map((who) => (
               <div key={who} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                <span style={{ width: 8, height: 8, borderRadius: '50%', background: memberColors[i % memberColors.length] }} />
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: colorForMember(who) }} />
                 <span style={{ fontSize: 10, color: P.sb }}>{who}</span>
               </div>
             ))}
@@ -6627,10 +6634,11 @@ function GoalsTab({
               <div key={m.key} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }} title={fmtS(m.total, cur)}>
                 <div style={{ width: '100%', height: 70, display: 'flex', flexDirection: 'column-reverse', alignItems: 'stretch' }}>
                   {m.total > 0 ? (
-                    gastoMembers.map((who, i) => {
+                    gastoMembers.map((who) => {
                       const amt = m.byMember[who] || 0;
                       if (amt <= 0) return null;
                       const h = Math.max(4, (amt / maxGastoMes) * 100);
+                      const c = colorForMember(who);
                       return (
                         <div
                           key={who}
@@ -6638,7 +6646,7 @@ function GoalsTab({
                             width: '100%',
                             height: `${h}%`,
                             borderRadius: 3,
-                            background: over ? P.rd : isCur ? memberColors[i % memberColors.length] : `${memberColors[i % memberColors.length]}66`,
+                            background: over ? P.rd : isCur ? c : `${c}66`,
                             marginTop: 1,
                           }}
                         />
@@ -6651,11 +6659,11 @@ function GoalsTab({
                 <span style={{ fontSize: 10, fontWeight: isCur ? 700 : 500, color: isCur ? P.tx : P.sb }}>{m.label}</span>
                 {gastoMembers.length > 1 ? (
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
-                    {gastoMembers.map((who, i) => {
+                    {gastoMembers.map((who) => {
                       const p = m.pctByMember[who];
                       if (p == null) return null;
                       return (
-                        <span key={who} style={{ fontSize: 8, fontWeight: 700, color: p > 100 ? P.rd : memberColors[i % memberColors.length] }}>
+                        <span key={who} style={{ fontSize: 8, fontWeight: 700, color: p > 100 ? P.rd : colorForMember(who) }}>
                           {p}%
                         </span>
                       );

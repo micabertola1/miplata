@@ -6336,7 +6336,9 @@ function GoalsTab({
   })();
 
   // Gasto mes a mes: % de lo que ingresó ese mes que se fue en gastos
-  // (diarios + recurrentes/fijos/suscripciones/cuotas ya facturados)
+  // (diarios + recurrentes/fijos/suscripciones/cuotas ya facturados),
+  // separado por quién lo gastó (campo member, en espacios compartidos)
+  const gastoMembers = [];
   const gastoMeses = (() => {
     const base = month || td().slice(0, 7);
     const [y, m] = base.split('-').map(Number);
@@ -6349,14 +6351,20 @@ function GoalsTab({
         yy -= 1;
       }
       const key = `${yy}-${String(mm).padStart(2, '0')}`;
-      const totalGasto = chargesForMonth(activeTx, key, cards, true)
-        .filter((t) => t.type === 'gasto' && t.cur === cur && !t.pending)
-        .reduce((s, t) => s + t.amt, 0);
+      const gastoTx = chargesForMonth(activeTx, key, cards, true)
+        .filter((t) => t.type === 'gasto' && t.cur === cur && !t.pending);
+      const byMember = {};
+      gastoTx.forEach((t) => {
+        const who = memberKey(t);
+        byMember[who] = (byMember[who] || 0) + t.amt;
+        if (!gastoMembers.includes(who)) gastoMembers.push(who);
+      });
+      const totalGasto = gastoTx.reduce((s, t) => s + t.amt, 0);
       const ingresoMes = activeTx
         .filter((t) => t.type === 'ingreso' && t.cur === cur && mk(t.date) === key)
         .reduce((s, t) => s + t.amt, 0);
       const pct = ingresoMes > 0 ? Math.round((totalGasto / ingresoMes) * 100) : null;
-      arr.push({ key, label: MO[mm - 1], total: totalGasto, pct });
+      arr.push({ key, label: MO[mm - 1], total: totalGasto, byMember, pct });
     }
     return arr;
   })();
@@ -6592,23 +6600,44 @@ function GoalsTab({
         <div style={{ fontSize: 11, color: P.sb, marginBottom: 12 }}>
           Cuánto de lo que ingresó cada mes se fue en gastos (diarios, recurrentes, cuotas ya facturadas).
         </div>
+        {gastoMembers.length > 1 && (
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 10 }}>
+            {gastoMembers.map((who, i) => (
+              <div key={who} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: memberColors[i % memberColors.length] }} />
+                <span style={{ fontSize: 10, color: P.sb }}>{who}</span>
+              </div>
+            ))}
+          </div>
+        )}
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 90 }}>
           {gastoMeses.map((m) => {
             const isCur = m.key === month;
-            const h = Math.max(4, (m.total / maxGastoMes) * 100);
             const over = m.pct != null && m.pct > 100;
             return (
-              <div key={m.key} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                <div style={{ width: '100%', height: 70, display: 'flex', alignItems: 'flex-end' }}>
-                  <div
-                    title={fmtS(m.total, cur)}
-                    style={{
-                      width: '100%',
-                      height: `${h}%`,
-                      borderRadius: 3,
-                      background: over ? P.rd : isCur ? P.am : `${P.am}66`,
-                    }}
-                  />
+              <div key={m.key} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }} title={fmtS(m.total, cur)}>
+                <div style={{ width: '100%', height: 70, display: 'flex', flexDirection: 'column-reverse', alignItems: 'stretch' }}>
+                  {m.total > 0 ? (
+                    gastoMembers.map((who, i) => {
+                      const amt = m.byMember[who] || 0;
+                      if (amt <= 0) return null;
+                      const h = Math.max(4, (amt / maxGastoMes) * 100);
+                      return (
+                        <div
+                          key={who}
+                          style={{
+                            width: '100%',
+                            height: `${h}%`,
+                            borderRadius: 3,
+                            background: over ? P.rd : isCur ? memberColors[i % memberColors.length] : `${memberColors[i % memberColors.length]}66`,
+                            marginTop: 1,
+                          }}
+                        />
+                      );
+                    })
+                  ) : (
+                    <div style={{ width: '100%', height: '4%', borderRadius: 3, background: P.bd }} />
+                  )}
                 </div>
                 <span style={{ fontSize: 10, fontWeight: isCur ? 700 : 500, color: isCur ? P.tx : P.sb }}>{m.label}</span>
                 <span style={{ fontSize: 9, fontWeight: 600, color: over ? P.rd : P.sb }}>{m.pct != null ? `${m.pct}%` : '—'}</span>

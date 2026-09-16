@@ -6334,6 +6334,33 @@ function GoalsTab({
     }
     return arr;
   })();
+
+  // Gasto mes a mes: % de lo que ingresó ese mes que se fue en gastos
+  // (diarios + recurrentes/fijos/suscripciones/cuotas ya facturados)
+  const gastoMeses = (() => {
+    const base = month || td().slice(0, 7);
+    const [y, m] = base.split('-').map(Number);
+    const arr = [];
+    for (let i = 5; i >= 0; i--) {
+      let yy = y;
+      let mm = m - i;
+      while (mm <= 0) {
+        mm += 12;
+        yy -= 1;
+      }
+      const key = `${yy}-${String(mm).padStart(2, '0')}`;
+      const totalGasto = chargesForMonth(activeTx, key, cards, true)
+        .filter((t) => t.type === 'gasto' && t.cur === cur && !t.pending)
+        .reduce((s, t) => s + t.amt, 0);
+      const ingresoMes = activeTx
+        .filter((t) => t.type === 'ingreso' && t.cur === cur && mk(t.date) === key)
+        .reduce((s, t) => s + t.amt, 0);
+      const pct = ingresoMes > 0 ? Math.round((totalGasto / ingresoMes) * 100) : null;
+      arr.push({ key, label: MO[mm - 1], total: totalGasto, pct });
+    }
+    return arr;
+  })();
+  const maxGastoMes = Math.max(...gastoMeses.map((m) => m.total), 1);
   const ahorroTotal6m = ahorroMeses.reduce((s, m) => s + m.total, 0);
   const maxAhorroMes = Math.max(...ahorroMeses.map((m) => m.total), 1);
 
@@ -6555,6 +6582,42 @@ function GoalsTab({
         </div>
         <div style={{ fontSize: 10, color: P.sb, marginTop: 6, textAlign: 'center' }}>
           % = cuánto de lo que ingresó ese mes se ahorró
+        </div>
+      </Box>
+
+      <Box>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+          <Lbl>📉 Gasto mes a mes</Lbl>
+        </div>
+        <div style={{ fontSize: 11, color: P.sb, marginBottom: 12 }}>
+          Cuánto de lo que ingresó cada mes se fue en gastos (diarios, recurrentes, cuotas ya facturadas).
+        </div>
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 90 }}>
+          {gastoMeses.map((m) => {
+            const isCur = m.key === month;
+            const h = Math.max(4, (m.total / maxGastoMes) * 100);
+            const over = m.pct != null && m.pct > 100;
+            return (
+              <div key={m.key} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                <div style={{ width: '100%', height: 70, display: 'flex', alignItems: 'flex-end' }}>
+                  <div
+                    title={fmtS(m.total, cur)}
+                    style={{
+                      width: '100%',
+                      height: `${h}%`,
+                      borderRadius: 3,
+                      background: over ? P.rd : isCur ? P.am : `${P.am}66`,
+                    }}
+                  />
+                </div>
+                <span style={{ fontSize: 10, fontWeight: isCur ? 700 : 500, color: isCur ? P.tx : P.sb }}>{m.label}</span>
+                <span style={{ fontSize: 9, fontWeight: 600, color: over ? P.rd : P.sb }}>{m.pct != null ? `${m.pct}%` : '—'}</span>
+              </div>
+            );
+          })}
+        </div>
+        <div style={{ fontSize: 10, color: P.sb, marginTop: 6, textAlign: 'center' }}>
+          % = cuánto de lo que ingresó ese mes se gastó
         </div>
       </Box>
 

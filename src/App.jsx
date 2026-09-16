@@ -6375,14 +6375,17 @@ function GoalsTab({
   const totOut2 = Object.values(gastosPorMiembro).reduce((s, v) => s + v, 0);
   const totalComprometido = Object.values(recurrentesPorMiembro).reduce((s, v) => s + v, 0);
   const totalYaAhorrado = Object.values(ahorradoPorMiembro).reduce((s, v) => s + v, 0);
-  const disponiblePorMiembro = allMembers.map((who) => ({
-    who,
-    disponible:
-      (ingresosPorMiembro[who] || 0) -
-      (gastosPorMiembro[who] || 0) -
-      (recurrentesPorMiembro[who] || 0) -
-      (ahorradoPorMiembro[who] || 0),
-  }));
+  const disponiblePorMiembro = allMembers.map((who) => {
+    const ingresoM = ingresosPorMiembro[who] || 0;
+    const gastoTotalM = (gastosPorMiembro[who] || 0) + (recurrentesPorMiembro[who] || 0);
+    return {
+      who,
+      ingreso: ingresoM,
+      gastado: gastoTotalM,
+      pctGastado: ingresoM > 0 ? Math.round((gastoTotalM / ingresoM) * 100) : null,
+      disponible: ingresoM - gastoTotalM - (ahorradoPorMiembro[who] || 0),
+    };
+  });
   const disponibleProyectado = totIn2 - totOut2 - totalComprometido - totalYaAhorrado;
   const recomendado = Math.max(0, disponibleProyectado);
 
@@ -6458,7 +6461,7 @@ function GoalsTab({
           <div style={{ marginTop: 10 }}>
             <div style={{ fontSize: 11, fontWeight: 600, color: P.sb, marginBottom: 6 }}>Por persona</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {disponiblePorMiembro.map(({ who, disponible }) => (
+              {disponiblePorMiembro.map(({ who, disponible, pctGastado }) => (
                 <div
                   key={who}
                   style={{
@@ -6469,10 +6472,16 @@ function GoalsTab({
                     border: `1px solid ${P.bd}`,
                     borderRadius: 10,
                     padding: '8px 12px',
+                    gap: 8,
                   }}
                 >
                   <span style={{ fontSize: 12, fontWeight: 600, color: P.tx }}>{who.split(' ')[0]}</span>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: disponible >= 0 ? P.gn : P.rd }}>
+                  {pctGastado != null && (
+                    <span style={{ fontSize: 11, fontWeight: 600, color: pctGastado > 100 ? P.rd : P.sb, flexShrink: 0 }}>
+                      gastó {pctGastado}% de lo que ingresó
+                    </span>
+                  )}
+                  <span style={{ fontSize: 13, fontWeight: 700, color: disponible >= 0 ? P.gn : P.rd, marginLeft: 'auto', textAlign: 'right' }}>
                     {disponible >= 0 ? 'Puede ahorrar ' : 'Le faltarían '}
                     {fmt(Math.abs(disponible), cur)}
                   </span>

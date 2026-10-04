@@ -6320,7 +6320,7 @@ function GoalsTab({
   // por si el espacio tiene más de dos integrantes
   const memberColors = ['#C1592F', P.gn, P.ac, P.pu];
   const ahorroMembers = [];
-  const memberKey = (t) => t.member || userName || 'Vos';
+  const memberKey = (t) => t.member || t.createdByName || userName || 'Vos';
   const ahorroMeses = (() => {
     const base = month || td().slice(0, 7);
     const [y, m] = base.split('-').map(Number);
@@ -6411,13 +6411,23 @@ function GoalsTab({
   // Mismo color para la misma persona en Ahorro y en Gasto (en vez de
   // depender del orden en que aparece en cada gráfico por separado)
   const allChartMembers = Array.from(new Set([...ahorroMembers, ...gastoMembers])).sort();
-  const colorForMember = (who) => memberColors[allChartMembers.indexOf(who) % memberColors.length];
+  // Leandro = terracota, Mica = verde (por nombre); cualquier otro integrante
+  // toma un color de respaldo según su orden
+  const colorForMember = (who) => {
+    const n = String(who || '').toLowerCase();
+    if (n.includes('lean')) return '#C1592F';
+    if (n.includes('mica')) return P.gn;
+    const extras = [P.ac, P.pu, P.am];
+    const others = allMembers.filter((w) => !/lean|mica/i.test(w)).concat(allChartMembers.filter((w) => !/lean|mica/i.test(w)));
+    const idx = Array.from(new Set(others)).indexOf(who);
+    return extras[(idx < 0 ? 0 : idx) % extras.length];
+  };
 
   // Análisis del mes: ingreso vs. egreso ya pagado vs. TODOS los recurrentes/
   // fijos/suscripciones/cuotas del mes, estén tildados (ya pagados) o no
   // (todavía no se registró el pago). Se toma el monto de la última
   // instancia conocida de cada serie como lo que corresponde este mes.
-  const whoOf = (t) => t.member || userName || 'Vos';
+  const whoOf = (t) => t.member || t.createdByName || userName || 'Vos';
   const mtxAll = chargesForMonth(activeTx, month, cards, true).filter((t) => t.cur === cur);
 
   const doneThisMonthSerie = (serieId) =>
@@ -6478,95 +6488,107 @@ function GoalsTab({
         paddingTop: 8,
       }}
     >
-      <Box style={{ background: `linear-gradient(135deg,${P.gn}12,${P.ac}0A)` }}>
-        <Lbl>📊 Análisis del mes</Lbl>
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 8, marginBottom: 10 }}>
-          <div style={{ flex: 1, minWidth: 90 }}>
-            <div style={{ fontSize: 10, color: P.sb }}>INGRESOS</div>
-            <div style={{ fontSize: mob ? 14 : 16, fontWeight: 700, color: P.gn }}>{fmtS(totIn2, cur)}</div>
-          </div>
-          <div style={{ flex: 1, minWidth: 90 }}>
-            <div style={{ fontSize: 10, color: P.sb }}>GASTADO</div>
-            <div style={{ fontSize: mob ? 14 : 16, fontWeight: 700, color: P.rd }}>{fmtS(totOut2, cur)}</div>
-          </div>
-          <div style={{ flex: 1, minWidth: 90 }}>
-            <div style={{ fontSize: 10, color: P.sb }}>RECURRENTES DEL MES</div>
-            <div style={{ fontSize: mob ? 14 : 16, fontWeight: 700, color: P.am }}>{fmtS(totalComprometido, cur)}</div>
-          </div>
-          <div style={{ flex: 1, minWidth: 90 }}>
-            <div style={{ fontSize: 10, color: P.sb }}>YA AHORRADO</div>
-            <div style={{ fontSize: mob ? 14 : 16, fontWeight: 700, color: P.ac }}>{fmtS(totalYaAhorrado, cur)}</div>
-          </div>
+      <Box style={{ padding: mob ? 16 : 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+          <Lbl>📊 Análisis de {MOF[Number(month.slice(5, 7)) - 1]}</Lbl>
         </div>
-        <div style={{ fontSize: 10, color: P.sb, marginBottom: 10 }}>
-          "Recurrentes del mes" incluye todos los recurrentes, fijos, suscripciones y cuotas de este mes, estén tildados o no. "Ya ahorrado" es lo que ya cargaste como ahorro este mes.
-        </div>
+
+        {/* Resultado principal */}
         <div
           style={{
-            background: P.cd,
-            border: `1px solid ${P.bd}`,
-            borderRadius: 12,
-            padding: 12,
+            background: disponibleProyectado > 0 ? P.gb : P.rb,
+            border: `1px solid ${(disponibleProyectado > 0 ? P.gn : P.rd)}25`,
+            borderRadius: 16,
+            padding: mob ? 14 : 18,
+            marginBottom: 14,
           }}
         >
-          {disponibleProyectado > 0 ? (
-            <>
-              <div style={{ fontSize: 13, color: P.tx }}>
-                Con lo que ya ingresó, gastaste, lo que todavía te falta pagar de recurrentes/fijos/suscripciones/cuotas y lo que ya ahorraste este mes, te queda{totalYaAhorrado > 0 ? ' además' : ''}:
-              </div>
-              <div style={{ fontSize: mob ? 20 : 24, fontWeight: 800, color: P.gn, marginTop: 4 }}>
-                {fmt(recomendado, cur)}
-              </div>
-              <div style={{ fontSize: 11, color: P.sb, marginTop: 2 }}>
-                Podrías ahorrar este monto extra este mes.
-              </div>
-              {onAdd && (
-                <button
-                  onClick={() => onAdd('ahorro')}
-                  style={{ marginTop: 10, width: '100%', background: P.gb, border: `1px solid ${P.gn}25`, color: P.gn, padding: '10px 12px', borderRadius: 10, cursor: 'pointer', fontSize: 12, fontWeight: 700 }}
-                >
-                  + Ahorrar {fmt(recomendado, cur)}
-                </button>
-              )}
-            </>
-          ) : (
-            <div style={{ fontSize: 13, color: P.rd }}>
-              Entre lo que ya gastaste, lo que te falta pagar de recurrentes/fijos/suscripciones/cuotas y lo que ya ahorraste este mes, te faltarían{' '}
-              <b>{fmt(Math.abs(disponibleProyectado), cur)}</b>. No parece un buen mes para ahorrar más.
-            </div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: disponibleProyectado > 0 ? P.gn : P.rd }}>
+            {disponibleProyectado > 0 ? 'Podés ahorrar este mes' : 'Este mes te faltarían'}
+          </div>
+          <div style={{ fontSize: mob ? 30 : 36, fontWeight: 800, color: disponibleProyectado > 0 ? P.gn : P.rd, lineHeight: 1.1, marginTop: 2, fontVariantNumeric: 'tabular-nums' }}>
+            {fmt(Math.abs(disponibleProyectado), cur)}
+          </div>
+          <div style={{ fontSize: 11, color: P.sb, marginTop: 6, lineHeight: 1.4 }}>
+            {disponibleProyectado > 0
+              ? 'Ya descontamos lo gastado, los recurrentes que faltan pagar y lo que ya ahorraste.'
+              : 'Entre lo gastado, los recurrentes que faltan pagar y lo ya ahorrado, no alcanza lo que ingresó.'}
+          </div>
+          {disponibleProyectado > 0 && onAdd && (
+            <button
+              onClick={() => onAdd('ahorro')}
+              style={{ marginTop: 12, width: '100%', background: P.gn, border: 'none', color: '#fff', padding: '11px 12px', borderRadius: 12, cursor: 'pointer', fontSize: 13, fontWeight: 700 }}
+            >
+              + Ahorrar {fmt(recomendado, cur)}
+            </button>
           )}
         </div>
 
+        {/* Cómo se reparte el ingreso */}
+        {(() => {
+          const segs = [
+            { l: 'Gastado', v: totOut2, c: P.rd },
+            { l: 'Recurrentes por pagar', v: totalComprometido, c: P.am },
+            { l: 'Ya ahorrado', v: totalYaAhorrado, c: P.ac },
+            { l: 'Disponible', v: Math.max(0, disponibleProyectado), c: P.gn },
+          ];
+          const base = Math.max(totIn2, segs.reduce((s, x) => s + x.v, 0), 1);
+          return (
+            <>
+              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 6 }}>
+                <span style={{ fontSize: 11, fontWeight: 600, color: P.sb }}>Cómo se reparte lo que ingresó</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: P.gn }}>{fmtS(totIn2, cur)}</span>
+              </div>
+              <div style={{ display: 'flex', height: 12, borderRadius: 6, overflow: 'hidden', background: P.c2, gap: 2 }}>
+                {segs.map((s) => s.v > 0 && (
+                  <div key={s.l} title={`${s.l}: ${fmtS(s.v, cur)}`} style={{ width: `${(s.v / base) * 100}%`, background: s.c }} />
+                ))}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 12 }}>
+                {segs.map((s) => (
+                  <div key={s.l} style={{ background: P.c2, borderRadius: 12, padding: '9px 11px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: s.c, flexShrink: 0 }} />
+                      <span style={{ fontSize: 10, color: P.sb, fontWeight: 600 }}>{s.l}</span>
+                    </div>
+                    <div style={{ fontSize: mob ? 14 : 15, fontWeight: 700, color: P.tx, marginTop: 3, fontVariantNumeric: 'tabular-nums' }}>{fmtS(s.v, cur)}</div>
+                    <div style={{ fontSize: 10, color: P.sb }}>{totIn2 > 0 ? Math.round((s.v / totIn2) * 100) : 0}% del ingreso</div>
+                  </div>
+                ))}
+              </div>
+            </>
+          );
+        })()}
+        <div style={{ fontSize: 10, color: P.sb, marginTop: 10, lineHeight: 1.4 }}>
+          "Recurrentes por pagar" suma los recurrentes y suscripciones del mes que todavía no tildaste (con el último monto conocido).
+        </div>
+
+        {/* Por persona */}
         {allMembers.length > 1 && (
-          <div style={{ marginTop: 10 }}>
-            <div style={{ fontSize: 11, fontWeight: 600, color: P.sb, marginBottom: 6 }}>Por persona</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {disponiblePorMiembro.map(({ who, disponible, pctGastado }) => (
-                <div
-                  key={who}
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    background: P.cd,
-                    border: `1px solid ${P.bd}`,
-                    borderRadius: 10,
-                    padding: '8px 12px',
-                    gap: 8,
-                  }}
-                >
-                  <span style={{ fontSize: 12, fontWeight: 600, color: P.tx }}>{who.split(' ')[0]}</span>
-                  {pctGastado != null && (
-                    <span style={{ fontSize: 11, fontWeight: 600, color: pctGastado > 100 ? P.rd : P.sb, flexShrink: 0 }}>
-                      gastó {pctGastado}% de lo que ingresó
-                    </span>
-                  )}
-                  <span style={{ fontSize: 13, fontWeight: 700, color: disponible >= 0 ? P.gn : P.rd, marginLeft: 'auto', textAlign: 'right' }}>
-                    {disponible >= 0 ? 'Puede ahorrar ' : 'Le faltarían '}
-                    {fmt(Math.abs(disponible), cur)}
-                  </span>
-                </div>
-              ))}
+          <div style={{ marginTop: 16 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: P.sb, marginBottom: 8 }}>Por persona</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {disponiblePorMiembro.map(({ who, ingreso, gastado, pctGastado, disponible }) => {
+                const c = colorForMember(who);
+                const over = pctGastado != null && pctGastado > 100;
+                return (
+                  <div key={who} style={{ background: P.c2, borderRadius: 14, padding: '12px 14px', borderLeft: `4px solid ${c}` }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: P.tx }}>{who.split(' ')[0]}</span>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: disponible >= 0 ? P.gn : P.rd, textAlign: 'right' }}>
+                        {disponible >= 0 ? 'Puede ahorrar ' : 'Le faltarían '}{fmt(Math.abs(disponible), cur)}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, marginBottom: 4 }}>
+                      <span style={{ fontSize: 11, color: P.sb }}>Gastó {fmtS(gastado, cur)} de {fmtS(ingreso, cur)}</span>
+                      <span style={{ fontSize: 12, fontWeight: 800, color: over ? P.rd : c }}>{pctGastado != null ? `${pctGastado}%` : '—'}</span>
+                    </div>
+                    <div style={{ height: 7, borderRadius: 4, background: P.bd, overflow: 'hidden' }}>
+                      <div style={{ width: `${Math.min(100, pctGastado ?? 0)}%`, height: '100%', borderRadius: 4, background: over ? P.rd : c, transition: 'width .4s ease' }} />
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
@@ -6578,7 +6600,7 @@ function GoalsTab({
           <span style={{ fontSize: 12, fontWeight: 700, color: P.gn }}>{fmtS(ahorroTotal6m, cur)}</span>
         </div>
         <div style={{ fontSize: 11, color: P.sb, marginBottom: 12 }}>
-          Lo que cargaste como "ahorro" (inversiones, plazo fijo, etc.) cada mes. Distinto de tu Patrimonio de abajo. Tocá un mes para ver esos movimientos.
+          Lo que cargaste como "ahorro" (inversiones, plazo fijo, etc.) cada mes. Tocá un mes para ver esos movimientos.
         </div>
         {ahorroMembers.length > 1 && (
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 10 }}>
@@ -6702,194 +6724,6 @@ function GoalsTab({
         </div>
       </Box>
 
-      <Box style={{ background: `linear-gradient(135deg,${P.ac}0E,${P.gn}0A)` }}>
-        <Lbl>💰 Mis ahorros (patrimonio)</Lbl>
-        <div
-          style={{
-            display: 'flex',
-            gap: 14,
-            flexWrap: 'wrap',
-            marginBottom: 12,
-          }}
-        >
-          <div>
-            <div style={{ fontSize: 10, color: P.sb }}>EN PESOS</div>
-            <div style={{ fontSize: 22, fontWeight: 700, color: P.gn }}>
-              {fmt(savArs, 'ARS')}
-            </div>
-          </div>
-          {savUsd > 0 && (
-            <div>
-              <div style={{ fontSize: 10, color: P.sb }}>EN DÓLARES</div>
-              <div style={{ fontSize: 22, fontWeight: 700, color: P.ac }}>
-                US$ {savUsd.toLocaleString('es-AR')}
-              </div>
-            </div>
-          )}
-        </div>
-        {savings.map((s) => (
-          <div
-            key={s.id}
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              padding: '6px 0',
-              borderTop: `1px solid ${P.bd}`,
-              gap: 8,
-            }}
-          >
-            <span style={{ fontSize: 13, flexShrink: 0 }}>{s.name}</span>
-            {editSavId === s.id ? (
-              <span style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, justifyContent: 'flex-end' }}>
-                <span style={{ fontSize: 12, color: P.sb }}>{s.cur === 'USD' ? 'US$' : '$'}</span>
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  autoFocus
-                  value={editAmt}
-                  onChange={(e) => setEditAmt(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && saveEditSaving()}
-                  style={{ width: 100, background: P.c2, border: `1px solid ${P.ac}`, borderRadius: 8, padding: '5px 8px', fontSize: 13, fontWeight: 600, color: P.tx }}
-                />
-                <span onClick={saveEditSaving} style={{ cursor: 'pointer', color: P.gn, fontSize: 14, fontWeight: 700 }}>✓</span>
-                <span onClick={() => { setEditSavId(null); setEditAmt(''); }} style={{ cursor: 'pointer', color: P.sb, fontSize: 12 }}>✕</span>
-              </span>
-            ) : (
-              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span onClick={() => startEditSaving(s)} style={{ fontSize: 13, fontWeight: 600, cursor: 'pointer' }} title="Tocá para editar el monto">
-                  {s.cur === 'USD'
-                    ? `US$ ${s.amount.toLocaleString('es-AR')}`
-                    : fmt(s.amount, 'ARS')}
-                  {' '}✏️
-                </span>
-                <span
-                  onClick={() => delSaving(s.id)}
-                  style={{ cursor: 'pointer', color: P.sb, fontSize: 12 }}
-                >
-                  ✕
-                </span>
-              </span>
-            )}
-          </div>
-        ))}
-        {usdBuys.length > 0 && (
-          <div style={{ borderTop: `1px solid ${P.bd}` }}>
-            <div
-              onClick={() => setShowUsd((v) => !v)}
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                padding: '6px 0',
-                fontSize: 12,
-                color: P.sb,
-                cursor: 'pointer',
-              }}
-            >
-              <span>Historial de compras en la app {showUsd ? '▾' : '▸'}</span>
-              <span>solo referencia</span>
-            </div>
-            {showUsd &&
-              usdBuys.map((t) => (
-                <div
-                  key={t.id}
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    padding: '5px 0 5px 12px',
-                    fontSize: 12,
-                  }}
-                >
-                  <span style={{ color: P.sb }}>
-                    {(t.date || '').slice(8, 10)}/{(t.date || '').slice(5, 7)} ·
-                    US$ {Number(t.usd).toLocaleString('es-AR')}
-                    {t.rate ? ` @ $${Number(t.rate).toLocaleString('es-AR')}` : ''}
-                  </span>
-                  <span
-                    onClick={() => {
-                      if (window.confirm('¿Borrar esta compra de dólares?'))
-                        delTx && delTx(t);
-                    }}
-                    style={{ cursor: 'pointer', color: P.rd, fontSize: 13 }}
-                    title="Borrar esta compra"
-                  >
-                    ✕
-                  </span>
-                </div>
-              ))}
-          </div>
-        )}
-        <div
-          style={{
-            display: 'flex',
-            gap: 6,
-            marginTop: 10,
-            flexWrap: 'wrap',
-          }}
-        >
-          <input
-            placeholder="Ej: Fondo, Plazo fijo…"
-            value={sN}
-            onChange={(e) => setSN(e.target.value)}
-            style={{ ...iS, flex: 2, minWidth: 110 }}
-          />
-          <input
-            type="number"
-            placeholder="Monto"
-            value={sA}
-            onChange={(e) => setSA(e.target.value)}
-            style={{ ...iS, flex: 1, minWidth: 80 }}
-          />
-          <div
-            style={{
-              display: 'flex',
-              background: P.c2,
-              borderRadius: 10,
-              border: `1px solid ${P.bd}`,
-              overflow: 'hidden',
-            }}
-          >
-            {['ARS', 'USD'].map((c) => (
-              <button
-                key={c}
-                onClick={() => setSC(c)}
-                style={{
-                  background: sC === c ? P.gb : 'transparent',
-                  color: sC === c ? P.gn : P.sb,
-                  border: 'none',
-                  padding: '0 10px',
-                  fontSize: 11,
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                }}
-              >
-                {c}
-              </button>
-            ))}
-          </div>
-          <button
-            onClick={addSaving}
-            style={{
-              background: P.gb,
-              color: P.gn,
-              border: `1px solid ${P.gn}25`,
-              borderRadius: 10,
-              padding: '0 16px',
-              fontSize: 13,
-              fontWeight: 700,
-              cursor: 'pointer',
-            }}
-          >
-            Agregar
-          </button>
-        </div>
-        <div style={{ fontSize: 10, color: P.sb, marginTop: 6 }}>
-          Lo que ya tenías ahorrado. No cuenta como ingreso — es tu saldo
-          inicial.
-        </div>
-      </Box>
       <Box style={{ borderColor: `${P.rd}20` }}>
         <div
           style={{
@@ -7025,213 +6859,6 @@ function GoalsTab({
         )}
       </Box>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-        <span style={{ fontSize: 24, fontWeight: 800, color: P.tx }}>Metas</span>
-        <button
-          onClick={() => setShowAdd(!showAdd)}
-          style={{
-            width: 38,
-            height: 38,
-            borderRadius: 12,
-            background: P.gb,
-            border: `1px solid ${P.gn}25`,
-            color: P.gn,
-            cursor: 'pointer',
-            fontSize: 18,
-            fontWeight: 700,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          {showAdd ? '✕' : '+'}
-        </button>
-      </div>
-      <Box>
-        {showAdd && (
-          <div
-            style={{
-              background: P.c2,
-              borderRadius: 14,
-              padding: mob ? 12 : 16,
-              marginBottom: 10,
-              border: `1px solid ${P.bd}`,
-            }}
-          >
-            <div
-              style={{
-                display: 'flex',
-                flexWrap: 'wrap',
-                gap: 4,
-                marginBottom: 8,
-              }}
-            >
-              {['🎯', '✈️', '🏠', '🚗', '💻', '🛡️', '🎓', '💍'].map((ic) => (
-                <button
-                  key={ic}
-                  onClick={() => setGi(ic)}
-                  style={{
-                    background: gi === ic ? P.ac : P.cd,
-                    border: `1px solid ${P.bd}`,
-                    borderRadius: 8,
-                    padding: '5px 9px',
-                    cursor: 'pointer',
-                    fontSize: 15,
-                    color: gi === ic ? '#fff' : P.tx,
-                  }}
-                >
-                  {ic}
-                </button>
-              ))}
-            </div>
-            <div
-              style={{
-                display: 'flex',
-                flexDirection: mob ? 'column' : 'row',
-                gap: 6,
-              }}
-            >
-              <input
-                placeholder="Nombre"
-                value={gn}
-                onChange={(e) => setGn(e.target.value)}
-                style={{ ...iS, flex: 1 }}
-              />
-              <input
-                placeholder="Monto"
-                type="number"
-                value={gt}
-                onChange={(e) => setGt(e.target.value)}
-                style={{ ...iS, width: mob ? '100%' : 120 }}
-              />
-              <button
-                onClick={() => {
-                  if (gn && gt) {
-                    addGoal({
-                      name: gn,
-                      target: Number(gt),
-                      icon: gi,
-                      currency: cur,
-                      saved: 0,
-                    });
-                    setGn('');
-                    setGt('');
-                    setShowAdd(false);
-                  }
-                }}
-                style={{
-                  background: P.gb,
-                  border: `1px solid ${P.gn}25`,
-                  color: P.gn,
-                  padding: '10px 16px',
-                  borderRadius: 10,
-                  cursor: 'pointer',
-                  fontSize: 12,
-                  fontWeight: 700,
-                }}
-              >
-                Crear
-              </button>
-            </div>
-          </div>
-        )}
-        {goals.length === 0 ? (
-          <Nil
-            icon="🎯"
-            t="Todavía no tenés metas de ahorro"
-            sub="Poné un nombre y un monto objetivo arriba para crear tu primera meta."
-          />
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {goals.map((g, i) => {
-              const pct = g.target > 0 ? (g.saved / g.target) * 100 : 0;
-              const done = pct >= 100;
-              const isDark = P.bg === P_DARK.bg;
-              const iconColor = pal[i % pal.length];
-              const pctColor = done ? P.gn : pct >= 50 ? P.ac : P.am;
-              const remaining = Math.max(0, g.target - (g.saved || 0));
-              return (
-                <div
-                  key={g.id}
-                  style={{
-                    background: P.cd,
-                    border: `1px solid ${P.bd}`,
-                    borderRadius: 20,
-                    padding: '18px 20px',
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-                    <div style={{ width: 44, height: 44, borderRadius: 14, background: `${iconColor}1c`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 19, flexShrink: 0 }}>
-                      {g.icon}
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 15, fontWeight: 700, color: P.tx, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.name}</div>
-                      <div style={{ fontSize: 12, fontWeight: 500, color: P.sb, marginTop: 1 }}>
-                        Meta: {fmtS(g.target, g.currency || cur)}
-                      </div>
-                    </div>
-                    <span style={{ fontSize: 18, fontWeight: 800, color: pctColor, flexShrink: 0 }}>{Math.round(pct)}%</span>
-                    <button
-                      onClick={() => delGoal(g.id)}
-                      style={{ background: 'transparent', border: 'none', color: P.sb, cursor: 'pointer', fontSize: 12, flexShrink: 0, padding: 2 }}
-                    >
-                      ✕
-                    </button>
-                  </div>
-                  <div style={{ height: 8, borderRadius: 4, background: isDark ? 'rgba(255,255,255,.07)' : '#EDE9E2', overflow: 'hidden' }}>
-                    <div style={{ width: `${Math.min(100, pct)}%`, height: '100%', borderRadius: 4, background: pctColor, transition: 'width .4s ease' }} />
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8 }}>
-                    <span style={{ fontSize: 12, fontWeight: 600, color: P.gn }}>{fmtS(g.saved || 0, g.currency || cur)} guardados</span>
-                    <span style={{ fontSize: 12, fontWeight: 500, color: done ? P.gn : P.sb }}>
-                      {done ? '¡Completado! 🎉' : `faltan ${fmtS(remaining, g.currency || cur)}`}
-                    </span>
-                  </div>
-                  {!done && (
-                    <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
-                      <input
-                        type="number"
-                        placeholder="$"
-                        value={addAmt[g.id] || ''}
-                        onChange={(e) =>
-                          setAddAmt({ ...addAmt, [g.id]: e.target.value })
-                        }
-                        style={{
-                          ...iS,
-                          flex: 1,
-                          padding: '8px 10px',
-                          fontSize: 12,
-                        }}
-                      />
-                      <button
-                        onClick={() => {
-                          const a = Number(addAmt[g.id]);
-                          if (a > 0) {
-                            updGoal(g.id, a);
-                            setAddAmt({ ...addAmt, [g.id]: '' });
-                          }
-                        }}
-                        style={{
-                          background: P.gb,
-                          border: `1px solid ${P.gn}25`,
-                          color: P.gn,
-                          padding: '8px 12px',
-                          borderRadius: 10,
-                          cursor: 'pointer',
-                          fontSize: 12,
-                          fontWeight: 700,
-                        }}
-                      >
-                        + Agregar
-                      </button>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </Box>
     </div>
   );
 }

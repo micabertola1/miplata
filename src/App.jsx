@@ -245,6 +245,26 @@ function td() {
 // Los recurrentes con tarjeta (ej: Sportclub) NO se corren de mes ni se
 // esperan a un vencimiento: se descuentan directo el mes en que se tildan
 // (que es cuando queda cargada la instancia con esa fecha).
+// Saldo de ahorro por persona y bolsillo (general / fondo de emergencia):
+// lo que cada uno ahorró menos los gastos que pagó con ese ahorro (fromSav)
+function savingsByMember(txs, cur, fallbackName, excludeId) {
+  const out = {};
+  const who = (t) => t.member || t.createdByName || fallbackName || 'Vos';
+  const get = (w) => (out[w] = out[w] || { general: 0, efund: 0 });
+  txs.forEach((t) => {
+    if (t.cur !== cur || t.pending || (excludeId && t.id === excludeId)) return;
+    if (t.type === 'ahorro') {
+      const ef = t.efund ? Math.min(t.amt, t.efundAmt ?? t.amt) : 0;
+      const b = get(who(t));
+      b.efund += ef;
+      b.general += t.amt - ef;
+    } else if (t.type === 'gasto' && t.fromSav) {
+      get(who(t))[t.fromSav === 'efund' ? 'efund' : 'general'] -= t.amt;
+    }
+  });
+  return out;
+}
+
 function chargesForMonth(txs, monthKey, cards = [], afterVencimiento = false) {
   const [my, mm] = monthKey.split('-').map(Number);
   const today = new Date();
@@ -1823,7 +1843,8 @@ function MainApp({ user, onLogout }) {
     .filter((t) => t.type === 'ingreso' && paid(t))
     .reduce((s, t) => s + t.amt, 0);
   const totOut = mtx
-    .filter((t) => t.type === 'gasto' && paid(t))
+    // Los gastos pagados con ahorros no bajan el balance: esa plata ya se apartó
+    .filter((t) => t.type === 'gasto' && !t.fromSav && paid(t))
     .reduce((s, t) => s + t.amt, 0);
   const totSav = mtx
     .filter((t) => t.type === 'ahorro' && paid(t))
@@ -1850,7 +1871,7 @@ function MainApp({ user, onLogout }) {
         .filter((t) => t.cur === cur && !t.pending)
         .forEach((t) => {
           if (t.type === 'ingreso') s += t.amt;
-          else if (t.type === 'gasto' || t.type === 'ahorro') s -= t.amt;
+          else if ((t.type === 'gasto' && !t.fromSav) || t.type === 'ahorro') s -= t.amt;
         });
     });
     return Math.round(s);
@@ -2713,6 +2734,7 @@ function MainApp({ user, onLogout }) {
           knownClients={mergedClients}
           onAddClient={saveClient}
           onAddSub={addSubcategory}
+          allTx={[...tx, ...allGroupTx]}
         />
       )}
 
@@ -6356,9 +6378,10 @@ function GoalsTab({
   const setMyIncomeType = (v) =>
     setEfund({ ...efund, tipoPorMiembro: { ...(efund.tipoPorMiembro || {}), [userName]: v } });
   const incomeTypeEntries = Object.entries(efund.tipoPorMiembro || {});
-  const efSaved = activeTx
-    .filter((t) => t.type === 'ahorro' && t.efund === true && t.cur === cur)
-    .reduce((s, t) => s + (t.efundAmt ?? t.amt), 0);
+  // Saldos por persona: ahorrado menos lo gastado desde cada bolsillo
+  const savByMember = savingsByMember(activeTx, cur, userName);
+  const savMembers = Object.keys(savByMember).sort();
+  const efSaved = savMembers.reduce((s, w) => s + savByMember[w].efund, 0);
 
   // Ahorro mes a mes: cuánto se cargó como tipo "ahorro" en cada uno de los
   // últimos 6 meses (separado de Patrimonio, que es el saldo manual), separado por
@@ -6496,7 +6519,7 @@ function GoalsTab({
     if (t.pending) return;
     const who = whoOf(t);
     if (t.type === 'ingreso') ingresosPorMiembro[who] = (ingresosPorMiembro[who] || 0) + t.amt;
-    else if (t.type === 'gasto') gastosPorMiembro[who] = (gastosPorMiembro[who] || 0) + t.amt;
+    else if (t.type === 'gasto' && !t.fromSav) gastosPorMiembro[who] = (gastosPorMiembro[who] || 0) + t.amt;
     else if (t.type === 'ahorro') ahorradoPorMiembro[who] = (ahorradoPorMiembro[who] || 0) + t.amt;
   });
   Object.values(recTemplates).forEach((t) => {
@@ -6649,6 +6672,19 @@ function GoalsTab({
         <div style={{ fontSize: 11, color: P.sb, marginBottom: 12 }}>
           Lo que cargaste como "ahorro" (inversiones, plazo fijo, etc.) cada mes. Tocá un mes para ver esos movimientos.
         </div>
+        {savMembers.length > 0 && (
+          <div style={{ background: P.c2, borderRadius: 10, padding: '8px 10px', marginBottom: 12 }}>
+            <div style={{ fontSize: 10, color: P.sb, marginBottom: 4 }}>💰 Disponible en ahorro (descontando gastos pagados con ahorro)</div>
+            <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+              {savMembers.map((w) => (
+                <span key={w} style={{ fontSize: 12, color: P.tx }}>
+                  <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: colorForMember(w), marginRight: 5 }} />
+                  {w}: <b style={{ color: savByMember[w].general < 0 ? P.rd : P.tx }}>{fmt(savByMember[w].general, cur)}</b>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
         {ahorroMembers.length > 1 && (
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 10 }}>
             {ahorroMembers.map((who) => (
@@ -6864,6 +6900,13 @@ function GoalsTab({
                     Ahorrado: {fmt(efSaved, cur)}
                   </span>
                 </div>
+                {savMembers.length > 1 && (
+                  <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 4, fontSize: 11, color: P.sb }}>
+                    {savMembers.map((w) => (
+                      <span key={w}>{w}: <b style={{ color: savByMember[w].efund < 0 ? P.rd : P.tx }}>{fmt(savByMember[w].efund, cur)}</b></span>
+                    ))}
+                  </div>
+                )}
                 <button
                   onClick={() => onAdd && onAdd('ahorro', { efund: true })}
                   style={{
@@ -6933,6 +6976,7 @@ function TxModal({
   knownClients = [],
   onAddClient,
   onAddSub,
+  allTx = [],
 }) {
   const [type, setType] = useState(initial?.type || 'gasto');
   const cats = getCats(type, customCats);
@@ -6961,6 +7005,8 @@ function TxModal({
   const [efundAmt, setEfundAmt] = useState(
     initial?.efundAmt != null ? String(initial.efundAmt) : ''
   );
+  // Gasto pagado con ahorros: '' | 'general' | 'efund'
+  const [fromSav, setFromSav] = useState(initial?.fromSav || '');
   const [newClient, setNewClient] = useState('');
   const [addingSub, setAddingSub] = useState(false);
   const [newSubName, setNewSubName] = useState('');
@@ -6990,6 +7036,14 @@ function TxModal({
     : 'personal';
   const [scope, setScope] = useState(initScope);
   const [member, setMember] = useState(initial?.member || userName || '');
+  // Saldo disponible de cada bolsillo para quien carga el gasto, en el espacio elegido
+  const savAvail = useMemo(() => {
+    if (type !== 'gasto') return { general: 0, efund: 0 };
+    const inGroup = scope !== 'personal';
+    const scopeTx = allTx.filter((t) => (inGroup ? t.groupId === scope : !t.groupId));
+    const who = inGroup ? member || userName : userName;
+    return savingsByMember(scopeTx, curSel, userName, initial?.id)[who || 'Vos'] || { general: 0, efund: 0 };
+  }, [type, scope, member, allTx, curSel, userName, initial?.id]);
   const [confirmDel, setConfirmDel] = useState(false);
   const cc = cats.find((c) => c.n === cat);
   const dateInputRef = useRef(null);
@@ -7379,6 +7433,39 @@ function TxModal({
                 )}
               </div>
             )}
+            {isG && (
+              <div style={{ borderTop: `1px solid ${P.bd}`, padding: '12px 0' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: P.tx }}>💰 ¿Lo pagás con ahorros?</span>
+                  <Switch on={!!fromSav} onClick={() => setFromSav(fromSav ? '' : 'general')} color={P.gn} />
+                </div>
+                {fromSav && (
+                  <div style={{ marginTop: 10 }}>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      {[['general', '🏦 Ahorro'], ['efund', '🛡️ Fondo emergencia']].map(([id, l]) => (
+                        <button
+                          key={id}
+                          type="button"
+                          onClick={() => setFromSav(id)}
+                          style={{ flex: 1, background: fromSav === id ? P.gn : P.cd, border: `1px solid ${fromSav === id ? P.gn : P.bd}`, color: fromSav === id ? '#fff' : P.tx, padding: '8px 10px', borderRadius: 10, cursor: 'pointer', fontSize: 12, fontWeight: 600, textAlign: 'left' }}
+                        >
+                          {l}
+                          <div style={{ fontSize: 10, fontWeight: 500, opacity: 0.85 }}>Disponible: {fmt(savAvail[id], curSel)}</div>
+                        </button>
+                      ))}
+                    </div>
+                    {Number(String(amt).replace(',', '.')) > savAvail[fromSav] && (
+                      <div style={{ fontSize: 10, color: P.rd, marginTop: 4 }}>
+                        ⚠️ El gasto supera lo que tenés en ese ahorro; va a quedar en negativo.
+                      </div>
+                    )}
+                    <div style={{ fontSize: 10, color: P.sb, marginTop: 4 }}>
+                      Se descuenta de tu ahorro y no baja el balance del mes.
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
             {isSav && (
               <div style={{ borderTop: `1px solid ${P.bd}`, padding: '12px 0' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -7546,6 +7633,8 @@ function TxModal({
                         ? Number(cardDue)
                         : undefined,
                     susc: isG && recurring && susc ? true : undefined,
+                    // null (no undefined) para que al editar se borre si se destildó
+                    fromSav: isG && fromSav ? fromSav : initial?.fromSav ? null : undefined,
                     efund: isSav && efundFlag ? true : undefined,
                     efundAmt:
                       isSav && efundFlag

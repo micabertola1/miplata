@@ -1123,8 +1123,10 @@ function MainApp({ user, onLogout }) {
 
   const [tab, setTab] = useState('dashboard');
   const [pendingFilter, setPendingFilter] = useState(null);
+  const [personFilter, setPersonFilter] = useState('');
   const goToFilter = (type, q, m, member) => {
-    setPendingFilter({ type: type || 'todos', q: q || '', member: member || '', seq: Date.now() });
+    if (member) setPersonFilter(member);
+    setPendingFilter({ type: type || 'todos', q: q || '', seq: Date.now() });
     if (m) setMonth(m);
     setTab('movs');
   };
@@ -1688,6 +1690,31 @@ function MainApp({ user, onLogout }) {
       return (groupTx[grp.id] || []).map((t) => ({ ...t, groupId: grp.id }));
     return [];
   }, [viewScope, tx, myGroups, groupTx]);
+
+  // Filtro por persona (solo espacios compartidos): se aplica en Movimientos y Metas
+  useEffect(() => { setPersonFilter(''); }, [viewScope]);
+  const groupMembers = useMemo(() => {
+    if (viewScope === 'personal') return [];
+    const g = myGroups.find((x) => x.id === viewScope);
+    return Array.from(new Set([...(g?.memberNames || []), ...activeTx.map((t) => t.member || t.createdByName).filter(Boolean)]));
+  }, [viewScope, myGroups, activeTx]);
+  const personTx = useMemo(
+    () => (personFilter ? activeTx.filter((t) => (t.member || t.createdByName || '') === personFilter) : activeTx),
+    [activeTx, personFilter]
+  );
+  const personBar = groupMembers.length > 1 && (tab === 'movs' || tab === 'goals') && (
+    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: mob ? 12 : 16 }}>
+      {['', ...groupMembers].map((w) => (
+        <button
+          key={w || 'todos'}
+          onClick={() => setPersonFilter(w)}
+          style={{ background: personFilter === w ? P.ac : P.cd, color: personFilter === w ? '#fff' : P.sb, border: personFilter === w ? 'none' : `1px solid ${P.bd}`, borderRadius: 20, padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+        >
+          {w ? '👤 ' + w.split(' ')[0] : 'Todos'}
+        </button>
+      ))}
+    </div>
+  );
 
   // Categorías personalizadas: unión de las propias + las de todos los
   // grupos compartidos, para que lo que agrega un integrante lo vea el otro
@@ -2272,7 +2299,7 @@ function MainApp({ user, onLogout }) {
             </div>
           </div>
         )}
-        {(tab === 'dashboard' || tab === 'movs') && (
+        {(tab === 'dashboard' || tab === 'movs' || tab === 'goals') && (
           <div
             style={{
               display: 'flex',
@@ -2288,7 +2315,7 @@ function MainApp({ user, onLogout }) {
               </span>
               <NavB onClick={nextM}>›</NavB>
             </div>
-            <button
+            {tab !== 'goals' && (<button
               onClick={clearMonth}
               title="Borrar todos los movimientos de este mes"
               style={{
@@ -2303,8 +2330,8 @@ function MainApp({ user, onLogout }) {
               }}
             >
               🗑️ Vaciar mes
-            </button>
-            {tx.some((t) => t.imported && t.scope !== 'grupo') && (
+            </button>)}
+            {tab !== 'goals' && tx.some((t) => t.imported && t.scope !== 'grupo') && (
               <button
                 onClick={clearImported}
                 title="Borrar todos los movimientos importados"
@@ -2324,6 +2351,7 @@ function MainApp({ user, onLogout }) {
             )}
           </div>
         )}
+        {personBar}
         {tab === 'dashboard' && (
           <>
             <HomeTab
@@ -2383,7 +2411,7 @@ function MainApp({ user, onLogout }) {
             mesProps={{
               mob,
               cur,
-              activeTx,
+              activeTx: personTx,
               totIn,
               month,
               onAdd: openAdd,
@@ -2399,7 +2427,7 @@ function MainApp({ user, onLogout }) {
             diariosProps={{
               mob,
               cur,
-              activeTx,
+              activeTx: personTx,
               month,
               onAdd: openAdd,
               onEdit: openEdit,
@@ -2445,7 +2473,7 @@ function MainApp({ user, onLogout }) {
               .filter((t) => t.usd > 0)
               .sort((a, b) => (b.date || '').localeCompare(a.date || ''))}
             delTx={delTxFn}
-            activeTx={activeTx}
+            activeTx={personTx}
             month={month}
             onGoFilter={goToFilter}
             onAdd={openAdd}
@@ -4372,7 +4400,6 @@ function DiariosTab({ mob, cur, activeTx, month, onAdd, onEdit, onExport, custom
   const [filter, setFilter] = useState(defaultFilter);
   const [showSearch, setShowSearch] = useState(false);
   const [q, setQ] = useState('');
-  const [memberFilter, setMemberFilter] = useState('');
   useEffect(() => {
     fetch('https://api.bluelytics.com.ar/v2/latest')
       .then((r) => r.json())
@@ -4383,7 +4410,6 @@ function DiariosTab({ mob, cur, activeTx, month, onAdd, onEdit, onExport, custom
     if (!pendingFilter?.seq) return;
     if (pendingFilter.type) setFilter(pendingFilter.type);
     setQ(pendingFilter.q || '');
-    setMemberFilter(pendingFilter.member || '');
     setShowSearch(!!pendingFilter.q);
   }, [pendingFilter?.seq]);
 
@@ -4396,8 +4422,7 @@ function DiariosTab({ mob, cur, activeTx, month, onAdd, onEdit, onExport, custom
   const pool = activeTx.filter(
     (t) =>
       mk(t.date) === month &&
-      (!memberFilter || (t.member || t.createdByName || '') === memberFilter) &&
-      (memberFilter || !(t.type === 'gasto' && t.recurring)) &&
+      !(t.type === 'gasto' && t.recurring) &&
       !(excludeSpecial && t.type === 'gasto' && isSuscOrCuota(t))
   );
   const FILTERS = [
@@ -4477,12 +4502,6 @@ function DiariosTab({ mob, cur, activeTx, month, onAdd, onEdit, onExport, custom
         </div>
       )}
 
-      {memberFilter && (
-        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: P.ab, color: P.ac, borderRadius: 20, padding: '5px 12px', fontSize: 12, fontWeight: 700, marginBottom: 10 }}>
-          👤 {memberFilter.split(' ')[0]}
-          <span onClick={() => setMemberFilter('')} style={{ cursor: 'pointer', fontSize: 13 }}>✕</span>
-        </div>
-      )}
       <div style={{ fontSize: 13, color: P.sb, marginBottom: 12 }}>
         Total: <b style={{ color: totalColor, fontSize: 15 }}>{fmtS(totalSel)}</b>
       </div>

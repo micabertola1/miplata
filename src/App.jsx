@@ -1123,8 +1123,8 @@ function MainApp({ user, onLogout }) {
 
   const [tab, setTab] = useState('dashboard');
   const [pendingFilter, setPendingFilter] = useState(null);
-  const goToFilter = (type, q, m) => {
-    setPendingFilter({ type: type || 'todos', q: q || '', seq: Date.now() });
+  const goToFilter = (type, q, m, member) => {
+    setPendingFilter({ type: type || 'todos', q: q || '', member: member || '', seq: Date.now() });
     if (m) setMonth(m);
     setTab('movs');
   };
@@ -2394,6 +2394,7 @@ function MainApp({ user, onLogout }) {
               onPauseSerie: pauseRecurringSerie,
               onExport: () => exportCSV(true),
               cards: settings.cards,
+              onGoFilter: goToFilter,
             }}
             diariosProps={{
               mob,
@@ -4371,6 +4372,7 @@ function DiariosTab({ mob, cur, activeTx, month, onAdd, onEdit, onExport, custom
   const [filter, setFilter] = useState(defaultFilter);
   const [showSearch, setShowSearch] = useState(false);
   const [q, setQ] = useState('');
+  const [memberFilter, setMemberFilter] = useState('');
   useEffect(() => {
     fetch('https://api.bluelytics.com.ar/v2/latest')
       .then((r) => r.json())
@@ -4381,6 +4383,7 @@ function DiariosTab({ mob, cur, activeTx, month, onAdd, onEdit, onExport, custom
     if (!pendingFilter?.seq) return;
     if (pendingFilter.type) setFilter(pendingFilter.type);
     setQ(pendingFilter.q || '');
+    setMemberFilter(pendingFilter.member || '');
     setShowSearch(!!pendingFilter.q);
   }, [pendingFilter?.seq]);
 
@@ -4393,7 +4396,8 @@ function DiariosTab({ mob, cur, activeTx, month, onAdd, onEdit, onExport, custom
   const pool = activeTx.filter(
     (t) =>
       mk(t.date) === month &&
-      !(t.type === 'gasto' && t.recurring) &&
+      (!memberFilter || (t.member || t.createdByName || '') === memberFilter) &&
+      (memberFilter || !(t.type === 'gasto' && t.recurring)) &&
       !(excludeSpecial && t.type === 'gasto' && isSuscOrCuota(t))
   );
   const FILTERS = [
@@ -4473,6 +4477,12 @@ function DiariosTab({ mob, cur, activeTx, month, onAdd, onEdit, onExport, custom
         </div>
       )}
 
+      {memberFilter && (
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: P.ab, color: P.ac, borderRadius: 20, padding: '5px 12px', fontSize: 12, fontWeight: 700, marginBottom: 10 }}>
+          👤 {memberFilter.split(' ')[0]}
+          <span onClick={() => setMemberFilter('')} style={{ cursor: 'pointer', fontSize: 13 }}>✕</span>
+        </div>
+      )}
       <div style={{ fontSize: 13, color: P.sb, marginBottom: 12 }}>
         Total: <b style={{ color: totalColor, fontSize: 15 }}>{fmtS(totalSel)}</b>
       </div>
@@ -4591,7 +4601,7 @@ function MovimientosTab({ mob, mesProps, diariosProps }) {
 }
 
 function MesTab({
-  mob, cur, activeTx, totIn, month, onAdd, onEdit, onRegister, onUnregister, onRemoveSerie, onPauseSerie, onExport, cards = [],
+  mob, cur, activeTx, totIn, month, onAdd, onEdit, onRegister, onUnregister, onRemoveSerie, onPauseSerie, onExport, cards = [], onGoFilter,
 }) {
   const [usdRates, setUsdRates] = useState(null);
   const [pagoView, setPagoView] = useState(null);
@@ -4813,7 +4823,7 @@ function MesTab({
         {Object.keys(ingresosPorMiembro).length > 0 && (
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 8 }}>
             {Object.entries(ingresosPorMiembro).map(([who, total]) => (
-              <span key={who} style={{ fontSize: 11, color: P.sb, background: P.bg, borderRadius: 8, padding: '4px 9px' }}>
+              <span key={who} onClick={() => onGoFilter && onGoFilter('ingreso', '', undefined, who)} style={{ fontSize: 11, color: P.sb, background: P.bg, borderRadius: 8, padding: '4px 9px', cursor: onGoFilter ? 'pointer' : 'default' }}>
                 {who.split(' ')[0]}: <b style={{ color: P.gn }}>{fmtS(total, cur)}</b>
               </span>
             ))}
@@ -5242,7 +5252,7 @@ function HomeTab({
             {memberRows.map(([who, m]) => {
               const q = m.ingreso - m.gasto - m.ahorro;
               return (
-                <span key={who} style={{ fontSize: 11, color: 'rgba(255,255,255,.55)' }}>
+                <span key={who} onClick={() => onGoFilter && onGoFilter('gasto', '', undefined, who)} style={{ fontSize: 11, color: 'rgba(255,255,255,.55)', cursor: onGoFilter ? 'pointer' : 'default', textDecoration: onGoFilter ? 'underline' : 'none', textUnderlineOffset: 3 }}>
                   {who.split(' ')[0]}: <b style={{ color: q >= 0 ? P.gn : P.rd }}>{fmtS(q, cur)}</b>
                 </span>
               );
@@ -5886,7 +5896,7 @@ function InsightsTab({
             {memberRows.map(([who, m]) => {
               const q = m.ingreso - m.gasto - m.ahorro;
               return (
-                <span key={who} style={{ fontSize: 11, color: 'rgba(255,255,255,.55)' }}>
+                <span key={who} onClick={() => onGoFilter && onGoFilter('gasto', '', undefined, who)} style={{ fontSize: 11, color: 'rgba(255,255,255,.55)', cursor: onGoFilter ? 'pointer' : 'default', textDecoration: onGoFilter ? 'underline' : 'none', textUnderlineOffset: 3 }}>
                   {who.split(' ')[0]}: <b style={{ color: q >= 0 ? P.gn : P.rd }}>{fmtS(q, cur)}</b>
                 </span>
               );
@@ -6590,7 +6600,7 @@ function GoalsTab({
                 const c = colorForMember(who);
                 const over = pctGastado != null && pctGastado > 100;
                 return (
-                  <div key={who} style={{ background: P.c2, borderRadius: 14, padding: '12px 14px', borderLeft: `4px solid ${c}` }}>
+                  <div key={who} onClick={() => onGoFilter && onGoFilter('gasto', '', undefined, who)} style={{ background: P.c2, borderRadius: 14, padding: '12px 14px', borderLeft: `4px solid ${c}`, cursor: onGoFilter ? 'pointer' : 'default' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
                       <span style={{ fontSize: 14, fontWeight: 700, color: P.tx }}>{who.split(' ')[0]}</span>
                       <span style={{ fontSize: 13, fontWeight: 700, color: disponible >= 0 ? P.gn : P.rd, textAlign: 'right' }}>
@@ -6623,9 +6633,9 @@ function GoalsTab({
         {ahorroMembers.length > 1 && (
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 10 }}>
             {ahorroMembers.map((who) => (
-              <div key={who} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+              <div key={who} onClick={() => onGoFilter && onGoFilter('ahorro', '', undefined, who)} style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: onGoFilter ? 'pointer' : 'default' }}>
                 <span style={{ width: 8, height: 8, borderRadius: '50%', background: colorForMember(who) }} />
-                <span style={{ fontSize: 10, color: P.sb }}>{who}</span>
+                <span style={{ fontSize: 10, color: P.sb, textDecoration: onGoFilter ? 'underline' : 'none' }}>{who}</span>
               </div>
             ))}
           </div>
@@ -6688,9 +6698,9 @@ function GoalsTab({
         {gastoMembers.length > 1 && (
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 10 }}>
             {gastoMembers.map((who) => (
-              <div key={who} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+              <div key={who} onClick={() => onGoFilter && onGoFilter('gasto', '', undefined, who)} style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: onGoFilter ? 'pointer' : 'default' }}>
                 <span style={{ width: 8, height: 8, borderRadius: '50%', background: colorForMember(who) }} />
-                <span style={{ fontSize: 10, color: P.sb }}>{who}</span>
+                <span style={{ fontSize: 10, color: P.sb, textDecoration: onGoFilter ? 'underline' : 'none' }}>{who}</span>
               </div>
             ))}
           </div>

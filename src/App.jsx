@@ -1735,6 +1735,23 @@ function MainApp({ user, onLogout }) {
     myGroups.forEach((g) => (g.clients || []).forEach((c) => set.add(c)));
     return [...set];
   }, [settings.clients, myGroups]);
+  // Agrega una subcategoría a una categoría (base o personalizada) y la guarda
+  // en el espacio que se está viendo, para que la vea todo el grupo
+  const addSubcategory = (type, catName, sub) => {
+    const own = viewScope === 'personal'
+      ? settings.customCats || {}
+      : myGroups.find((g) => g.id === viewScope)?.customCats || {};
+    const cc = JSON.parse(JSON.stringify(own));
+    if (!cc[type]) cc[type] = [];
+    let entry = cc[type].find((c) => c.n === catName);
+    if (!entry) {
+      const base = getCats(type, mergedCustomCats).find((c) => c.n === catName);
+      entry = { n: catName, i: base?.i || '🏷️', s: [] };
+      cc[type].push(entry);
+    }
+    if (!(entry.s || []).includes(sub)) entry.s = [...(entry.s || []), sub];
+    saveCustomCats(cc);
+  };
   const saveClient = async (name) => {
     if (viewScope !== 'personal') {
       const grp = myGroups.find((g) => g.id === viewScope);
@@ -2666,6 +2683,7 @@ function MainApp({ user, onLogout }) {
           }}
           knownClients={mergedClients}
           onAddClient={saveClient}
+          onAddSub={addSubcategory}
         />
       )}
 
@@ -6885,6 +6903,7 @@ function TxModal({
   onAddCard,
   knownClients = [],
   onAddClient,
+  onAddSub,
 }) {
   const [type, setType] = useState(initial?.type || 'gasto');
   const cats = getCats(type, customCats);
@@ -6914,6 +6933,16 @@ function TxModal({
     initial?.efundAmt != null ? String(initial.efundAmt) : ''
   );
   const [newClient, setNewClient] = useState('');
+  const [addingSub, setAddingSub] = useState(false);
+  const [newSubName, setNewSubName] = useState('');
+  const submitNewSub = () => {
+    const name = newSubName.trim();
+    if (!name || !onAddSub) return;
+    onAddSub(type, cat, name);
+    setSub(name);
+    setNewSubName('');
+    setAddingSub(false);
+  };
   const isG = type === 'gasto';
   const isSav = type === 'ahorro';
   const isClientSub = type === 'ingreso' && sub === 'Clientes';
@@ -7163,13 +7192,34 @@ function TxModal({
                 );
               })}
             </div>
-            {cc && cc.s && cc.s.length > 0 && (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 12 }}>
-                {cc.s.map((s2) => (
+            {cc && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 12, alignItems: 'center' }}>
+                {(cc.s || []).map((s2) => (
                   <button key={s2} onClick={() => setSub(sub === s2 ? '' : s2)} style={{ background: sub === s2 ? `${P.ac}18` : P.cd, border: `1px solid ${sub === s2 ? P.ac : P.bd}`, color: sub === s2 ? P.ac : P.sb, padding: '6px 11px', borderRadius: 9, cursor: 'pointer', fontSize: 11 }}>
                     {s2}
                   </button>
                 ))}
+                {sub && !(cc.s || []).includes(sub) && (
+                  <button type="button" style={{ background: `${P.ac}18`, border: `1px solid ${P.ac}`, color: P.ac, padding: '6px 11px', borderRadius: 9, fontSize: 11 }}>{sub}</button>
+                )}
+                {onAddSub && !addingSub && (
+                  <button type="button" onClick={() => setAddingSub(true)} title="Agregar subcategoría" style={{ background: P.gb, border: `1px solid ${P.gn}25`, color: P.gn, width: 30, height: 28, borderRadius: 9, cursor: 'pointer', fontSize: 16, fontWeight: 700, lineHeight: 1 }}>+</button>
+                )}
+              </div>
+            )}
+            {cc && onAddSub && addingSub && (
+              <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                <input
+                  autoFocus
+                  type="text"
+                  placeholder={`Nueva subcategoría de ${cc.n}...`}
+                  value={newSubName}
+                  onChange={(e) => setNewSubName(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') submitNewSub(); }}
+                  style={{ ...iS, flex: 1, padding: '8px 12px', fontSize: 13 }}
+                />
+                <button type="button" onClick={submitNewSub} style={{ background: P.gb, color: P.gn, border: `1px solid ${P.gn}25`, borderRadius: 10, padding: '0 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Agregar</button>
+                <button type="button" onClick={() => { setAddingSub(false); setNewSubName(''); }} style={{ background: 'transparent', color: P.sb, border: 'none', fontSize: 16, cursor: 'pointer' }}>✕</button>
               </div>
             )}
           </div>

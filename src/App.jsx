@@ -2455,6 +2455,7 @@ function MainApp({ user, onLogout }) {
               onExport: () => exportCSV(true),
               customCats: mergedCustomCats,
               pendingFilter,
+              cards: settings.cards || [],
             }}
           />
         )}
@@ -4417,7 +4418,7 @@ function relDayLabel(d) {
   return { label: `${dd} ${mAbbr}`, rel: '' };
 }
 
-function DiariosTab({ mob, cur, activeTx, month, onAdd, onEdit, onExport, customCats, pendingFilter, embedded = false, hidePills = false, excludeSpecial = false, defaultFilter = 'todos' }) {
+function DiariosTab({ mob, cur, activeTx, month, onAdd, onEdit, onExport, customCats, pendingFilter, cards = [], embedded = false, hidePills = false, excludeSpecial = false, defaultFilter = 'todos' }) {
   const [usdRates, setUsdRates] = useState(null);
   const [filter, setFilter] = useState(defaultFilter);
   const [showSearch, setShowSearch] = useState(false);
@@ -4441,12 +4442,21 @@ function DiariosTab({ mob, cur, activeTx, month, onAdd, onEdit, onExport, custom
     const cuota = t.pay === 'credito' && t.cuotas > 1;
     return susc || cuota;
   };
-  const pool = activeTx.filter(
+  const basePool = activeTx.filter(
     (t) =>
       mk(t.date) === month &&
       !(t.type === 'gasto' && t.recurring) &&
       !(excludeSpecial && t.type === 'gasto' && isSuscOrCuota(t))
   );
+  // Al buscar (p. ej. tocando una categoría del Dashboard) sumar también lo que
+  // el Dashboard cuenta en este mes: compras con tarjeta facturadas acá (aunque
+  // sean del mes anterior), cuotas y recurrentes. Si no, el gasto "no aparece".
+  const pool = q.trim()
+    ? (() => {
+        const ids = new Set(basePool.map((t) => t.id));
+        return [...basePool, ...chargesForMonth(activeTx, month, cards, true).filter((t) => !ids.has(t.id))];
+      })()
+    : basePool;
   const FILTERS = [
     { id: 'ingreso', l: 'Ingresos' },
     { id: 'gasto', l: 'Gastos' },
@@ -4455,10 +4465,15 @@ function DiariosTab({ mob, cur, activeTx, month, onAdd, onEdit, onExport, custom
   let items = filter === 'todos' ? pool : pool.filter((t) => t.type === filter);
   if (q.trim()) {
     const qq = q.trim().toLowerCase();
+    const subOf = (t) => (t.sub || 'Sin subcategoría').toLowerCase();
+    // "Categoría · Subcategoría" (desde el Dashboard) = filtro exacto
+    const [qCat, qSub] = qq.includes(' · ') ? qq.split(' · ') : [null, null];
     items = items.filter((t) =>
-      (t.desc || '').toLowerCase().includes(qq) ||
-      (t.cat || '').toLowerCase().includes(qq) ||
-      (t.sub || '').toLowerCase().includes(qq)
+      qCat != null
+        ? (t.cat || '').toLowerCase() === qCat && subOf(t) === qSub
+        : (t.desc || '').toLowerCase().includes(qq) ||
+          (t.cat || '').toLowerCase().includes(qq) ||
+          subOf(t).includes(qq)
     );
   }
   items = [...items].sort((a, b) => String(b.date).localeCompare(String(a.date)));
@@ -4554,7 +4569,8 @@ function DiariosTab({ mob, cur, activeTx, month, onAdd, onEdit, onExport, custom
               return (
                 <div
                   key={t.id}
-                  onClick={() => onEdit(t)}
+                  // Las cuotas vienen con el monto dividido: editar siempre el movimiento original
+                  onClick={() => onEdit(activeTx.find((x) => x.id === t.id) || t)}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -4575,7 +4591,7 @@ function DiariosTab({ mob, cur, activeTx, month, onAdd, onEdit, onExport, custom
                       {t.desc || t.cat}
                     </div>
                     <div style={{ fontSize: 12, fontWeight: 500, color: P.sb, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {t.cat}{t.sub ? ` · ${t.sub}` : ''}{t.pay ? ` · ${PAY_LABEL[t.pay] || t.pay}` : ''}{t.member ? ` · 👤 ${t.member.split(' ')[0]}` : ''}
+                      {t.cat}{t.type === 'gasto' ? ` · ${t.sub || 'Sin subcategoría'}` : t.sub ? ` · ${t.sub}` : ''}{t.pay ? ` · ${PAY_LABEL[t.pay] || t.pay}` : ''}{t.cuotaInfo ? ` · cuota ${t.cuotaInfo}` : ''}{t.member ? ` · 👤 ${t.member.split(' ')[0]}` : ''}
                     </div>
                   </div>
                   <div style={{ textAlign: 'right', flexShrink: 0 }}>
@@ -5431,7 +5447,7 @@ function HomeTab({
                         {subs.map(([sub, sAmt]) => (
                           <div
                             key={sub}
-                            onClick={() => onGoFilter && onGoFilter('gasto', sub)}
+                            onClick={() => onGoFilter && onGoFilter('gasto', `${catName} · ${sub}`)}
                             style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: P.sb, cursor: onGoFilter ? 'pointer' : 'default' }}
                           >
                             <span>{sub}</span>

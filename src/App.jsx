@@ -84,6 +84,11 @@ const CATS = {
       s: ['Monotributo', 'IIBB', 'Seguros', 'Cuotas', 'Deudas', 'Otros'],
     },
     {
+      n: 'Negocio',
+      i: '🧑‍💻',
+      s: ['IA', 'Aplicaciones', 'Otros'],
+    },
+    {
       n: 'Tarjetas',
       i: '💳',
       s: ['Resumen', 'Cuotas', 'Intereses', 'Mantenimiento', 'Otros'],
@@ -365,6 +370,7 @@ const KEYWORD_CATS = {
     'Vivienda': ['luz', 'gas', 'agua', 'internet', 'expensas', 'alquiler', 'wifi', 'edemsa'],
     'Tarjetas': ['resumen', 'intereses'],
     'Compras': ['ropa', 'zapatillas', 'shopping', 'regalo'],
+    'Negocio': ['claude', 'chatgpt', 'openai', 'gemini', 'midjourney', 'canva', 'notion', 'capcut', 'google workspace', 'dominio', 'hosting', 'vercel'],
   },
   ingreso: {
     'Trabajo': ['sueldo', 'honorario', 'factura', 'freelance', 'consultoria', 'proyecto'],
@@ -4401,6 +4407,7 @@ function catRowStyle(catName) {
     'Compras': { c: '#D4678A', bg: isDark ? 'rgba(212,103,138,.15)' : '#FFF0F5' },
     'Obligaciones': { c: P.rd, bg: isDark ? 'rgba(232,113,94,.12)' : P.rb },
     'Tarjetas': { c: '#C9B89A', bg: isDark ? 'rgba(201,184,154,.1)' : '#FFF8E6' },
+    'Negocio': { c: '#2B8A9E', bg: isDark ? 'rgba(43,138,158,.15)' : '#E6F4F7' },
   };
   if (map[catName]) return map[catName];
   const idx = Math.abs([...(catName || '')].reduce((a, c) => a + c.charCodeAt(0), 0)) % pal.length;
@@ -5059,6 +5066,7 @@ function HomeTab({
       'Compras': { c: '#D4678A', bg: isDark ? 'rgba(212,103,138,.15)' : '#FFF0F5' },
       'Obligaciones': { c: P.rd, bg: isDark ? 'rgba(232,113,94,.12)' : P.rb },
       'Tarjetas': { c: '#C9B89A', bg: isDark ? 'rgba(201,184,154,.1)' : '#FFF8E6' },
+      'Negocio': { c: '#2B8A9E', bg: isDark ? 'rgba(43,138,158,.15)' : '#E6F4F7' },
     };
     return map[name] || { c: pal[Math.abs(name?.length || 0) % pal.length], bg: P.c2 };
   };

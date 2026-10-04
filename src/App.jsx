@@ -3568,7 +3568,7 @@ function ImportModal({ mob, onImport, onClose, groups = [], defaultDest, customC
                           />
                           <button
                             type="button"
-                            onClick={() => updateRow(t._id, { type: t.type === 'gasto' ? 'ingreso' : 'gasto', cat: '' })}
+                            onClick={() => updateRow(t._id, { type: t.type === 'gasto' ? 'ingreso' : 'gasto', cat: '', sub: '' })}
                             title="Tocá para cambiar entre gasto/ingreso"
                             style={{ background: 'transparent', border: 'none', fontSize: 15, cursor: 'pointer', flexShrink: 0, padding: 0 }}
                           >
@@ -3590,8 +3590,12 @@ function ImportModal({ mob, onImport, onClose, groups = [], defaultDest, customC
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                           <select
                             value={catOptions.some((c) => c.n === t.cat) ? t.cat : ''}
-                            onChange={(e) => updateRow(t._id, { cat: e.target.value })}
-                            style={{ background: P.c2, border: `1px solid ${P.bd}`, borderRadius: 6, color: P.tx, fontSize: 12, padding: '4px 4px', flexShrink: 0, maxWidth: 120, colorScheme: P.bg === P_DARK.bg ? 'dark' : 'light' }}
+                            onChange={(e) => {
+                              const newCat = catOptions.find((c) => c.n === e.target.value);
+                              const keepSub = newCat && (newCat.s || []).includes(t.sub);
+                              updateRow(t._id, { cat: e.target.value, sub: keepSub ? t.sub : '' });
+                            }}
+                            style={{ background: P.c2, border: `1px solid ${P.bd}`, borderRadius: 6, color: P.tx, fontSize: 12, padding: '4px 4px', flex: 1, minWidth: 0, colorScheme: P.bg === P_DARK.bg ? 'dark' : 'light' }}
                           >
                             {!catOptions.some((c) => c.n === t.cat) && (
                               <option value="" style={{ background: P.cd, color: P.tx }}>{t.cat ? `${t.cat} (?)` : 'Categoría'}</option>
@@ -3600,6 +3604,21 @@ function ImportModal({ mob, onImport, onClose, groups = [], defaultDest, customC
                               <option key={c.n} value={c.n} style={{ background: P.cd, color: P.tx }}>{c.i} {c.n}</option>
                             ))}
                           </select>
+                          <select
+                            value={t.sub || ''}
+                            onChange={(e) => updateRow(t._id, { sub: e.target.value })}
+                            style={{ background: P.c2, border: `1px solid ${P.bd}`, borderRadius: 6, color: P.tx, fontSize: 12, padding: '4px 4px', flex: 1, minWidth: 0, colorScheme: P.bg === P_DARK.bg ? 'dark' : 'light' }}
+                          >
+                            <option value="" style={{ background: P.cd, color: P.tx }}>Subcategoría</option>
+                            {t.sub && !((catOptions.find((c) => c.n === t.cat)?.s) || []).includes(t.sub) && (
+                              <option value={t.sub} style={{ background: P.cd, color: P.tx }}>{t.sub} (?)</option>
+                            )}
+                            {((catOptions.find((c) => c.n === t.cat)?.s) || []).map((s2) => (
+                              <option key={s2} value={s2} style={{ background: P.cd, color: P.tx }}>{s2}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                           <input
                             type="text"
                             value={t.desc || ''}

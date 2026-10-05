@@ -6654,6 +6654,41 @@ function GoalsTab({
   const disponibleProyectado = totIn2 - totOut2 - totalComprometido - totalYaAhorrado;
   const recomendado = Math.max(0, disponibleProyectado);
 
+  // Sobrante del mes anterior, por persona: lo que ingresó menos lo gastado
+  // (sin lo pagado con ahorros) y lo ahorrado. Al ahorrarlo se carga con fecha
+  // del último día de ese mes, así sale de ese sobrante y no del mes actual.
+  const prevKey = (() => {
+    const [y, m] = month.split('-').map(Number);
+    return m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}`;
+  })();
+  const prevLastDay = (() => {
+    const [y, m] = prevKey.split('-').map(Number);
+    return `${prevKey}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`;
+  })();
+  const leftover = {};
+  chargesForMonth(scopeTx, prevKey, cards, true)
+    .filter((t) => t.cur === cur && !t.pending)
+    .forEach((t) => {
+      const w = whoOf(t);
+      if (t.type === 'ingreso') leftover[w] = (leftover[w] || 0) + t.amt;
+      else if ((t.type === 'gasto' && !t.fromSav) || t.type === 'ahorro') leftover[w] = (leftover[w] || 0) - t.amt;
+    });
+  const leftoverRows = Object.entries(leftover)
+    .map(([w, v]) => [w, Math.round(v)])
+    .filter(([, v]) => v >= 1)
+    .sort((a, b) => b[1] - a[1]);
+  const leftKey = 'aureo-leftover-' + prevKey + '-' + cur;
+  const [leftHidden, setLeftHidden] = useState(() => {
+    try { return localStorage.getItem(leftKey) === '1'; } catch { return false; }
+  });
+  useEffect(() => {
+    try { setLeftHidden(localStorage.getItem(leftKey) === '1'); } catch { setLeftHidden(false); }
+  }, [leftKey]);
+  const hideLeftover = () => {
+    setLeftHidden(true);
+    try { localStorage.setItem(leftKey, '1'); } catch { /* sin storage */ }
+  };
+
   return (
     <div
       style={{
@@ -6663,6 +6698,37 @@ function GoalsTab({
         paddingTop: 8,
       }}
     >
+      {leftoverRows.length > 0 && !leftHidden && onAdd && (
+        <Box style={{ padding: mob ? 16 : 20, background: P.gb, border: `1px solid ${P.gn}30` }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+            <span style={{ fontSize: 14, fontWeight: 700, color: P.gn }}>💰 Te quedó de {MOF[Number(prevKey.slice(5, 7)) - 1]}</span>
+            <span onClick={hideLeftover} style={{ fontSize: 11, color: P.sb, cursor: 'pointer' }}>Ahora no</span>
+          </div>
+          <div style={{ fontSize: 11, color: P.sb, marginBottom: 10, lineHeight: 1.4 }}>
+            Lo que sobró el mes pasado (ingresos − gastos − ahorros). Si lo ahorrás, se registra en {MOF[Number(prevKey.slice(5, 7)) - 1].toLowerCase()} y no te baja el balance de este mes.
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {leftoverRows.map(([w, v]) => (
+              <div key={w} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                {leftoverRows.length > 1 || w !== userName ? (
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: colorForMember(w), flexShrink: 0 }} />
+                ) : null}
+                <span style={{ flex: 1, fontSize: 13, color: P.tx }}>
+                  {leftoverRows.length > 1 || w !== userName ? <>{w.split(' ')[0]}: </> : null}
+                  <b>{fmt(v, cur)}</b>
+                </span>
+                <button
+                  onClick={() => onAdd('ahorro', { amt: v, date: prevLastDay, cat: 'Reserva', sub: 'Caja de ahorro', desc: 'Sobrante de ' + MOF[Number(prevKey.slice(5, 7)) - 1].toLowerCase(), member: w, cur })}
+                  style={{ background: P.gn, border: 'none', color: '#fff', padding: '8px 12px', borderRadius: 10, cursor: 'pointer', fontSize: 12, fontWeight: 700 }}
+                >
+                  Ahorrarlo
+                </button>
+              </div>
+            ))}
+          </div>
+        </Box>
+      )}
+
       <Box style={{ padding: mob ? 16 : 20 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
           <Lbl>📊 Análisis de {MOF[Number(month.slice(5, 7)) - 1]}</Lbl>

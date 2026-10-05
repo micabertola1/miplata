@@ -6633,8 +6633,27 @@ function GoalsTab({
     recurrentesPorMiembro[who] = (recurrentesPorMiembro[who] || 0) + t.amt;
   });
 
+  // Arrastre por persona: lo que quedó sin ahorrar en los meses anteriores
+  // (ingresos − gastos − ahorros acumulados). Se suma a lo disponible de este
+  // mes; si alguien gastó de más, resta.
+  const arrastrePorMiembro = {};
+  new Set(activeTx.map((t) => mk(t.date)).filter((k) => k && k < month)).forEach((k) => {
+    chargesForMonth(activeTx, k, cards, true)
+      .filter((t) => t.cur === cur && !t.pending)
+      .forEach((t) => {
+        const w = whoOf(t);
+        if (t.type === 'ingreso') arrastrePorMiembro[w] = (arrastrePorMiembro[w] || 0) + t.amt;
+        else if ((t.type === 'gasto' && !t.fromSav) || t.type === 'ahorro') arrastrePorMiembro[w] = (arrastrePorMiembro[w] || 0) - t.amt;
+      });
+  });
+  Object.keys(arrastrePorMiembro).forEach((w) => {
+    arrastrePorMiembro[w] = Math.round(arrastrePorMiembro[w]);
+    if (!arrastrePorMiembro[w]) delete arrastrePorMiembro[w];
+  });
+  const totalArrastre = Object.values(arrastrePorMiembro).reduce((s, v) => s + v, 0);
+
   const allMembers = Array.from(
-    new Set([...Object.keys(ingresosPorMiembro), ...Object.keys(gastosPorMiembro), ...Object.keys(recurrentesPorMiembro), ...Object.keys(ahorradoPorMiembro)])
+    new Set([...Object.keys(ingresosPorMiembro), ...Object.keys(gastosPorMiembro), ...Object.keys(recurrentesPorMiembro), ...Object.keys(ahorradoPorMiembro), ...Object.keys(arrastrePorMiembro)])
   );
   const totIn2 = Object.values(ingresosPorMiembro).reduce((s, v) => s + v, 0);
   const totOut2 = Object.values(gastosPorMiembro).reduce((s, v) => s + v, 0);
@@ -6648,15 +6667,16 @@ function GoalsTab({
       ingreso: ingresoM,
       gastado: gastoTotalM,
       pctGastado: ingresoM > 0 ? Math.round((gastoTotalM / ingresoM) * 100) : null,
-      disponible: ingresoM - gastoTotalM - (ahorradoPorMiembro[who] || 0),
+      arrastre: arrastrePorMiembro[who] || 0,
+      disponible: ingresoM + (arrastrePorMiembro[who] || 0) - gastoTotalM - (ahorradoPorMiembro[who] || 0),
     };
   });
-  const disponibleProyectado = totIn2 - totOut2 - totalComprometido - totalYaAhorrado;
+  const disponibleProyectado = totIn2 + totalArrastre - totOut2 - totalComprometido - totalYaAhorrado;
   const recomendado = Math.max(0, disponibleProyectado);
 
-  // Sobrante del mes anterior, por persona: lo que ingresó menos lo gastado
-  // (sin lo pagado con ahorros) y lo ahorrado. Al ahorrarlo se carga con fecha
-  // del último día de ese mes, así sale de ese sobrante y no del mes actual.
+  // Sobrante sin ahorrar de meses anteriores, por persona (arrastre). Al
+  // ahorrarlo se carga con fecha del último día del mes anterior, así sale de
+  // ese sobrante y no del mes actual. Si no se ahorra, ya suma a este mes.
   const prevKey = (() => {
     const [y, m] = month.split('-').map(Number);
     return m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}`;
@@ -6665,16 +6685,7 @@ function GoalsTab({
     const [y, m] = prevKey.split('-').map(Number);
     return `${prevKey}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`;
   })();
-  const leftover = {};
-  chargesForMonth(scopeTx, prevKey, cards, true)
-    .filter((t) => t.cur === cur && !t.pending)
-    .forEach((t) => {
-      const w = whoOf(t);
-      if (t.type === 'ingreso') leftover[w] = (leftover[w] || 0) + t.amt;
-      else if ((t.type === 'gasto' && !t.fromSav) || t.type === 'ahorro') leftover[w] = (leftover[w] || 0) - t.amt;
-    });
-  const leftoverRows = Object.entries(leftover)
-    .map(([w, v]) => [w, Math.round(v)])
+  const leftoverRows = Object.entries(arrastrePorMiembro)
     .filter(([, v]) => v >= 1)
     .sort((a, b) => b[1] - a[1]);
   const leftKey = 'aureo-leftover-' + prevKey + '-' + cur;
@@ -6701,11 +6712,11 @@ function GoalsTab({
       {leftoverRows.length > 0 && !leftHidden && onAdd && (
         <Box style={{ padding: mob ? 16 : 20, background: P.gb, border: `1px solid ${P.gn}30` }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-            <span style={{ fontSize: 14, fontWeight: 700, color: P.gn }}>💰 Te quedó de {MOF[Number(prevKey.slice(5, 7)) - 1]}</span>
-            <span onClick={hideLeftover} style={{ fontSize: 11, color: P.sb, cursor: 'pointer' }}>Ahora no</span>
+            <span style={{ fontSize: 14, fontWeight: 700, color: P.gn }}>💰 Te quedó sin ahorrar</span>
+            <span onClick={hideLeftover} style={{ fontSize: 11, color: P.sb, cursor: 'pointer' }}>Dejarlo en el mes</span>
           </div>
           <div style={{ fontSize: 11, color: P.sb, marginBottom: 10, lineHeight: 1.4 }}>
-            Lo que sobró el mes pasado (ingresos − gastos − ahorros). Si lo ahorrás, se registra en {MOF[Number(prevKey.slice(5, 7)) - 1].toLowerCase()} y no te baja el balance de este mes.
+            Lo que sobró hasta {MOF[Number(prevKey.slice(5, 7)) - 1].toLowerCase()} (ingresos − gastos − ahorros). Si no lo ahorrás, se suma a lo disponible de este mes. Si lo ahorrás, se registra en {MOF[Number(prevKey.slice(5, 7)) - 1].toLowerCase()} y no te baja el balance de este mes.
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {leftoverRows.map(([w, v]) => (
@@ -6754,6 +6765,9 @@ function GoalsTab({
             {disponibleProyectado > 0
               ? 'Ya descontamos lo gastado, los recurrentes que faltan pagar y lo que ya ahorraste.'
               : 'Entre lo gastado, los recurrentes que faltan pagar y lo ya ahorrado, no alcanza lo que ingresó.'}
+            {totalArrastre !== 0 && (
+              <> {totalArrastre > 0 ? 'Incluye' : 'Descuenta'} <b>{fmt(Math.abs(totalArrastre), cur)}</b> {totalArrastre > 0 ? 'que quedó sin ahorrar de meses anteriores.' : 'que faltó en meses anteriores.'}</>
+            )}
           </div>
           {disponibleProyectado > 0 && onAdd && (
             <button
@@ -6773,12 +6787,19 @@ function GoalsTab({
             { l: 'Ya ahorrado', v: totalYaAhorrado, c: P.ac },
             { l: 'Disponible', v: Math.max(0, disponibleProyectado), c: P.gn },
           ];
-          const base = Math.max(totIn2, segs.reduce((s, x) => s + x.v, 0), 1);
+          const base = Math.max(totIn2 + Math.max(0, totalArrastre), segs.reduce((s, x) => s + x.v, 0), 1);
           return (
             <>
               <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 6 }}>
                 <span style={{ fontSize: 11, fontWeight: 600, color: P.sb }}>Cómo se reparte lo que ingresó</span>
-                <span style={{ fontSize: 13, fontWeight: 700, color: P.gn }}>{fmtS(totIn2, cur)}</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: P.gn, textAlign: 'right' }}>
+                  {fmtS(totIn2, cur)}
+                  {totalArrastre !== 0 && (
+                    <span style={{ display: 'block', fontSize: 10, fontWeight: 500, color: P.sb }}>
+                      {totalArrastre > 0 ? '+' : '−'} {fmtS(Math.abs(totalArrastre), cur)} de meses anteriores
+                    </span>
+                  )}
+                </span>
               </div>
               <div style={{ display: 'flex', height: 12, borderRadius: 6, overflow: 'hidden', background: P.c2, gap: 2 }}>
                 {segs.map((s) => s.v > 0 && (
@@ -6809,7 +6830,7 @@ function GoalsTab({
           <div style={{ marginTop: 16 }}>
             <div style={{ fontSize: 11, fontWeight: 600, color: P.sb, marginBottom: 8 }}>Por persona</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {disponiblePorMiembro.map(({ who, ingreso, gastado, pctGastado, disponible }) => {
+              {disponiblePorMiembro.map(({ who, ingreso, gastado, pctGastado, arrastre, disponible }) => {
                 const c = colorForMember(who);
                 const over = pctGastado != null && pctGastado > 100;
                 return (
@@ -6821,7 +6842,10 @@ function GoalsTab({
                       </span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, marginBottom: 4 }}>
-                      <span style={{ fontSize: 11, color: P.sb }}>Gastó {fmtS(gastado, cur)} de {fmtS(ingreso, cur)}</span>
+                      <span style={{ fontSize: 11, color: P.sb }}>
+                        Gastó {fmtS(gastado, cur)} de {fmtS(ingreso, cur)}
+                        {arrastre !== 0 && ` (${arrastre > 0 ? '+' : '−'} ${fmtS(Math.abs(arrastre), cur)} anterior)`}
+                      </span>
                       <span style={{ fontSize: 12, fontWeight: 800, color: over ? P.rd : c }}>{pctGastado != null ? `${pctGastado}%` : '—'}</span>
                     </div>
                     <div style={{ height: 7, borderRadius: 4, background: P.bd, overflow: 'hidden' }}>

@@ -5100,6 +5100,7 @@ function HomeTab({
   const hasBudgets = Object.keys(budgets || {}).length > 0;
 
   const [expandedCat, setExpandedCat] = useState(null);
+  const [showAllCats, setShowAllCats] = useState(false);
   const [showPending, setShowPending] = useState(false);
 
   // Serie mensual (6 meses terminando en el mes visto)
@@ -5414,12 +5415,15 @@ function HomeTab({
           <Box>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
               <span style={{ fontSize: 15, fontWeight: 700, color: P.tx }}>Por categoría</span>
-              {onSeeCats && (
+              {byCat.length > 5 && (
+                <span onClick={() => setShowAllCats((v) => !v)} style={{ fontSize: 12, fontWeight: 600, color: P.ac, cursor: 'pointer' }}>{showAllCats ? 'Ver menos' : `Ver todas (${byCat.length})`}</span>
+              )}
+              {!byCat.length && onSeeCats && (
                 <span onClick={onSeeCats} style={{ fontSize: 12, fontWeight: 600, color: P.ac, cursor: 'pointer' }}>Ver todo →</span>
               )}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              {byCat.slice(0, 5).map(([catName, amt]) => {
+              {(showAllCats ? byCat : byCat.slice(0, 5)).map(([catName, amt]) => {
                 const { c, bg } = catColor(catName);
                 const pct = Math.round((amt / totCatAll) * 100);
                 const open = expandedCat === catName;
@@ -6236,7 +6240,7 @@ function InsightsTab({
             }}
           >
             <option value="">Categoría...</option>
-            {CATS.gasto.map((c) => (
+            {getCats('gasto', customCats).map((c) => (
               <option key={c.n} value={c.n}>
                 {c.i} {c.n}
               </option>

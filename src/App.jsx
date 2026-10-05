@@ -358,28 +358,100 @@ function parseAmount(s) {
   return isNaN(n) ? NaN : Math.round(Math.abs(n) * 100) / 100;
 }
 
-// Palabras conocidas → categoría, para el clasificador gratis por palabras
-// clave (sin IA). Solo se usa si esa categoría existe realmente en la lista
-// (para no sugerir categorías que el usuario no tiene).
-const KEYWORD_CATS = {
+// Palabras conocidas → categoría y subcategoría, para el clasificador gratis
+// por palabras clave (sin IA). Palabra completa; con "*" al final alcanza con
+// que empiece así (ej: "verduler*" → verdulería, verdulero). Solo se usa si la
+// categoría/subcategoría existe en la lista del usuario.
+const KEYWORD_SUBS = {
   gasto: {
-    'Alimentación': ['super', 'supermercado', 'verduler', 'carnicer', 'almacen', 'dietetica', 'panaderia', 'kiosco'],
-    'Transporte': ['nafta', 'combustible', 'uber', 'cabify', 'colectivo', 'sube', 'taxi', 'peaje', 'patente'],
-    'Bienestar': ['gimnasio', 'farmacia', 'doctor', 'medico', 'médico', 'psicolog', 'dentista'],
-    'Entretenimiento': ['netflix', 'spotify', 'cine', 'bar', 'boliche', 'salida', 'streaming', 'hbo', 'disney', 'previa', 'birra', 'recital'],
-    'Vivienda': ['luz', 'gas', 'agua', 'internet', 'expensas', 'alquiler', 'wifi', 'edemsa'],
-    'Tarjetas': ['resumen', 'intereses'],
-    'Compras': ['ropa', 'zapatillas', 'shopping', 'regalo'],
-    'Negocio': ['claude', 'chatgpt', 'openai', 'gemini', 'midjourney', 'canva', 'notion', 'capcut', 'google workspace', 'dominio', 'hosting', 'vercel'],
+    'Alimentación': {
+      'Supermercado': ['super', 'supermercado', 'súper', 'carrefour', 'coto', 'jumbo', 'changomas', 'vital', 'makro', 'mayorista', 'verduler*', 'verdura*', 'carnicer*', 'almacen', 'almacén', 'dietetica', 'dietética', 'panaderia', 'panadería', 'fiambreria', 'fiambrería', 'compras del mes'],
+      'Restaurantes': ['restaurant*', 'resto', 'parrilla', 'pizzeria', 'pizzería', 'sushi', 'almuerzo', 'cena', 'bodegon', 'bodegón', 'hamburguesa*'],
+      'Delivery': ['delivery', 'pedidosya', 'pedidos ya', 'rappi'],
+      'Café': ['cafe', 'café', 'cafeteria', 'cafetería', 'starbucks', 'havanna', 'merienda'],
+      'Kiosco': ['kiosco', 'golosina*', 'cigarrillos', 'puchos'],
+    },
+    'Vivienda': {
+      'Alquiler': ['alquiler'],
+      'Expensas': ['expensas'],
+      'Servicios': ['luz', 'gas', 'agua', 'edemsa', 'ecogas', 'aysam', 'edenor', 'edesur', 'metrogas', 'aysa', 'celular', 'telefono', 'teléfono'],
+      'Internet': ['internet', 'wifi', 'fibertel', 'telecentro'],
+      'Mantenimiento': ['plomero', 'electricista', 'ferreteria', 'ferretería', 'arreglo*', 'pintura'],
+    },
+    'Transporte': {
+      'Combustible': ['nafta', 'combustible', 'gasoil', 'ypf', 'shell', 'axion', 'cargar nafta'],
+      'Transporte público': ['colectivo', 'bondi', 'sube', 'subte', 'tren', 'micro'],
+      'Uber/Cabify': ['uber', 'cabify', 'didi', 'taxi', 'remis'],
+      'Patente': ['patente'],
+      'Seguro': ['seguro del auto', 'seguro auto'],
+      'Otros': ['peaje', 'estacionamiento'],
+    },
+    'Bienestar': {
+      'Gimnasio': ['gimnasio', 'gym', 'sportclub', 'pilates', 'yoga', 'crossfit'],
+      'Salud': ['doctor', 'medico', 'médico', 'psicolog*', 'dentista', 'odontolog*', 'consulta', 'analisis', 'análisis', 'prepaga', 'obra social'],
+      'Farmacia': ['farmacia', 'remedio*', 'medicamento*'],
+      'Educación': ['curso', 'facultad', 'colegio', 'libro*'],
+    },
+    'Entretenimiento': {
+      'Vacaciones': ['vacaciones', 'hotel', 'pasaje*', 'airbnb', 'viaje'],
+      'Streaming': ['netflix', 'spotify', 'hbo', 'max', 'disney', 'prime video', 'paramount', 'streaming', 'youtube premium'],
+      'Salidas': ['bar', 'boliche', 'salida', 'previa', 'birra', 'cerveza*', 'recital', 'teatro', 'cine'],
+      'Hobbies': ['hobby', 'hobbies'],
+    },
+    'Compras': {
+      'Ropa': ['ropa', 'zapatilla*', 'remera*', 'pantalon*', 'pantalón', 'campera*', 'zapato*', 'buzo*', 'vestido*'],
+      'Electrónica': ['auriculares', 'notebook', 'cargador', 'electronica', 'electrónica', 'tablet'],
+      'Hogar': ['muebles', 'sabanas', 'sábanas', 'bazar', 'easy', 'sodimac', 'blanquer*'],
+      'Mascotas': ['veterinari*', 'mascota*', 'alimento perro', 'alimento gato', 'balanceado'],
+      'Otros': ['shopping', 'regalo*'],
+    },
+    'Obligaciones': {
+      'Monotributo': ['monotributo'],
+      'IIBB': ['iibb', 'ingresos brutos'],
+      'Deudas': ['deuda*', 'prestamo', 'préstamo'],
+    },
+    'Tarjetas': {
+      'Resumen': ['resumen'],
+      'Intereses': ['intereses'],
+    },
+    'Negocio': {
+      'IA': ['ia', 'ai', 'claude', 'chatgpt', 'chat gpt', 'openai', 'gemini', 'midjourney', 'perplexity', 'copilot'],
+      'Aplicaciones': ['app', 'apps', 'aplicacion', 'aplicación', 'aplicaciones', 'canva', 'notion', 'capcut', 'google workspace', 'dominio', 'hosting', 'vercel', 'adobe', 'figma', 'zoom', 'meta verified'],
+    },
   },
   ingreso: {
-    'Trabajo': ['sueldo', 'honorario', 'factura', 'freelance', 'consultoria', 'proyecto'],
-    'Inversiones': ['dividendo', 'rendimiento'],
-    'Otros': ['venta', 'reembolso'],
+    'Trabajo': {
+      'Sueldo': ['sueldo', 'aguinaldo'],
+      'Consultoría': ['consultoria', 'consultoría', 'asesoria', 'asesoría'],
+      'Proyectos': ['proyecto*'],
+      'Clientes': ['honorario*', 'factura*', 'freelance', 'cliente*'],
+    },
+    'Inversiones': {
+      'Rendimientos': ['rendimiento*'],
+      'Dividendos': ['dividendo*'],
+      'Cripto': ['cripto', 'bitcoin', 'usdt'],
+    },
+    'Otros': {
+      'Ventas': ['venta*', 'vendi', 'vendí'],
+      'Reembolsos': ['reembolso*', 'devolucion', 'devolución'],
+      'Regalos': ['regalo*'],
+    },
   },
   ahorro: {
-    'Dólares': ['dolar', 'dólar', 'usd'],
-    'Inversiones': ['plazo fijo', 'cripto', 'bitcoin', 'accion', 'acción', 'bono', 'fondo'],
+    'Reserva': {
+      'Fondo emergencia': ['fondo de emergencia', 'emergencia'],
+      'Caja de ahorro': ['caja de ahorro'],
+    },
+    'Inversiones': {
+      'Plazo fijo': ['plazo fijo'],
+      'Acciones': ['accion*', 'acción', 'cedear*'],
+      'Cripto': ['cripto', 'bitcoin', 'usdt'],
+      'Fondos': ['fci', 'fondo comun', 'fondo común', 'money market'],
+      'Bonos': ['bono*'],
+    },
+    'Dólares': {
+      'Compra USD': ['dolar*', 'dólar*', 'usd'],
+    },
   },
 };
 
@@ -437,11 +509,21 @@ function guessTransaction(raw, { categories = {}, clients = [], defaultCur = 'AR
       }
     }
   }
-  if (!bestCat) {
-    for (const [catName, words] of Object.entries(KEYWORD_CATS[type] || {})) {
-      if (words.some((w) => hasWord(w, true)) && cats.some((c) => c.n === catName)) {
-        bestCat = catName;
-        break;
+  // Palabras clave → categoría + subcategoría ("*" al final = alcanza con que
+  // la palabra empiece así). Si ya se detectó la categoría por nombre, solo
+  // se busca la subcategoría dentro de esa categoría.
+  const hasKw = (w) => (w.endsWith('*') ? hasWord(w.slice(0, -1), true) : hasWord(w));
+  if (!bestSub) {
+    outer: for (const [catName, subs] of Object.entries(KEYWORD_SUBS[type] || {})) {
+      if (bestCat && bestCat !== catName) continue;
+      const catObj = cats.find((c) => c.n === catName);
+      if (!catObj) continue;
+      for (const [subName, words] of Object.entries(subs)) {
+        if (words.some(hasKw)) {
+          bestCat = catName;
+          if ((catObj.s || []).includes(subName)) bestSub = subName;
+          break outer;
+        }
       }
     }
   }

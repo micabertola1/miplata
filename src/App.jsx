@@ -389,11 +389,22 @@ function guessTransaction(raw, { categories = {}, clients = [], defaultCur = 'AR
   const text = (raw || '').toLowerCase();
 
   let type = 'gasto';
-  if (/\b(ahorr|apart[ée]|fondo de emergencia)\b/.test(text)) type = 'ahorro';
-  else if (/\b(cobr[ée]|ingres[oó]|me pagaron|deposit[oó]|entr[oó] plata)\b/.test(text)) type = 'ingreso';
+  if (/(^|[^a-záéíóúñ])(ahorr|apart[ée]|fondo de emergencia)/.test(text)) type = 'ahorro';
+  else if (/(^|[^a-záéíóúñ])(cobr[ée]|cobramos|ingres[oó]|me pagaron|nos pagaron|deposit|entr[oó] plata|sueldo|honorario)/.test(text)) type = 'ingreso';
 
-  const numMatches = raw.match(/\d[\d.,]*\d|\d/g) || [];
-  const amounts = numMatches.map(parseAmount).filter((n) => !isNaN(n) && n > 0);
+  // Montos: "8.500" = ocho mil quinientos (punto de miles), "15 mil" / "15k"
+  const amounts = [];
+  const numRe = /(\d[\d.,]*)\s*(mil\b|k\b|lucas?\b)?/g;
+  let mm;
+  while ((mm = numRe.exec(text))) {
+    let raw0 = mm[1].replace(/[.,]$/, '');
+    // Solo puntos agrupando de a 3 dígitos → separador de miles
+    if (/^\d{1,3}(\.\d{3})+$/.test(raw0)) raw0 = raw0.replace(/\./g, '');
+    let n = parseAmount(raw0);
+    if (isNaN(n) || n <= 0) continue;
+    if (mm[2]) n *= 1000;
+    amounts.push(n);
+  }
   const amt = amounts.length ? Math.max(...amounts) : 0;
 
   let pay;
@@ -404,7 +415,13 @@ function guessTransaction(raw, { categories = {}, clients = [], defaultCur = 'AR
   }
 
   const cats = categories[type] || [];
-  const clientMatch = clients.find((c) => c && text.includes(c.toLowerCase()));
+  // Palabra completa (o que EMPIECE con la palabra clave si prefix): así "gasté"
+  // no matchea "gas" ni "farmacia" matchea la subcategoría "IA"
+  const L = 'a-záéíóúüñ0-9';
+  const esc = (w) => w.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const hasWord = (w, prefix) =>
+    !!w && new RegExp('(^|[^' + L + '])' + esc(w) + (prefix ? '' : '(?![' + L + '])')).test(text);
+  const clientMatch = clients.find((c) => c && hasWord(c));
   if (type === 'ingreso' && clientMatch && cats.some((c) => c.n === 'Trabajo')) {
     return { type, cat: 'Trabajo', sub: 'Clientes', amt, cur: defaultCur, desc: clientMatch, pay };
   }
@@ -412,9 +429,9 @@ function guessTransaction(raw, { categories = {}, clients = [], defaultCur = 'AR
   let bestCat = null;
   let bestSub = '';
   for (const c of cats) {
-    if (text.includes(c.n.toLowerCase())) bestCat = c.n;
+    if (hasWord(c.n)) bestCat = c.n;
     for (const s of c.s || []) {
-      if (s && text.includes(s.toLowerCase())) {
+      if (s && s !== 'Otros' && hasWord(s)) {
         bestCat = c.n;
         bestSub = s;
       }
@@ -422,17 +439,22 @@ function guessTransaction(raw, { categories = {}, clients = [], defaultCur = 'AR
   }
   if (!bestCat) {
     for (const [catName, words] of Object.entries(KEYWORD_CATS[type] || {})) {
-      if (words.some((w) => text.includes(w)) && cats.some((c) => c.n === catName)) {
+      if (words.some((w) => hasWord(w, true)) && cats.some((c) => c.n === catName)) {
         bestCat = catName;
         break;
       }
     }
   }
+  if (!bestCat && type === 'ahorro' && cats.some((c) => c.n === 'Reserva')) {
+    bestCat = 'Reserva';
+    bestSub = 'Caja de ahorro';
+  }
   if (!bestCat) bestCat = cats[0]?.n || 'Otros';
 
   let desc = raw
     .replace(/^\s*(gast[eé]|pagu[eé]|compr[eé]|cobr[eé]|ahorr[eé]|ingres[oó])\s*/i, '')
-    .replace(/\$?\s?[\d.,]+/, '')
+    .replace(/\$?\s?[\d.,]+\s*(mil|k|lucas?)?\b/i, ' ')
+    .replace(/\b(con|en)\s+(tarjeta|cr[eé]dito|efectivo|cuotas|transferencia)\b/gi, ' ')
     .replace(/\b(en|de|del|con|por|para)\b/gi, ' ')
     .replace(/\s+/g, ' ')
     .trim();
@@ -3830,7 +3852,7 @@ function BotModal({ mob, cur, customCats, clients = [], onClose, onResult }) {
 
   const send = () => {
     const t = text.trim();
-    if (!t || busy) return;
+    if (!t) return;
     setError(null);
     try {
       const g = guessTransaction(t, {

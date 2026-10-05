@@ -6826,7 +6826,32 @@ function GoalsTab({
               <> {totalArrastre > 0 ? 'Incluye' : 'Descuenta'} <b>{fmt(Math.abs(totalArrastre), cur)}</b> {totalArrastre > 0 ? 'que tenés disponible de meses anteriores (lo que no se ahorró ni se gastó).' : 'que faltó en meses anteriores.'}</>
             )}
           </div>
-          {!isPastMonth && disponibleProyectado > 0 && onAdd && (
+          {/* Separado por persona (espacios compartidos) */}
+          {allMembers.length > 1 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12, paddingTop: 12, borderTop: `1px solid ${P.bd}` }}>
+              {disponiblePorMiembro.map(({ who, disponible }) => (
+                <div key={who} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: colorForMember(who), flexShrink: 0 }} />
+                  <span style={{ flex: 1, fontSize: 13, color: P.tx }}>
+                    {who.split(' ')[0]}{' '}
+                    <span style={{ fontSize: 11, color: P.sb }}>
+                      {isPastMonth ? (disponible >= 0 ? 'le sobró' : 'le faltó') : disponible >= 0 ? 'puede ahorrar' : 'le faltaría'}
+                    </span>{' '}
+                    <b style={{ color: disponible >= 0 ? P.gn : P.rd }}>{fmt(Math.abs(disponible), cur)}</b>
+                  </span>
+                  {!isPastMonth && disponible > 0 && onAdd && (
+                    <button
+                      onClick={() => onAdd('ahorro', { amt: Math.round(disponible), member: who })}
+                      style={{ background: P.gn, border: 'none', color: '#fff', padding: '7px 12px', borderRadius: 10, cursor: 'pointer', fontSize: 12, fontWeight: 700 }}
+                    >
+                      Ahorrar
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          {!isPastMonth && disponibleProyectado > 0 && onAdd && allMembers.length <= 1 && (
             <button
               onClick={() => onAdd('ahorro', { amt: recomendado })}
               style={{ marginTop: 12, width: '100%', background: P.gn, border: 'none', color: '#fff', padding: '11px 12px', borderRadius: 12, cursor: 'pointer', fontSize: 13, fontWeight: 700 }}

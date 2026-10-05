@@ -2752,6 +2752,7 @@ function MainApp({ user, onLogout }) {
           groups={myGroups}
           defaultDest={viewScope}
           customCats={mergedCustomCats}
+          userName={user.displayName || user.email}
           onClose={() => setShowImport(false)}
         />
       )}
@@ -3345,7 +3346,7 @@ function CategoryManager({ mob, customCats, onSave, onClose, scopeLabel }) {
 }
 
 /* ── IMPORT MODAL ── */
-function ImportModal({ mob, onImport, onClose, groups = [], defaultDest, customCats }) {
+function ImportModal({ mob, onImport, onClose, groups = [], defaultDest, customCats, userName }) {
   const [parsed, setParsed] = useState(null);
   const [rows, setRows] = useState([]);
   const [error, setError] = useState(null);
@@ -3354,6 +3355,20 @@ function ImportModal({ mob, onImport, onClose, groups = [], defaultDest, customC
   const [fileName, setFileName] = useState('');
   const [dest, setDest] = useState(defaultDest || 'personal');
   const [parsing, setParsing] = useState(false);
+  // De quién son los movimientos (solo espacios compartidos): 'auto' = lo que
+  // diga el archivo (columna "quién pagó"), si no, quien importa
+  const [whoMode, setWhoMode] = useState('auto');
+  const destGroup = groups.find((g) => g.id === dest);
+  const groupMembers = Array.from(new Set([userName, ...((destGroup && destGroup.memberNames) || [])].filter(Boolean)));
+  // "Mica" en el archivo → "Mica Bertola" del grupo (por nombre de pila)
+  const matchMember = (raw) => {
+    const r = String(raw || '').trim().toLowerCase();
+    if (!r) return null;
+    return groupMembers.find((m) => m.toLowerCase() === r) ||
+      groupMembers.find((m) => m.toLowerCase().split(' ')[0] === r.split(' ')[0]) ||
+      String(raw).trim();
+  };
+  const memberFor = (r) => (whoMode === 'auto' ? matchMember(r.member) || userName : whoMode);
 
   const loadParsed = (res) => {
     setParsed(res);
@@ -3435,7 +3450,9 @@ function ImportModal({ mob, onImport, onClose, groups = [], defaultDest, customC
     setBusy(true);
     try {
       const result = await onImport(
-        includedRows.map(({ _id, _include, ...t }) => t),
+        includedRows.map(({ _id, _include, ...t }) =>
+          destGroup ? { ...t, member: memberFor(t) } : t
+        ),
         dest
       );
       setDone(result);
@@ -3590,6 +3607,35 @@ function ImportModal({ mob, onImport, onClose, groups = [], defaultDest, customC
                 ))}
               </div>
             </div>
+
+            {destGroup && (
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 12, color: P.sb, marginBottom: 6 }}>
+                  ¿De quién son estos movimientos?
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {[{ id: 'auto', name: '🔎 Detectar' }].concat(groupMembers.map((m) => ({ id: m, name: '👤 ' + m }))).map((o) => (
+                    <button
+                      key={o.id}
+                      onClick={() => setWhoMode(o.id)}
+                      style={{ background: whoMode === o.id ? P.pu : P.c2, color: whoMode === o.id ? '#fff' : P.tx, border: `1px solid ${whoMode === o.id ? P.pu : P.bd}`, borderRadius: 10, padding: '7px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+                    >
+                      {o.name}
+                    </button>
+                  ))}
+                </div>
+                {whoMode === 'auto' && (
+                  <div style={{ fontSize: 10, color: P.sb, marginTop: 4 }}>
+                    Usa la columna "quién pagó" del archivo; si no la tiene, se asignan a {userName}.
+                    {rows.length > 0 && (() => {
+                      const c = {};
+                      rows.filter((r) => r._include).forEach((r) => { const w = memberFor(r); c[w] = (c[w] || 0) + 1; });
+                      return ' Detectado: ' + Object.entries(c).map(([w, n]) => `${w.split(' ')[0]} (${n})`).join(', ') + '.';
+                    })()}
+                  </div>
+                )}
+              </div>
+            )}
 
             {error && (
               <div

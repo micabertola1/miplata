@@ -4449,16 +4449,17 @@ function DiariosTab({ mob, cur, activeTx, month, onAdd, onEdit, onExport, custom
     const cuota = t.pay === 'credito' && t.cuotas > 1;
     return susc || cuota;
   };
+  // "Todos" (sin excludeSpecial) muestra también los recurrentes; "Diarios" no
   const basePool = activeTx.filter(
     (t) =>
       mk(t.date) === month &&
-      !(t.type === 'gasto' && t.recurring) &&
+      !(excludeSpecial && t.type === 'gasto' && t.recurring) &&
       !(excludeSpecial && t.type === 'gasto' && isSuscOrCuota(t))
   );
-  // Al buscar (p. ej. tocando una categoría del Dashboard) sumar también lo que
-  // el Dashboard cuenta en este mes: compras con tarjeta facturadas acá (aunque
-  // sean del mes anterior), cuotas y recurrentes. Si no, el gasto "no aparece".
-  const pool = q.trim()
+  // En "Todos" o al buscar (p. ej. tocando una categoría del Dashboard) sumar
+  // también lo que el Dashboard cuenta en este mes: compras con tarjeta
+  // facturadas acá (aunque sean del mes anterior) y cuotas.
+  const pool = q.trim() || !excludeSpecial
     ? (() => {
         const ids = new Set(basePool.map((t) => t.id));
         return [...basePool, ...chargesForMonth(activeTx, month, cards, true).filter((t) => !ids.has(t.id))];

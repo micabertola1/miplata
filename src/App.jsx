@@ -1781,6 +1781,27 @@ function MainApp({ user, onLogout }) {
     }
   };
 
+  // Viajes (Metas > Viajes): viven en el doc del grupo o del usuario, campo "trips".
+  // Se guardan con updateDoc de ese único campo para no pisar el resto.
+  const tripsByScope = useMemo(() => {
+    const m = { personal: settings.trips || [] };
+    myGroups.forEach((g) => (m[g.id] = g.trips || []));
+    return m;
+  }, [settings.trips, myGroups]);
+  const saveTrips = async (trips) => {
+    try {
+      if (viewScope !== 'personal') {
+        await updateDoc(doc(db, 'groups', viewScope), { trips });
+      } else {
+        setSettings((s) => ({ ...s, trips }));
+        await updateDoc(doc(db, 'users', user.uid), { trips });
+      }
+    } catch (e) {
+      console.error('saveTrips error:', e);
+      notify('No pudimos guardar el viaje. Probá de nuevo.', 'error');
+    }
+  };
+
   // Clientes (Ingreso > Trabajo > Clientes): unión de los propios + los de
   // todos los grupos compartidos, igual que las categorías personalizadas
   const mergedClients = useMemo(() => {
@@ -2507,6 +2528,10 @@ function MainApp({ user, onLogout }) {
             onAdd={openAdd}
             userName={user.displayName || user.email}
             cards={settings.cards || []}
+            trips={tripsByScope[viewScope] || []}
+            saveTrips={saveTrips}
+            scopeTx={activeTx}
+            onEdit={openEdit}
           />
         )}
       </main>
@@ -2742,6 +2767,7 @@ function MainApp({ user, onLogout }) {
           onAddClient={saveClient}
           onAddSub={addSubcategory}
           allTx={[...tx, ...allGroupTx]}
+          tripsAll={tripsByScope}
         />
       )}
 
@@ -6395,6 +6421,10 @@ function GoalsTab({
   onAdd,
   userName,
   cards = [],
+  trips = [],
+  saveTrips,
+  scopeTx = [],
+  onEdit,
 }) {
   const [showUsd, setShowUsd] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
@@ -7024,7 +7054,254 @@ function GoalsTab({
         )}
       </Box>
 
+      <TripsBox trips={trips} saveTrips={saveTrips} scopeTx={scopeTx} cur={cur} onAdd={onAdd} onEdit={onEdit} />
     </div>
+  );
+}
+
+/* ── VIAJES (en Metas) ── */
+// Monedas para cargar gastos de un viaje; se convierten a la moneda del
+// espacio con la cotización del viaje (editable en cada gasto)
+const TRIP_CURS = ['ARS', 'USD', 'BRL', 'EUR', 'CLP', 'UYU'];
+const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+
+// Viajes compartidos: presupuesto, ahorro para el viaje, anotador de gastos
+// planeados (se pasan a gasto real con "Ya lo pagué") y gastos del viaje.
+// Los viajes viven en el doc del grupo (o del usuario) en el campo "trips".
+function TripsBox({ trips = [], saveTrips, scopeTx = [], cur, onAdd, onEdit }) {
+  const [showNew, setShowNew] = useState(false);
+  const [openId, setOpenId] = useState(null);
+  const [nf, setNf] = useState({ name: '', start: '', end: '', budget: '', fxCur: cur, fxRate: '' });
+  const [item, setItem] = useState({ name: '', amt: '' });
+  const [confirmDel, setConfirmDel] = useState(null);
+  const num = (v) => Number(String(v || '').replace(/\./g, '').replace(',', '.')) || 0;
+  const iS = { background: P.cd, border: `1px solid ${P.bd}`, color: P.tx, padding: '9px 11px', borderRadius: 10, fontSize: 13, width: '100%', boxSizing: 'border-box' };
+  const btnS = (bg, color) => ({ background: bg, color, border: 'none', borderRadius: 10, padding: '9px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer' });
+  const upd = (id, patch) => saveTrips(trips.map((t) => (t.id === id ? { ...t, ...patch } : t)));
+  const curName = cur === 'USD' ? 'US$' : 'pesos';
+
+  const create = () => {
+    if (!nf.name.trim()) return;
+    const foreign = nf.fxCur !== cur;
+    const t = {
+      id: newId(),
+      name: nf.name.trim(),
+      start: nf.start || '',
+      end: nf.end || '',
+      budget: num(nf.budget),
+      cur,
+      fxCur: foreign ? nf.fxCur : '',
+      fxRate: foreign ? num(nf.fxRate) : 0,
+      plan: [],
+      closed: false,
+    };
+    saveTrips([...trips, t]);
+    setNf({ name: '', start: '', end: '', budget: '', fxCur: cur, fxRate: '' });
+    setShowNew(false);
+    setOpenId(t.id);
+  };
+
+  const sorted = [...trips].sort((a, b) =>
+    a.closed === b.closed ? String(a.start).localeCompare(String(b.start)) : a.closed ? 1 : -1
+  );
+  const baseGasto = (t) => ({ trip: t.id, cat: 'Entretenimiento', sub: 'Vacaciones', cur: t.cur || cur });
+
+  return (
+    <Box>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+        <Lbl>✈️ Viajes</Lbl>
+        <span onClick={() => setShowNew((v) => !v)} style={{ fontSize: 12, fontWeight: 700, color: P.ac, cursor: 'pointer' }}>
+          {showNew ? 'Cancelar' : '+ Nuevo viaje'}
+        </span>
+      </div>
+      <div style={{ fontSize: 11, color: P.sb, marginBottom: 12 }}>
+        Anotá lo que pensás gastar, juntá plata para el viaje y cargá los gastos en la moneda del lugar.
+      </div>
+
+      {showNew && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, background: P.c2, borderRadius: 12, padding: 12, marginBottom: 12 }}>
+          <input placeholder="Nombre (ej: Vacaciones Brasil)" value={nf.name} onChange={(e) => setNf({ ...nf, name: e.target.value })} style={iS} />
+          <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ flex: 1 }}><Lbl>Desde</Lbl><input type="date" value={nf.start} onChange={(e) => setNf({ ...nf, start: e.target.value })} style={iS} /></div>
+            <div style={{ flex: 1 }}><Lbl>Hasta</Lbl><input type="date" value={nf.end} onChange={(e) => setNf({ ...nf, end: e.target.value })} style={iS} /></div>
+          </div>
+          <input inputMode="decimal" placeholder={`Presupuesto total en ${curName} (opcional)`} value={nf.budget} onChange={(e) => setNf({ ...nf, budget: e.target.value })} style={iS} />
+          <div>
+            <Lbl>¿En qué moneda vas a gastar allá?</Lbl>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
+              {TRIP_CURS.map((c) => (
+                <button key={c} type="button" onClick={() => setNf({ ...nf, fxCur: c })} style={{ ...btnS(nf.fxCur === c ? P.ac : P.cd, nf.fxCur === c ? '#fff' : P.tx), border: `1px solid ${nf.fxCur === c ? P.ac : P.bd}`, padding: '6px 10px' }}>
+                  {c}
+                </button>
+              ))}
+            </div>
+          </div>
+          {nf.fxCur !== cur && (
+            <input inputMode="decimal" placeholder={`Cotización: 1 ${nf.fxCur} = ¿cuántos ${curName}?`} value={nf.fxRate} onChange={(e) => setNf({ ...nf, fxRate: e.target.value })} style={iS} />
+          )}
+          <button type="button" onClick={create} style={btnS(P.ac, '#fff')}>Crear viaje</button>
+        </div>
+      )}
+
+      {!sorted.length && !showNew && (
+        <div style={{ fontSize: 12, color: P.sb }}>Todavía no hay viajes. Tocá "+ Nuevo viaje".</div>
+      )}
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {sorted.map((t) => {
+          const tc = t.cur || cur;
+          const txT = scopeTx.filter((x) => x.trip === t.id && x.cur === tc && !x.pending);
+          const gastos = txT.filter((x) => x.type === 'gasto').sort((a, b) => String(b.date).localeCompare(String(a.date)));
+          const gastado = gastos.reduce((s, x) => s + x.amt, 0);
+          const ahorrado = txT.filter((x) => x.type === 'ahorro').reduce((s, x) => s + x.amt, 0);
+          const plan = t.plan || [];
+          const planeado = plan.reduce((s, p) => s + (p.amt || 0), 0);
+          const meta = t.budget || planeado;
+          const paidOf = (p) => gastos.filter((x) => x.planItem === p.id).reduce((s, x) => s + x.amt, 0);
+          const faltaPagar = plan.filter((p) => !paidOf(p)).reduce((s, p) => s + (p.amt || 0), 0);
+          const byWho = {};
+          gastos.forEach((x) => {
+            const w = x.member || x.createdByName || 'Vos';
+            byWho[w] = (byWho[w] || 0) + x.amt;
+          });
+          const open = openId === t.id;
+          const fechas = [t.start, t.end].filter(Boolean).map((d) => d.split('-').reverse().slice(0, 2).join('/')).join(' → ');
+          return (
+            <div key={t.id} style={{ background: P.c2, borderRadius: 14, padding: '12px 14px', opacity: t.closed ? 0.7 : 1 }}>
+              <div onClick={() => { setOpenId(open ? null : t.id); setItem({ name: '', amt: '' }); }} style={{ cursor: 'pointer' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: P.tx }}>
+                    ✈️ {t.name} {t.closed && <span style={{ fontSize: 10, color: P.sb }}>· terminado</span>}
+                  </span>
+                  <span style={{ fontSize: 10, color: P.sb, whiteSpace: 'nowrap' }}>{fechas} {open ? '▲' : '▼'}</span>
+                </div>
+                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', fontSize: 11, color: P.sb, margin: '6px 0' }}>
+                  {meta > 0 && <span>Presupuesto <b style={{ color: P.tx }}>{fmt(meta, tc)}</b></span>}
+                  <span>Ahorrado <b style={{ color: P.gn }}>{fmt(ahorrado, tc)}</b></span>
+                  <span>Gastado <b style={{ color: P.rd }}>{fmt(gastado, tc)}</b></span>
+                </div>
+                {meta > 0 && (
+                  <>
+                    <Bar pct={Math.min(100, (ahorrado / meta) * 100)} color={P.gn} h={5} />
+                    <div style={{ height: 4 }} />
+                    <Bar pct={Math.min(100, (gastado / meta) * 100)} color={gastado > meta ? P.rd : P.am} h={5} />
+                  </>
+                )}
+              </div>
+
+              {open && (
+                <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button type="button" onClick={() => onAdd && onAdd('gasto', baseGasto(t))} style={{ ...btnS(P.rd, '#fff'), flex: 1 }}>+ Gasto del viaje</button>
+                    <button type="button" onClick={() => onAdd && onAdd('ahorro', { trip: t.id, cat: 'Reserva', sub: 'Meta', desc: 'Viaje ' + t.name, cur: tc })} style={{ ...btnS(P.gn, '#fff'), flex: 1 }}>+ Ahorrar para el viaje</button>
+                  </div>
+                  {meta > 0 && ahorrado < meta && (
+                    <div style={{ fontSize: 11, color: P.sb }}>Te falta ahorrar <b style={{ color: P.tx }}>{fmt(meta - ahorrado, tc)}</b>.</div>
+                  )}
+
+                  {/* Anotador */}
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 6 }}>
+                      <Lbl>📝 Anotador</Lbl>
+                      {plan.length > 0 && <span style={{ fontSize: 10, color: P.sb }}>Planeado {fmt(planeado, tc)} · falta pagar {fmt(faltaPagar, tc)}</span>}
+                    </div>
+                    {plan.map((p) => {
+                      const paid = paidOf(p);
+                      return (
+                        <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 0', borderTop: `1px solid ${P.bd}` }}>
+                          <span style={{ flex: 1, fontSize: 13, color: P.tx, textDecoration: paid ? 'line-through' : 'none' }}>{paid ? '✅ ' : ''}{p.name}</span>
+                          <span style={{ fontSize: 12, color: P.sb }}>{fmt(paid || p.amt || 0, tc)}</span>
+                          {!paid && (
+                            <button type="button" onClick={() => onAdd && onAdd('gasto', { ...baseGasto(t), planItem: p.id, desc: p.name, amt: p.amt || undefined })} style={{ ...btnS(P.cd, P.ac), border: `1px solid ${P.bd}`, padding: '5px 8px', fontSize: 11 }}>Ya lo pagué</button>
+                          )}
+                          <span onClick={() => upd(t.id, { plan: plan.filter((x) => x.id !== p.id) })} style={{ color: P.sb, cursor: 'pointer', fontSize: 14 }}>×</span>
+                        </div>
+                      );
+                    })}
+                    <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                      <input placeholder="Ej: Pasajes" value={item.name} onChange={(e) => setItem({ ...item, name: e.target.value })} style={{ ...iS, flex: 2 }} />
+                      <input inputMode="decimal" placeholder="$" value={item.amt} onChange={(e) => setItem({ ...item, amt: e.target.value })} style={{ ...iS, flex: 1 }} />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!item.name.trim()) return;
+                          upd(t.id, { plan: [...plan, { id: newId(), name: item.name.trim(), amt: num(item.amt) }] });
+                          setItem({ name: '', amt: '' });
+                        }}
+                        style={btnS(P.ac, '#fff')}
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Gastos del viaje */}
+                  {gastos.length > 0 && (
+                    <div>
+                      <Lbl>💸 Gastos del viaje</Lbl>
+                      {Object.keys(byWho).length > 1 && (
+                        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', fontSize: 11, color: P.sb, margin: '4px 0 6px' }}>
+                          {Object.entries(byWho).map(([w, a]) => (
+                            <span key={w}>👤 {w.split(' ')[0]}: <b style={{ color: P.tx }}>{fmt(a, tc)}</b></span>
+                          ))}
+                        </div>
+                      )}
+                      {gastos.map((x) => (
+                        <div key={x.id} onClick={() => onEdit && onEdit(x)} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, padding: '7px 0', borderTop: `1px solid ${P.bd}`, cursor: onEdit ? 'pointer' : 'default' }}>
+                          <span style={{ fontSize: 12, color: P.tx, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {x.desc || x.sub || x.cat}
+                            <span style={{ color: P.sb, fontSize: 10 }}> · {String(x.date).slice(8, 10)}/{String(x.date).slice(5, 7)}{x.member ? ` · ${x.member.split(' ')[0]}` : ''}</span>
+                          </span>
+                          <span style={{ fontSize: 12, fontWeight: 600, color: P.rd, whiteSpace: 'nowrap' }}>
+                            {x.fxAmt ? <span style={{ color: P.sb, fontWeight: 400, fontSize: 10 }}>{x.fxCur} {Number(x.fxAmt).toLocaleString('es-AR')} · </span> : null}
+                            {fmt(x.amt, tc)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Ajustes del viaje */}
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', borderTop: `1px solid ${P.bd}`, paddingTop: 10 }}>
+                    {t.fxCur && (
+                      <span style={{ fontSize: 11, color: P.sb, display: 'flex', alignItems: 'center', gap: 4 }}>
+                        1 {t.fxCur} =
+                        <input
+                          inputMode="decimal"
+                          defaultValue={t.fxRate || ''}
+                          onBlur={(e) => {
+                            const r = num(e.target.value);
+                            if (r && r !== t.fxRate) upd(t.id, { fxRate: r });
+                          }}
+                          style={{ ...iS, width: 80, padding: '5px 8px' }}
+                        />
+                        {curName}
+                      </span>
+                    )}
+                    <span style={{ flex: 1 }} />
+                    <span onClick={() => upd(t.id, { closed: !t.closed })} style={{ fontSize: 11, color: P.ac, cursor: 'pointer', fontWeight: 600 }}>
+                      {t.closed ? 'Reabrir' : 'Terminar viaje'}
+                    </span>
+                    {confirmDel === t.id ? (
+                      <span style={{ fontSize: 11 }}>
+                        <span onClick={() => { saveTrips(trips.filter((x) => x.id !== t.id)); setConfirmDel(null); }} style={{ color: P.rd, cursor: 'pointer', fontWeight: 700 }}>Sí, borrar</span>
+                        {' · '}
+                        <span onClick={() => setConfirmDel(null)} style={{ color: P.sb, cursor: 'pointer' }}>No</span>
+                      </span>
+                    ) : (
+                      <span onClick={() => setConfirmDel(t.id)} style={{ fontSize: 11, color: P.rd, cursor: 'pointer' }}>Borrar</span>
+                    )}
+                  </div>
+                  {confirmDel === t.id && (
+                    <div style={{ fontSize: 10, color: P.sb }}>Se borra el viaje y el anotador. Los gastos y ahorros ya cargados quedan como movimientos normales.</div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </Box>
   );
 }
 
@@ -7052,6 +7329,7 @@ function TxModal({
   onAddClient,
   onAddSub,
   allTx = [],
+  tripsAll = {},
 }) {
   const [type, setType] = useState(initial?.type || 'gasto');
   const cats = getCats(type, customCats);
@@ -7080,6 +7358,10 @@ function TxModal({
   const [efundAmt, setEfundAmt] = useState(
     initial?.efundAmt != null ? String(initial.efundAmt) : ''
   );
+  // Viaje (Metas > Viajes) y monto en moneda del viaje
+  const [tripId, setTripId] = useState(initial?.trip || '');
+  const [fxAmt, setFxAmt] = useState(initial?.fxAmt != null ? String(initial.fxAmt) : '');
+  const [fxRate, setFxRate] = useState(initial?.fxRate != null ? String(initial.fxRate) : '');
   // Gasto pagado con ahorros: '' | 'general' | 'efund'
   const [fromSav, setFromSav] = useState(initial?.fromSav || '');
   const [newClient, setNewClient] = useState('');
@@ -7111,6 +7393,26 @@ function TxModal({
     : 'personal';
   const [scope, setScope] = useState(initScope);
   const [member, setMember] = useState(initial?.member || userName || '');
+  const tripList = (tripsAll[scope] || []).filter((t) => !t.closed || t.id === initial?.trip);
+  const trip = tripList.find((t) => t.id === tripId);
+  const numFx = (v) => Number(String(v || '').replace(',', '.')) || 0;
+  const rateNum = numFx(fxRate) || (trip && trip.fxRate) || 0;
+  const recalcFx = (a, r) => {
+    const v = numFx(a) * (numFx(r) || (trip && trip.fxRate) || 0);
+    if (v > 0) setAmt(String(Math.round(v)));
+  };
+  const pickTrip = (t) => {
+    setTripId(t ? t.id : '');
+    if (!t) return;
+    if (t.cur) setCurSel(t.cur);
+    if (type === 'ahorro') {
+      setCat('Reserva');
+      setSub('Meta');
+    } else {
+      setCat('Entretenimiento');
+      setSub('Vacaciones');
+    }
+  };
   // Saldo disponible de cada bolsillo para quien carga el gasto, en el espacio elegido
   const savAvail = useMemo(() => {
     if (type !== 'gasto') return { general: 0, efund: 0 };
@@ -7508,6 +7810,38 @@ function TxModal({
                 )}
               </div>
             )}
+            {(isG || isSav) && tripList.length > 0 && (
+              <div style={{ borderTop: `1px solid ${P.bd}`, padding: '12px 0' }}>
+                <span style={{ fontSize: 14, fontWeight: 600, color: P.tx }}>✈️ {isSav ? '¿Es para un viaje?' : '¿Es de un viaje?'}</span>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+                  {[null, ...tripList].map((t) => {
+                    const on = t ? tripId === t.id : !tripId;
+                    return (
+                      <button key={t ? t.id : 'no'} type="button" onClick={() => pickTrip(t)} style={{ background: on ? P.ac : P.cd, border: `1px solid ${on ? P.ac : P.bd}`, color: on ? '#fff' : P.tx, padding: '6px 12px', borderRadius: 10, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+                        {t ? t.name : 'No'}
+                      </button>
+                    );
+                  })}
+                </div>
+                {isG && trip && trip.fxCur && (
+                  <div style={{ display: 'flex', gap: 8, marginTop: 10, alignItems: 'flex-end' }}>
+                    <div style={{ flex: 1 }}>
+                      <Lbl>Monto en {trip.fxCur}</Lbl>
+                      <input inputMode="decimal" value={fxAmt} onChange={(e) => { setFxAmt(e.target.value); recalcFx(e.target.value, fxRate); }} placeholder="0" style={{ ...iS, background: P.cd, marginTop: 4 }} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <Lbl>1 {trip.fxCur} =</Lbl>
+                      <input inputMode="decimal" value={fxRate} onChange={(e) => { setFxRate(e.target.value); recalcFx(fxAmt, e.target.value); }} placeholder={String(trip.fxRate || '')} style={{ ...iS, background: P.cd, marginTop: 4 }} />
+                    </div>
+                  </div>
+                )}
+                {isG && trip && trip.fxCur && numFx(fxAmt) > 0 && (
+                  <div style={{ fontSize: 10, color: P.sb, marginTop: 4 }}>
+                    {trip.fxCur} {numFx(fxAmt).toLocaleString('es-AR')} × {rateNum.toLocaleString('es-AR')} = {fmt(numFx(fxAmt) * rateNum, curSel)} (se carga en el monto)
+                  </div>
+                )}
+              </div>
+            )}
             {isG && (
               <div style={{ borderTop: `1px solid ${P.bd}`, padding: '12px 0' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -7708,6 +8042,12 @@ function TxModal({
                         ? Number(cardDue)
                         : undefined,
                     susc: isG && recurring && susc ? true : undefined,
+                    // Viaje: null (no undefined) para que al editar se borre si se sacó
+                    trip: tripId || (initial?.trip ? null : undefined),
+                    planItem: tripId && initial?.planItem ? initial.planItem : initial?.planItem ? null : undefined,
+                    fxAmt: isG && trip?.fxCur && numFx(fxAmt) ? numFx(fxAmt) : initial?.fxAmt ? null : undefined,
+                    fxCur: isG && trip?.fxCur && numFx(fxAmt) ? trip.fxCur : initial?.fxCur ? null : undefined,
+                    fxRate: isG && trip?.fxCur && numFx(fxAmt) ? rateNum : initial?.fxRate ? null : undefined,
                     // null (no undefined) para que al editar se borre si se destildó
                     fromSav: isG && fromSav ? fromSav : initial?.fromSav ? null : undefined,
                     efund: isSav && efundFlag ? true : undefined,

@@ -1872,18 +1872,56 @@ function MainApp({ user, onLogout }) {
   }, [settings.customCats, myGroups]);
   // Guarda las categorías nuevas en el espacio que se está viendo (personal
   // o el grupo compartido), para que el resto del grupo también las vea
+  // Se guardan SIEMPRE en el usuario y en todos sus grupos (cree quien las
+  // cree y desde el espacio que sea), así las ven todas las personas del grupo.
+  // updateDoc de un solo campo, para no pisar nada más.
   const saveCustomCats = async (cc) => {
-    if (viewScope !== 'personal') {
-      try {
-        await updateDoc(doc(db, 'groups', viewScope), { customCats: cc });
-      } catch (e) {
-        console.error('saveCustomCats (grupo) error:', e);
-        notify('No pudimos guardar las categorías del grupo.', 'error');
-      }
-    } else {
-      saveSettings({ customCats: cc });
+    setSettings((s) => ({ ...s, customCats: cc }));
+    try {
+      await Promise.all([
+        updateDoc(doc(db, 'users', user.uid), { customCats: cc }),
+        ...myGroups.map((g) => updateDoc(doc(db, 'groups', g.id), { customCats: cc })),
+      ]);
+    } catch (e) {
+      console.error('saveCustomCats error:', e);
+      notify('No pudimos guardar las categorías.', 'error');
     }
   };
+  // Una vez por sesión: si alguien tenía categorías creadas solo en su cuenta
+  // personal, sumarlas a los grupos (unión; solo escribe si falta algo).
+  const catsSynced = useRef(false);
+  useEffect(() => {
+    if (catsSynced.current || !settingsLoaded || !user || !myGroups.length) return;
+    catsSynced.current = true;
+    const own = settings.customCats || {};
+    myGroups.forEach((g) => {
+      const gc = JSON.parse(JSON.stringify(g.customCats || {}));
+      let changed = false;
+      Object.entries(own).forEach(([type, list]) => {
+        if (!gc[type]) gc[type] = [];
+        (list || []).forEach((cc) => {
+          if (!cc || !cc.n) return;
+          const ex = gc[type].find((c) => c.n === cc.n);
+          if (!ex) {
+            gc[type].push({ ...cc, s: [...(cc.s || [])] });
+            changed = true;
+          } else {
+            (cc.s || []).forEach((sub) => {
+              if (sub && !(ex.s || []).includes(sub)) {
+                ex.s = [...(ex.s || []), sub];
+                changed = true;
+              }
+            });
+          }
+        });
+      });
+      if (changed) {
+        updateDoc(doc(db, 'groups', g.id), { customCats: gc }).catch((e) =>
+          console.error('sync customCats grupo error:', e)
+        );
+      }
+    });
+  }, [settingsLoaded, user, myGroups, settings.customCats]);
 
   // Viajes (Metas > Viajes): viven en el doc del grupo o del usuario, campo "trips".
   // Se guardan con updateDoc de ese único campo para no pisar el resto.
@@ -1916,10 +1954,8 @@ function MainApp({ user, onLogout }) {
   // Agrega una subcategoría a una categoría (base o personalizada) y la guarda
   // en el espacio que se está viendo, para que la vea todo el grupo
   const addSubcategory = (type, catName, sub) => {
-    const own = viewScope === 'personal'
-      ? settings.customCats || {}
-      : myGroups.find((g) => g.id === viewScope)?.customCats || {};
-    const cc = JSON.parse(JSON.stringify(own));
+    // Partir de TODAS las categorías (propias + grupos) para no perder ninguna
+    const cc = JSON.parse(JSON.stringify(mergedCustomCats));
     if (!cc[type]) cc[type] = [];
     let entry = cc[type].find((c) => c.n === catName);
     if (!entry) {

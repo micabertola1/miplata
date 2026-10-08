@@ -5827,8 +5827,15 @@ function HomeTab({
           />
         ) : (
           <>
-            {[...mtx]
-              .sort((a, b) => new Date(b.date) - new Date(a.date))
+            {/* Lo último CARGADO (createdAt), no lo de fecha más alta: si no, una
+                cuota o un gasto con fecha a futuro queda siempre arriba */}
+            {activeTx
+              .filter((t) => t.cur === cur)
+              .sort((a, b) =>
+                String(b.createdAt || '') !== String(a.createdAt || '')
+                  ? String(b.createdAt || '').localeCompare(String(a.createdAt || ''))
+                  : String(b.date || '').localeCompare(String(a.date || ''))
+              )
               .slice(0, 3)
               .map((t) => (
                 <TxRow

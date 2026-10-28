@@ -7286,40 +7286,113 @@ const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2
 function TripsBox({ trips = [], saveTrips, scopeTx = [], cur, onAdd, onEdit }) {
   const [showNew, setShowNew] = useState(false);
   const [openId, setOpenId] = useState(null);
-  const [nf, setNf] = useState({ name: '', start: '', end: '', budget: '', fxCur: cur, fxRate: '' });
+  const emptyForm = { name: '', start: '', end: '', budget: '', fxCur: cur, fxRate: '' };
+  const [nf, setNf] = useState(emptyForm);
+  // Edición del viaje (nombre, fechas, presupuesto, moneda)
+  const [editId, setEditId] = useState(null);
+  const [ef, setEf] = useState(emptyForm);
   const [item, setItem] = useState({ name: '', amt: '' });
+  // Edición / borrado de ítems del anotador
+  const [editItem, setEditItem] = useState(null);
+  const [confirmItem, setConfirmItem] = useState(null);
   const [confirmDel, setConfirmDel] = useState(null);
+  const [closingId, setClosingId] = useState(null);
+  const [usdVenta, setUsdVenta] = useState(0);
+  useEffect(() => {
+    fetch('https://api.bluelytics.com.ar/v2/latest')
+      .then((r) => r.json())
+      .then((d) => setUsdVenta(Math.round(d.oficial?.value_sell) || 0))
+      .catch(() => {});
+  }, []);
   const num = (v) => Number(String(v || '').replace(/\./g, '').replace(',', '.')) || 0;
+  // Cotización: acepta "0.18" o "0,18" (num() tomaría el punto como de miles)
+  const numRate = (v) => (String(v || '').includes(',') ? num(v) : Number(v) || 0);
   const iS = { background: P.cd, border: `1px solid ${P.bd}`, color: P.tx, padding: '9px 11px', borderRadius: 10, fontSize: 13, width: '100%', boxSizing: 'border-box' };
   const btnS = (bg, color) => ({ background: bg, color, border: 'none', borderRadius: 10, padding: '9px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer' });
   const upd = (id, patch) => saveTrips(trips.map((t) => (t.id === id ? { ...t, ...patch } : t)));
-  const curName = cur === 'USD' ? 'US$' : 'pesos';
+  const curName = (c) => (c === 'USD' ? 'US$' : 'pesos');
+
+  // Monto de un movimiento en la moneda del viaje. Los gastos cargados en otra
+  // moneda se convierten (cotización del viaje o dólar oficial); null si no se puede.
+  const inTc = (x, t, tc) => {
+    if (x.cur === tc) return x.amt;
+    if (t.fxCur && x.cur === t.fxCur && t.fxRate) return x.amt * t.fxRate;
+    const usd = usdVenta || 1200;
+    if (x.cur === 'USD' && tc === 'ARS') return x.amt * usd;
+    if (x.cur === 'ARS' && tc === 'USD') return x.amt / usd;
+    return null;
+  };
+
+  const fromForm = (f, base) => {
+    const foreign = f.fxCur !== base;
+    return {
+      name: f.name.trim(),
+      start: f.start || '',
+      end: f.end || '',
+      budget: num(f.budget),
+      fxCur: foreign ? f.fxCur : '',
+      fxRate: foreign ? numRate(f.fxRate) : 0,
+    };
+  };
 
   const create = () => {
     if (!nf.name.trim()) return;
-    const foreign = nf.fxCur !== cur;
-    const t = {
-      id: newId(),
-      name: nf.name.trim(),
-      start: nf.start || '',
-      end: nf.end || '',
-      budget: num(nf.budget),
-      cur,
-      fxCur: foreign ? nf.fxCur : '',
-      fxRate: foreign ? num(nf.fxRate) : 0,
-      plan: [],
-      closed: false,
-    };
+    const t = { id: newId(), ...fromForm(nf, cur), cur, plan: [], closed: false };
     saveTrips([...trips, t]);
-    setNf({ name: '', start: '', end: '', budget: '', fxCur: cur, fxRate: '' });
+    setNf(emptyForm);
     setShowNew(false);
     setOpenId(t.id);
   };
 
+  const startEdit = (t) => {
+    setEditId(t.id);
+    setEf({
+      name: t.name,
+      start: t.start || '',
+      end: t.end || '',
+      budget: t.budget ? String(t.budget) : '',
+      fxCur: t.fxCur || t.cur || cur,
+      fxRate: t.fxRate ? String(t.fxRate).replace('.', ',') : '',
+    });
+  };
+  const saveEdit = (t) => {
+    if (!ef.name.trim()) return;
+    upd(t.id, fromForm(ef, t.cur || cur));
+    setEditId(null);
+  };
+
+  // Formulario de viaje (crear y editar)
+  const tripForm = (f, setF, base, label, onSave, onCancel) => (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, background: P.c2, borderRadius: 12, padding: 12, marginBottom: 12 }}>
+      <input placeholder="Nombre (ej: Vacaciones Brasil)" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} style={iS} />
+      <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ flex: 1 }}><Lbl>Desde</Lbl><input type="date" value={f.start} onChange={(e) => setF({ ...f, start: e.target.value })} style={iS} /></div>
+        <div style={{ flex: 1 }}><Lbl>Hasta</Lbl><input type="date" value={f.end} onChange={(e) => setF({ ...f, end: e.target.value })} style={iS} /></div>
+      </div>
+      <input inputMode="decimal" placeholder={`Presupuesto total en ${curName(base)} (opcional)`} value={f.budget} onChange={(e) => setF({ ...f, budget: e.target.value })} style={iS} />
+      <div>
+        <Lbl>¿En qué moneda vas a gastar allá?</Lbl>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
+          {TRIP_CURS.map((c) => (
+            <button key={c} type="button" onClick={() => setF({ ...f, fxCur: c })} style={{ ...btnS(f.fxCur === c ? P.ac : P.cd, f.fxCur === c ? '#fff' : P.tx), border: `1px solid ${f.fxCur === c ? P.ac : P.bd}`, padding: '6px 10px' }}>
+              {c}
+            </button>
+          ))}
+        </div>
+      </div>
+      {f.fxCur !== base && (
+        <input inputMode="decimal" placeholder={`Cotización: 1 ${f.fxCur} = ¿cuántos ${curName(base)}?`} value={f.fxRate} onChange={(e) => setF({ ...f, fxRate: e.target.value })} style={iS} />
+      )}
+      <div style={{ display: 'flex', gap: 8 }}>
+        {onCancel && <button type="button" onClick={onCancel} style={{ ...btnS(P.cd, P.tx), border: `1px solid ${P.bd}`, flex: 1 }}>Cancelar</button>}
+        <button type="button" onClick={onSave} style={{ ...btnS(P.ac, '#fff'), flex: 2 }}>{label}</button>
+      </div>
+    </div>
+  );
+
   const sorted = [...trips].sort((a, b) =>
     a.closed === b.closed ? String(a.start).localeCompare(String(b.start)) : a.closed ? 1 : -1
   );
-  const baseGasto = (t) => ({ trip: t.id, cat: 'Entretenimiento', sub: 'Vacaciones', cur: t.cur || cur });
 
   return (
     <Box>
@@ -7333,30 +7406,7 @@ function TripsBox({ trips = [], saveTrips, scopeTx = [], cur, onAdd, onEdit }) {
         Anotá lo que pensás gastar, juntá plata para el viaje y cargá los gastos en la moneda del lugar.
       </div>
 
-      {showNew && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, background: P.c2, borderRadius: 12, padding: 12, marginBottom: 12 }}>
-          <input placeholder="Nombre (ej: Vacaciones Brasil)" value={nf.name} onChange={(e) => setNf({ ...nf, name: e.target.value })} style={iS} />
-          <div style={{ display: 'flex', gap: 8 }}>
-            <div style={{ flex: 1 }}><Lbl>Desde</Lbl><input type="date" value={nf.start} onChange={(e) => setNf({ ...nf, start: e.target.value })} style={iS} /></div>
-            <div style={{ flex: 1 }}><Lbl>Hasta</Lbl><input type="date" value={nf.end} onChange={(e) => setNf({ ...nf, end: e.target.value })} style={iS} /></div>
-          </div>
-          <input inputMode="decimal" placeholder={`Presupuesto total en ${curName} (opcional)`} value={nf.budget} onChange={(e) => setNf({ ...nf, budget: e.target.value })} style={iS} />
-          <div>
-            <Lbl>¿En qué moneda vas a gastar allá?</Lbl>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
-              {TRIP_CURS.map((c) => (
-                <button key={c} type="button" onClick={() => setNf({ ...nf, fxCur: c })} style={{ ...btnS(nf.fxCur === c ? P.ac : P.cd, nf.fxCur === c ? '#fff' : P.tx), border: `1px solid ${nf.fxCur === c ? P.ac : P.bd}`, padding: '6px 10px' }}>
-                  {c}
-                </button>
-              ))}
-            </div>
-          </div>
-          {nf.fxCur !== cur && (
-            <input inputMode="decimal" placeholder={`Cotización: 1 ${nf.fxCur} = ¿cuántos ${curName}?`} value={nf.fxRate} onChange={(e) => setNf({ ...nf, fxRate: e.target.value })} style={iS} />
-          )}
-          <button type="button" onClick={create} style={btnS(P.ac, '#fff')}>Crear viaje</button>
-        </div>
-      )}
+      {showNew && tripForm(nf, setNf, cur, 'Crear viaje', create)}
 
       {!sorted.length && !showNew && (
         <div style={{ fontSize: 12, color: P.sb }}>Todavía no hay viajes. Tocá "+ Nuevo viaje".</div>
@@ -7365,25 +7415,79 @@ function TripsBox({ trips = [], saveTrips, scopeTx = [], cur, onAdd, onEdit }) {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {sorted.map((t) => {
           const tc = t.cur || cur;
-          const txT = scopeTx.filter((x) => x.trip === t.id && x.cur === tc && !x.pending);
+          const txT = scopeTx
+            .filter((x) => x.trip === t.id && !x.pending)
+            .map((x) => ({ ...x, v: inTc(x, t, tc) }));
           const gastos = txT.filter((x) => x.type === 'gasto').sort((a, b) => String(b.date).localeCompare(String(a.date)));
-          const gastado = gastos.reduce((s, x) => s + x.amt, 0);
-          const ahorrado = txT.filter((x) => x.type === 'ahorro').reduce((s, x) => s + x.amt, 0);
+          const ahorros = txT.filter((x) => x.type === 'ahorro');
+          const sinConvertir = txT.filter((x) => x.v == null);
+          const sum = (arr) => arr.reduce((s, x) => s + (x.v || 0), 0);
+          const gastado = sum(gastos);
+          const ahorrado = sum(ahorros);
+          // Lo que se pagó con ahorros y lo que sobra del ahorro del viaje
+          const usadoAhorro = sum(gastos.filter((x) => x.fromSav));
+          const sobra = ahorrado - usadoAhorro;
           const plan = t.plan || [];
           const planeado = plan.reduce((s, p) => s + (p.amt || 0), 0);
           const meta = t.budget || planeado;
-          const paidOf = (p) => gastos.filter((x) => x.planItem === p.id).reduce((s, x) => s + x.amt, 0);
-          const faltaPagar = plan.filter((p) => !paidOf(p)).reduce((s, p) => s + (p.amt || 0), 0);
+          const paidOf = (p) => sum(gastos.filter((x) => x.planItem === p.id));
+          const isDone = (p, paid) => paid > 0 && (!p.amt || paid >= p.amt - 0.5);
+          const faltaPagar = plan.reduce((s, p) => s + Math.max(0, (p.amt || 0) - paidOf(p)), 0);
+          const who = (x) => x.member || x.createdByName || 'Vos';
           const byWho = {};
-          gastos.forEach((x) => {
-            const w = x.member || x.createdByName || 'Vos';
-            byWho[w] = (byWho[w] || 0) + x.amt;
-          });
+          gastos.forEach((x) => (byWho[who(x)] = (byWho[who(x)] || 0) + (x.v || 0)));
+          // Sobrante del ahorro del viaje por persona (los ahorros son de cada uno)
+          const sobraWho = {};
+          ahorros.forEach((x) => (sobraWho[who(x)] = (sobraWho[who(x)] || 0) + (x.v || 0)));
+          gastos.filter((x) => x.fromSav).forEach((x) => (sobraWho[who(x)] = (sobraWho[who(x)] || 0) - (x.v || 0)));
+          // Si queda ahorro del viaje, los gastos nuevos se precargan como pagados con ahorro
+          const baseGasto = () => ({ trip: t.id, cat: 'Entretenimiento', sub: 'Vacaciones', cur: tc, ...(sobra > 0 ? { fromSav: 'general' } : {}) });
           const open = openId === t.id;
           const fechas = [t.start, t.end].filter(Boolean).map((d) => d.split('-').reverse().slice(0, 2).join('/')).join(' → ');
+
+          const resumen = (
+            <div style={{ background: P.cd, border: `1px solid ${P.bd}`, borderRadius: 12, padding: 12, fontSize: 12, color: P.tx, display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <b>🧾 Resumen del viaje</b>
+              {meta > 0 && (
+                <span>
+                  Presupuesto {fmt(meta, tc)} · gastaste {fmt(gastado, tc)}{' '}
+                  <b style={{ color: gastado > meta ? P.rd : P.gn }}>
+                    ({gastado > meta ? `te pasaste ${fmt(gastado - meta, tc)}` : `te sobró ${fmt(meta - gastado, tc)}`})
+                  </b>
+                </span>
+              )}
+              {ahorrado > 0 && (
+                <>
+                  <span>Ahorraste {fmt(ahorrado, tc)} para el viaje y usaste {fmt(usadoAhorro, tc)} de ese ahorro.</span>
+                  {sobra > 0 ? (
+                    <span>
+                      Sobraron <b style={{ color: P.gn }}>{fmt(sobra, tc)}</b>: siguen en tu ahorro general, disponibles para otra meta o para pagar otro gasto.
+                    </span>
+                  ) : sobra < 0 ? (
+                    <span>Usaste <b style={{ color: P.rd }}>{fmt(-sobra, tc)}</b> de ahorro más de lo que juntaste para el viaje.</span>
+                  ) : (
+                    <span>Usaste justo lo que ahorraste. 👌</span>
+                  )}
+                  {Object.keys(sobraWho).length > 1 && (
+                    <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', fontSize: 11, color: P.sb }}>
+                      {Object.entries(sobraWho).map(([w, a]) => (
+                        <span key={w}>👤 {w.split(' ')[0]}: <b style={{ color: a < 0 ? P.rd : P.tx }}>{fmt(a, tc)}</b></span>
+                      ))}
+                    </div>
+                  )}
+                  {sobra > 0 && usadoAhorro < gastado && (
+                    <span style={{ fontSize: 11, color: P.sb }}>
+                      Algunos gastos del viaje no se marcaron como pagados con ahorro y bajaron el balance del mes. Si querés, abrilos y activá "¿Lo pagás con ahorros?".
+                    </span>
+                  )}
+                </>
+              )}
+            </div>
+          );
+
           return (
             <div key={t.id} style={{ background: P.c2, borderRadius: 14, padding: '12px 14px', opacity: t.closed ? 0.7 : 1 }}>
-              <div onClick={() => { setOpenId(open ? null : t.id); setItem({ name: '', amt: '' }); }} style={{ cursor: 'pointer' }}>
+              <div onClick={() => { setOpenId(open ? null : t.id); setItem({ name: '', amt: '' }); setEditItem(null); setConfirmItem(null); setEditId(null); setClosingId(null); }} style={{ cursor: 'pointer' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
                   <span style={{ fontSize: 14, fontWeight: 700, color: P.tx }}>
                     ✈️ {t.name} {t.closed && <span style={{ fontSize: 10, color: P.sb }}>· terminado</span>}
@@ -7394,6 +7498,7 @@ function TripsBox({ trips = [], saveTrips, scopeTx = [], cur, onAdd, onEdit }) {
                   {meta > 0 && <span>Presupuesto <b style={{ color: P.tx }}>{fmt(meta, tc)}</b></span>}
                   <span>Ahorrado <b style={{ color: P.gn }}>{fmt(ahorrado, tc)}</b></span>
                   <span>Gastado <b style={{ color: P.rd }}>{fmt(gastado, tc)}</b></span>
+                  {t.closed && sobra > 0 && <span>Sobró <b style={{ color: P.gn }}>{fmt(sobra, tc)}</b></span>}
                 </div>
                 {meta > 0 && (
                   <>
@@ -7406,11 +7511,14 @@ function TripsBox({ trips = [], saveTrips, scopeTx = [], cur, onAdd, onEdit }) {
 
               {open && (
                 <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button type="button" onClick={() => onAdd && onAdd('gasto', baseGasto(t))} style={{ ...btnS(P.rd, '#fff'), flex: 1 }}>+ Gasto del viaje</button>
-                    <button type="button" onClick={() => onAdd && onAdd('ahorro', { trip: t.id, cat: 'Reserva', sub: 'Meta', desc: 'Viaje ' + t.name, cur: tc })} style={{ ...btnS(P.gn, '#fff'), flex: 1 }}>+ Ahorrar para el viaje</button>
-                  </div>
-                  {meta > 0 && ahorrado < meta && (
+                  {t.closed && resumen}
+                  {!t.closed && (
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button type="button" onClick={() => onAdd && onAdd('gasto', baseGasto())} style={{ ...btnS(P.rd, '#fff'), flex: 1 }}>+ Gasto del viaje</button>
+                      <button type="button" onClick={() => onAdd && onAdd('ahorro', { trip: t.id, cat: 'Reserva', sub: 'Meta', desc: 'Viaje ' + t.name, cur: tc })} style={{ ...btnS(P.gn, '#fff'), flex: 1 }}>+ Ahorrar para el viaje</button>
+                    </div>
+                  )}
+                  {!t.closed && meta > 0 && ahorrado < meta && (
                     <div style={{ fontSize: 11, color: P.sb }}>Te falta ahorrar <b style={{ color: P.tx }}>{fmt(meta - ahorrado, tc)}</b>.</div>
                   )}
 
@@ -7422,32 +7530,85 @@ function TripsBox({ trips = [], saveTrips, scopeTx = [], cur, onAdd, onEdit }) {
                     </div>
                     {plan.map((p) => {
                       const paid = paidOf(p);
+                      const done = isDone(p, paid);
+                      if (editItem && editItem.id === p.id) {
+                        const saveItem = () => {
+                          if (!editItem.name.trim()) return;
+                          upd(t.id, { plan: plan.map((x) => (x.id === p.id ? { ...x, name: editItem.name.trim(), amt: num(editItem.amt) } : x)) });
+                          setEditItem(null);
+                        };
+                        return (
+                          <div key={p.id} style={{ display: 'flex', gap: 6, padding: '7px 0', borderTop: `1px solid ${P.bd}` }}>
+                            <input value={editItem.name} onChange={(e) => setEditItem({ ...editItem, name: e.target.value })} style={{ ...iS, flex: 2 }} />
+                            <input inputMode="decimal" value={editItem.amt} onChange={(e) => setEditItem({ ...editItem, amt: e.target.value })} style={{ ...iS, flex: 1 }} />
+                            <button type="button" onClick={saveItem} style={btnS(P.ac, '#fff')}>✓</button>
+                            <button type="button" onClick={() => setEditItem(null)} style={{ ...btnS(P.cd, P.sb), border: `1px solid ${P.bd}` }}>×</button>
+                          </div>
+                        );
+                      }
                       return (
-                        <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 0', borderTop: `1px solid ${P.bd}` }}>
-                          <span style={{ flex: 1, fontSize: 13, color: P.tx, textDecoration: paid ? 'line-through' : 'none' }}>{paid ? '✅ ' : ''}{p.name}</span>
-                          <span style={{ fontSize: 12, color: P.sb }}>{fmt(paid || p.amt || 0, tc)}</span>
-                          {!paid && (
-                            <button type="button" onClick={() => onAdd && onAdd('gasto', { ...baseGasto(t), planItem: p.id, desc: p.name, amt: p.amt || undefined })} style={{ ...btnS(P.cd, P.ac), border: `1px solid ${P.bd}`, padding: '5px 8px', fontSize: 11 }}>Ya lo pagué</button>
+                        <div key={p.id} style={{ padding: '7px 0', borderTop: `1px solid ${P.bd}` }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span
+                              onClick={() => { setEditItem({ id: p.id, name: p.name, amt: p.amt ? String(p.amt) : '' }); setConfirmItem(null); }}
+                              title="Tocá para editar"
+                              style={{ flex: 1, fontSize: 13, color: P.tx, textDecoration: done ? 'line-through' : 'none', cursor: 'pointer' }}
+                            >
+                              {done ? '✅ ' : ''}{p.name} <span style={{ fontSize: 10, color: P.sb }}>✏️</span>
+                            </span>
+                            <span style={{ fontSize: 12, color: P.sb, whiteSpace: 'nowrap' }}>
+                              {done || !paid ? fmt(paid || p.amt || 0, tc) : `${fmt(paid, tc)} de ${fmt(p.amt, tc)}`}
+                            </span>
+                            {!done && !t.closed && (
+                              <button
+                                type="button"
+                                onClick={() => onAdd && onAdd('gasto', { ...baseGasto(), planItem: p.id, desc: p.name, amt: p.amt ? Math.round(Math.max(0, p.amt - paid)) || undefined : undefined })}
+                                style={{ ...btnS(P.cd, P.ac), border: `1px solid ${P.bd}`, padding: '5px 8px', fontSize: 11, whiteSpace: 'nowrap' }}
+                              >
+                                {paid ? 'Pagar resto' : 'Ya lo pagué'}
+                              </button>
+                            )}
+                            <span onClick={() => setConfirmItem(confirmItem === p.id ? null : p.id)} style={{ color: P.sb, cursor: 'pointer', fontSize: 14 }}>×</span>
+                          </div>
+                          {!done && paid > 0 && (
+                            <div style={{ fontSize: 10, color: P.sb, marginTop: 2 }}>Falta pagar {fmt(Math.max(0, p.amt - paid), tc)}</div>
                           )}
-                          <span onClick={() => upd(t.id, { plan: plan.filter((x) => x.id !== p.id) })} style={{ color: P.sb, cursor: 'pointer', fontSize: 14 }}>×</span>
+                          {confirmItem === p.id && (
+                            <div style={{ fontSize: 11, marginTop: 4 }}>
+                              ¿Borrar "{p.name}" del anotador?{' '}
+                              <span onClick={() => { upd(t.id, { plan: plan.filter((x) => x.id !== p.id) }); setConfirmItem(null); }} style={{ color: P.rd, cursor: 'pointer', fontWeight: 700 }}>Sí, borrar</span>
+                              {' · '}
+                              <span onClick={() => setConfirmItem(null)} style={{ color: P.sb, cursor: 'pointer' }}>No</span>
+                              {paid > 0 && <div style={{ fontSize: 10, color: P.sb }}>Lo que ya pagaste queda como gasto del viaje.</div>}
+                            </div>
+                          )}
                         </div>
                       );
                     })}
-                    <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
-                      <input placeholder="Ej: Pasajes" value={item.name} onChange={(e) => setItem({ ...item, name: e.target.value })} style={{ ...iS, flex: 2 }} />
-                      <input inputMode="decimal" placeholder="$" value={item.amt} onChange={(e) => setItem({ ...item, amt: e.target.value })} style={{ ...iS, flex: 1 }} />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (!item.name.trim()) return;
-                          upd(t.id, { plan: [...plan, { id: newId(), name: item.name.trim(), amt: num(item.amt) }] });
-                          setItem({ name: '', amt: '' });
-                        }}
-                        style={btnS(P.ac, '#fff')}
-                      >
-                        +
-                      </button>
-                    </div>
+                    {!t.closed && (
+                      <>
+                        <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                          <input placeholder="Ej: Pasajes" value={item.name} onChange={(e) => setItem({ ...item, name: e.target.value })} style={{ ...iS, flex: 2 }} />
+                          <input inputMode="decimal" placeholder="$" value={item.amt} onChange={(e) => setItem({ ...item, amt: e.target.value })} style={{ ...iS, flex: 1 }} />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!item.name.trim()) return;
+                              upd(t.id, { plan: [...plan, { id: newId(), name: item.name.trim(), amt: num(item.amt) }] });
+                              setItem({ name: '', amt: '' });
+                            }}
+                            style={btnS(P.ac, '#fff')}
+                          >
+                            +
+                          </button>
+                        </div>
+                        {plan.length > 0 && (
+                          <div style={{ fontSize: 10, color: P.sb, marginTop: 4 }}>
+                            Tocá un ítem para editarlo. En "Ya lo pagué" podés poner solo una parte (ej: la seña) y pagar el resto después.
+                          </div>
+                        )}
+                      </>
+                    )}
                   </div>
 
                   {/* Gastos del viaje */}
@@ -7465,48 +7626,68 @@ function TripsBox({ trips = [], saveTrips, scopeTx = [], cur, onAdd, onEdit }) {
                         <div key={x.id} onClick={() => onEdit && onEdit(x)} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, padding: '7px 0', borderTop: `1px solid ${P.bd}`, cursor: onEdit ? 'pointer' : 'default' }}>
                           <span style={{ fontSize: 12, color: P.tx, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {x.desc || x.sub || x.cat}
-                            <span style={{ color: P.sb, fontSize: 10 }}> · {String(x.date).slice(8, 10)}/{String(x.date).slice(5, 7)}{x.member ? ` · ${x.member.split(' ')[0]}` : ''}</span>
+                            <span style={{ color: P.sb, fontSize: 10 }}> · {String(x.date).slice(8, 10)}/{String(x.date).slice(5, 7)}{x.member ? ` · ${x.member.split(' ')[0]}` : ''}{x.fromSav ? ' · 🏦' : ''}</span>
                           </span>
                           <span style={{ fontSize: 12, fontWeight: 600, color: P.rd, whiteSpace: 'nowrap' }}>
                             {x.fxAmt ? <span style={{ color: P.sb, fontWeight: 400, fontSize: 10 }}>{x.fxCur} {Number(x.fxAmt).toLocaleString('es-AR')} · </span> : null}
-                            {fmt(x.amt, tc)}
+                            {x.cur !== tc ? <span style={{ color: P.sb, fontWeight: 400, fontSize: 10 }}>{fmt(x.amt, x.cur)}{x.v != null ? ' ≈ ' : ''}</span> : null}
+                            {x.v != null ? fmt(x.v, tc) : <span style={{ fontSize: 10, color: P.sb }}>(sin cotización)</span>}
                           </span>
                         </div>
                       ))}
+                      {gastos.some((x) => x.cur !== tc && x.v != null) && (
+                        <div style={{ fontSize: 10, color: P.sb, marginTop: 4 }}>
+                          Los gastos en otra moneda se suman convertidos a {curName(tc)} (dólar oficial venta{t.fxCur ? `; ${t.fxCur} con la cotización del viaje` : ''}).
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {sinConvertir.length > 0 && (
+                    <div style={{ fontSize: 10, color: P.am }}>
+                      ⚠️ {sinConvertir.length} movimiento{sinConvertir.length > 1 ? 's' : ''} en otra moneda sin cotización no se suman. Cargá la cotización del viaje en "Editar".
                     </div>
                   )}
 
+                  {/* Cierre del viaje: resumen antes de confirmar */}
+                  {closingId === t.id && !t.closed && (
+                    <>
+                      {resumen}
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button type="button" onClick={() => setClosingId(null)} style={{ ...btnS(P.cd, P.tx), border: `1px solid ${P.bd}`, flex: 1 }}>Todavía no</button>
+                        <button type="button" onClick={() => { upd(t.id, { closed: true }); setClosingId(null); }} style={{ ...btnS(P.ac, '#fff'), flex: 2 }}>Terminar viaje</button>
+                      </div>
+                    </>
+                  )}
+
                   {/* Ajustes del viaje */}
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', borderTop: `1px solid ${P.bd}`, paddingTop: 10 }}>
-                    {t.fxCur && (
-                      <span style={{ fontSize: 11, color: P.sb, display: 'flex', alignItems: 'center', gap: 4 }}>
-                        1 {t.fxCur} =
-                        <input
-                          inputMode="decimal"
-                          defaultValue={t.fxRate || ''}
-                          onBlur={(e) => {
-                            const r = num(e.target.value);
-                            if (r && r !== t.fxRate) upd(t.id, { fxRate: r });
-                          }}
-                          style={{ ...iS, width: 80, padding: '5px 8px' }}
-                        />
-                        {curName}
+                  {editId === t.id ? (
+                    tripForm(ef, setEf, tc, 'Guardar cambios', () => saveEdit(t), () => setEditId(null))
+                  ) : (
+                    <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', borderTop: `1px solid ${P.bd}`, paddingTop: 10 }}>
+                      {t.fxCur && (
+                        <span style={{ fontSize: 11, color: P.sb }}>
+                          1 {t.fxCur} = {Number(t.fxRate || 0).toLocaleString('es-AR')} {curName(tc)}
+                        </span>
+                      )}
+                      <span style={{ flex: 1 }} />
+                      <span onClick={() => { startEdit(t); setClosingId(null); }} style={{ fontSize: 11, color: P.ac, cursor: 'pointer', fontWeight: 600 }}>Editar</span>
+                      <span
+                        onClick={() => (t.closed ? upd(t.id, { closed: false }) : setClosingId(closingId === t.id ? null : t.id))}
+                        style={{ fontSize: 11, color: P.ac, cursor: 'pointer', fontWeight: 600 }}
+                      >
+                        {t.closed ? 'Reabrir' : 'Terminar viaje'}
                       </span>
-                    )}
-                    <span style={{ flex: 1 }} />
-                    <span onClick={() => upd(t.id, { closed: !t.closed })} style={{ fontSize: 11, color: P.ac, cursor: 'pointer', fontWeight: 600 }}>
-                      {t.closed ? 'Reabrir' : 'Terminar viaje'}
-                    </span>
-                    {confirmDel === t.id ? (
-                      <span style={{ fontSize: 11 }}>
-                        <span onClick={() => { saveTrips(trips.filter((x) => x.id !== t.id)); setConfirmDel(null); }} style={{ color: P.rd, cursor: 'pointer', fontWeight: 700 }}>Sí, borrar</span>
-                        {' · '}
-                        <span onClick={() => setConfirmDel(null)} style={{ color: P.sb, cursor: 'pointer' }}>No</span>
-                      </span>
-                    ) : (
-                      <span onClick={() => setConfirmDel(t.id)} style={{ fontSize: 11, color: P.rd, cursor: 'pointer' }}>Borrar</span>
-                    )}
-                  </div>
+                      {confirmDel === t.id ? (
+                        <span style={{ fontSize: 11 }}>
+                          <span onClick={() => { saveTrips(trips.filter((x) => x.id !== t.id)); setConfirmDel(null); }} style={{ color: P.rd, cursor: 'pointer', fontWeight: 700 }}>Sí, borrar</span>
+                          {' · '}
+                          <span onClick={() => setConfirmDel(null)} style={{ color: P.sb, cursor: 'pointer' }}>No</span>
+                        </span>
+                      ) : (
+                        <span onClick={() => setConfirmDel(t.id)} style={{ fontSize: 11, color: P.rd, cursor: 'pointer' }}>Borrar</span>
+                      )}
+                    </div>
+                  )}
                   {confirmDel === t.id && (
                     <div style={{ fontSize: 10, color: P.sb }}>Se borra el viaje y el anotador. Los gastos y ahorros ya cargados quedan como movimientos normales.</div>
                   )}

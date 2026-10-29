@@ -74,6 +74,11 @@ const CATS = {
       s: ['Salidas', 'Salida amigos', 'Salida pareja', 'Streaming', 'Hobbies', 'Vacaciones', 'Otros'],
     },
     {
+      n: 'Viajes',
+      i: '✈️',
+      s: ['Pasajes', 'Alojamiento', 'Traslados', 'Comidas', 'Excursiones', 'Compras', 'Seguro de viaje', 'Otros'],
+    },
+    {
       n: 'Compras',
       i: '🛍️',
       s: ['Ropa', 'Electrónica', 'Hogar', 'Mascotas', 'Otros'],
@@ -143,6 +148,11 @@ function getCats(type, customCats) {
   });
   return base;
 }
+
+// Gastos de viaje (cargados en un viaje o con categoría Viajes): van en su
+// propio apartado y no se mezclan con las categorías de la vida diaria
+const TRIP_CAT = 'Viajes';
+const isTripTx = (t) => !!t.trip || t.cat === TRIP_CAT;
 
 const MO = [
   'Ene',
@@ -2020,12 +2030,25 @@ function MainApp({ user, onLogout }) {
   const byCat = useMemo(() => {
     const m = {};
     mtx
-      .filter((t) => t.type === 'gasto' && !t.pending)
+      .filter((t) => t.type === 'gasto' && !t.pending && !isTripTx(t))
       .forEach((t) => {
         m[t.cat] = (m[t.cat] || 0) + t.amt;
       });
     return Object.entries(m).sort((a, b) => b[1] - a[1]);
   }, [mtx]);
+  // Gastos de viaje del mes, por viaje (apartado propio en el Dashboard)
+  const tripMonth = useMemo(() => {
+    const names = {};
+    (tripsByScope[viewScope] || []).forEach((t) => (names[t.id] = t.name));
+    const m = {};
+    mtx
+      .filter((t) => t.type === 'gasto' && !t.pending && isTripTx(t))
+      .forEach((t) => {
+        const k = (t.trip && names[t.trip]) || 'Otros viajes';
+        m[k] = (m[k] || 0) + t.amt;
+      });
+    return Object.entries(m).sort((a, b) => b[1] - a[1]);
+  }, [mtx, tripsByScope, viewScope]);
   // Saldo arrastrado de meses anteriores (lo que sobró: ingresos - gastos - ahorros)
   const carry = useMemo(() => {
     if (!month) return 0;
@@ -2550,6 +2573,8 @@ function MainApp({ user, onLogout }) {
               totSav={totSav}
               bal={bal}
               byCat={byCat}
+              tripMonth={tripMonth}
+              onGoTrips={() => setTab('goals')}
               mtx={mtx}
               carry={carry}
               budgets={settings.budgets || {}}
@@ -4666,7 +4691,9 @@ function DiariosTab({ mob, cur, activeTx, month, onAdd, onEdit, onExport, custom
     (t) =>
       mk(t.date) === month &&
       !(excludeSpecial && t.type === 'gasto' && t.recurring) &&
-      !(excludeSpecial && t.type === 'gasto' && isSuscOrCuota(t))
+      !(excludeSpecial && t.type === 'gasto' && isSuscOrCuota(t)) &&
+      // Los gastos de viaje no son de la vida diaria (se ven en "Todos" y en Metas > Viajes)
+      !(excludeSpecial && t.type === 'gasto' && isTripTx(t))
   );
   // En "Todos" o al buscar (p. ej. tocando una categoría del Dashboard) sumar
   // también lo que el Dashboard cuenta en este mes: compras con tarjeta
@@ -5266,6 +5293,8 @@ function HomeTab({
   onSeeAll,
   onSeeCats,
   onGoFilter,
+  tripMonth = [],
+  onGoTrips,
 }) {
   const maxC = byCat.length ? byCat[0][1] : 1;
   const isDark = P.bg === P_DARK.bg;
@@ -5364,7 +5393,7 @@ function HomeTab({
   const subsOf = (cat) => {
     const m = {};
     mtx
-      .filter((t) => t.type === 'gasto' && !t.pending && t.cat === cat)
+      .filter((t) => t.type === 'gasto' && !t.pending && t.cat === cat && !isTripTx(t))
       .forEach((t) => {
         const k = t.sub || 'Sin subcategoría';
         m[k] = (m[k] || 0) + t.amt;
@@ -5688,6 +5717,29 @@ function HomeTab({
           </Box>
         );
       })()}
+
+      {/* Viajes: aparte de las categorías de la vida diaria */}
+      {tripMonth.length > 0 && (
+        <Box>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+            <span style={{ fontSize: 15, fontWeight: 700, color: P.tx }}>✈️ Viajes</span>
+            {onGoTrips && (
+              <span onClick={onGoTrips} style={{ fontSize: 12, fontWeight: 600, color: P.ac, cursor: 'pointer' }}>Ver viajes →</span>
+            )}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {tripMonth.map(([name, amt]) => (
+              <div key={name} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: P.tx }}>
+                <span>{name}</span>
+                <b>{fmtS(amt, cur)}</b>
+              </div>
+            ))}
+          </div>
+          <div style={{ fontSize: 10, color: P.sb, marginTop: 8 }}>
+            No se suman a las categorías de arriba. Sí cuentan en el balance, salvo lo que pagaste con ahorros.
+          </div>
+        </Box>
+      )}
 
       {/* ── DIARIOS: gastos del mes agrupados por día ── */}
       {showDiarios && (() => {
@@ -6069,7 +6121,7 @@ function InsightsTab({
   const subsOf = (cat) => {
     const m = {};
     mtx
-      .filter((t) => t.type === 'gasto' && !t.pending && t.cat === cat)
+      .filter((t) => t.type === 'gasto' && !t.pending && t.cat === cat && !isTripTx(t))
       .forEach((t) => {
         const k = t.sub || 'Sin subcategoría';
         m[k] = (m[k] || 0) + t.amt;
@@ -7441,7 +7493,13 @@ function TripsBox({ trips = [], saveTrips, scopeTx = [], cur, onAdd, onEdit }) {
           ahorros.forEach((x) => (sobraWho[who(x)] = (sobraWho[who(x)] || 0) + (x.v || 0)));
           gastos.filter((x) => x.fromSav).forEach((x) => (sobraWho[who(x)] = (sobraWho[who(x)] || 0) - (x.v || 0)));
           // Si queda ahorro del viaje, los gastos nuevos se precargan como pagados con ahorro
-          const baseGasto = () => ({ trip: t.id, cat: 'Entretenimiento', sub: 'Vacaciones', cur: tc, ...(sobra > 0 ? { fromSav: 'general' } : {}) });
+          const baseGasto = () => ({ trip: t.id, cat: TRIP_CAT, sub: '', cur: tc, ...(sobra > 0 ? { fromSav: 'general' } : {}) });
+          // En qué se fue la plata del viaje (Pasajes, Alojamiento, ...)
+          const bySub = {};
+          gastos.forEach((x) => {
+            const k = x.cat === TRIP_CAT ? x.sub || 'Otros' : 'Otros';
+            bySub[k] = (bySub[k] || 0) + (x.v || 0);
+          });
           const open = openId === t.id;
           const fechas = [t.start, t.end].filter(Boolean).map((d) => d.split('-').reverse().slice(0, 2).join('/')).join(' → ');
 
@@ -7615,6 +7673,15 @@ function TripsBox({ trips = [], saveTrips, scopeTx = [], cur, onAdd, onEdit }) {
                   {gastos.length > 0 && (
                     <div>
                       <Lbl>💸 Gastos del viaje</Lbl>
+                      {Object.keys(bySub).length > 1 && (
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', margin: '4px 0 6px' }}>
+                          {Object.entries(bySub).sort((a, b) => b[1] - a[1]).map(([k, a]) => (
+                            <span key={k} style={{ fontSize: 11, color: P.sb, background: P.cd, border: `1px solid ${P.bd}`, borderRadius: 8, padding: '3px 8px' }}>
+                              {k} <b style={{ color: P.tx }}>{fmt(a, tc)}</b>
+                            </span>
+                          ))}
+                        </div>
+                      )}
                       {Object.keys(byWho).length > 1 && (
                         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', fontSize: 11, color: P.sb, margin: '4px 0 6px' }}>
                           {Object.entries(byWho).map(([w, a]) => (
@@ -7729,7 +7796,8 @@ function TxModal({
 }) {
   const [type, setType] = useState(initial?.type || 'gasto');
   const cats = getCats(type, customCats);
-  const [cat, setCat] = useState(initial?.cat || cats[0].n);
+  // Un gasto de viaje siempre va en la categoría Viajes (los viejos estaban en Entretenimiento)
+  const [cat, setCat] = useState(initial?.trip && (initial?.type || 'gasto') === 'gasto' ? TRIP_CAT : initial?.cat || cats[0].n);
   const [sub, setSub] = useState(initial?.sub || '');
   const [amt, setAmt] = useState(initial?.amt?.toString() || '');
   const [showCalc, setShowCalc] = useState(false);
@@ -7799,16 +7867,25 @@ function TxModal({
   };
   const pickTrip = (t) => {
     setTripId(t ? t.id : '');
-    if (!t) return;
+    if (!t) {
+      if (cat === TRIP_CAT) {
+        setCat(cats.find((c) => c.n !== TRIP_CAT).n);
+        setSub('');
+      }
+      return;
+    }
     if (t.cur) setCurSel(t.cur);
     if (type === 'ahorro') {
       setCat('Reserva');
       setSub('Meta');
-    } else {
-      setCat('Entretenimiento');
-      setSub('Vacaciones');
+    } else if (cat !== TRIP_CAT) {
+      setCat(TRIP_CAT);
+      setSub('');
     }
   };
+  // Con un viaje elegido el gasto solo puede ir en Viajes; sin viaje, Viajes no
+  // aparece (salvo que el movimiento ya la tenga, ej: importado)
+  const shownCats = !isG ? cats : tripId ? cats.filter((c) => c.n === TRIP_CAT) : cats.filter((c) => c.n !== TRIP_CAT || cat === TRIP_CAT);
   // Saldo disponible de cada bolsillo para quien carga el gasto, en el espacio elegido
   const savAvail = useMemo(() => {
     if (type !== 'gasto') return { general: 0, efund: 0 };
@@ -7888,8 +7965,10 @@ function TxModal({
               key={id}
               onClick={() => {
                 setType(id);
-                setCat((getCats(id, customCats)[0] || {}).n || '');
-                setSub('');
+                // Si hay un viaje elegido, mantener la categoría que corresponde al viaje
+                setCat(tripId && id === 'gasto' ? TRIP_CAT : tripId && id === 'ahorro' ? 'Reserva' : (getCats(id, customCats)[0] || {}).n || '');
+                setSub(tripId && id === 'ahorro' ? 'Meta' : '');
+                if (id === 'ingreso') setTripId('');
               }}
               style={{
                 background: type === id ? bg : P.cd,
@@ -8016,11 +8095,45 @@ function TxModal({
             )}
           </div>
 
+          {/* Viaje: va antes de la categoría porque la define */}
+          {(isG || isSav) && tripList.length > 0 && (
+            <div style={{ paddingBottom: 4 }}>
+              <span style={{ fontSize: 14, fontWeight: 600, color: P.tx }}>✈️ {isSav ? '¿Es para un viaje?' : '¿Es de un viaje?'}</span>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+                {[null, ...tripList].map((t) => {
+                  const on = t ? tripId === t.id : !tripId;
+                  return (
+                    <button key={t ? t.id : 'no'} type="button" onClick={() => pickTrip(t)} style={{ background: on ? P.ac : P.cd, border: `1px solid ${on ? P.ac : P.bd}`, color: on ? '#fff' : P.tx, padding: '6px 12px', borderRadius: 10, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+                      {t ? t.name : 'No'}
+                    </button>
+                  );
+                })}
+              </div>
+              {isG && trip && trip.fxCur && (
+                <div style={{ display: 'flex', gap: 8, marginTop: 10, alignItems: 'flex-end' }}>
+                  <div style={{ flex: 1 }}>
+                    <Lbl>Monto en {trip.fxCur}</Lbl>
+                    <input inputMode="decimal" value={fxAmt} onChange={(e) => { setFxAmt(e.target.value); recalcFx(e.target.value, fxRate); }} placeholder="0" style={{ ...iS, background: P.cd, marginTop: 4 }} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <Lbl>1 {trip.fxCur} =</Lbl>
+                    <input inputMode="decimal" value={fxRate} onChange={(e) => { setFxRate(e.target.value); recalcFx(fxAmt, e.target.value); }} placeholder={String(trip.fxRate || '')} style={{ ...iS, background: P.cd, marginTop: 4 }} />
+                  </div>
+                </div>
+              )}
+              {isG && trip && trip.fxCur && numFx(fxAmt) > 0 && (
+                <div style={{ fontSize: 10, color: P.sb, marginTop: 4 }}>
+                  {trip.fxCur} {numFx(fxAmt).toLocaleString('es-AR')} × {rateNum.toLocaleString('es-AR')} = {fmt(numFx(fxAmt) * rateNum, curSel)} (se carga en el monto)
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Categoría */}
           <div>
             <Lbl>Categoría</Lbl>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
-              {cats.map((c) => {
+              {shownCats.map((c) => {
                 const { c: iconColor, bg: iconBg } = catRowStyle(c.n);
                 const selected = cat === c.n;
                 return (
@@ -8202,38 +8315,6 @@ function TxModal({
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <input type="number" min="1" max="31" placeholder="Día venc." value={dueDay} onChange={(e) => setDueDay(e.target.value)} style={{ ...iS, background: P.cd, width: 120 }} />
                     <span style={{ fontSize: 11, color: P.sb }}>de cada mes (opcional)</span>
-                  </div>
-                )}
-              </div>
-            )}
-            {(isG || isSav) && tripList.length > 0 && (
-              <div style={{ borderTop: `1px solid ${P.bd}`, padding: '12px 0' }}>
-                <span style={{ fontSize: 14, fontWeight: 600, color: P.tx }}>✈️ {isSav ? '¿Es para un viaje?' : '¿Es de un viaje?'}</span>
-                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
-                  {[null, ...tripList].map((t) => {
-                    const on = t ? tripId === t.id : !tripId;
-                    return (
-                      <button key={t ? t.id : 'no'} type="button" onClick={() => pickTrip(t)} style={{ background: on ? P.ac : P.cd, border: `1px solid ${on ? P.ac : P.bd}`, color: on ? '#fff' : P.tx, padding: '6px 12px', borderRadius: 10, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
-                        {t ? t.name : 'No'}
-                      </button>
-                    );
-                  })}
-                </div>
-                {isG && trip && trip.fxCur && (
-                  <div style={{ display: 'flex', gap: 8, marginTop: 10, alignItems: 'flex-end' }}>
-                    <div style={{ flex: 1 }}>
-                      <Lbl>Monto en {trip.fxCur}</Lbl>
-                      <input inputMode="decimal" value={fxAmt} onChange={(e) => { setFxAmt(e.target.value); recalcFx(e.target.value, fxRate); }} placeholder="0" style={{ ...iS, background: P.cd, marginTop: 4 }} />
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <Lbl>1 {trip.fxCur} =</Lbl>
-                      <input inputMode="decimal" value={fxRate} onChange={(e) => { setFxRate(e.target.value); recalcFx(fxAmt, e.target.value); }} placeholder={String(trip.fxRate || '')} style={{ ...iS, background: P.cd, marginTop: 4 }} />
-                    </div>
-                  </div>
-                )}
-                {isG && trip && trip.fxCur && numFx(fxAmt) > 0 && (
-                  <div style={{ fontSize: 10, color: P.sb, marginTop: 4 }}>
-                    {trip.fxCur} {numFx(fxAmt).toLocaleString('es-AR')} × {rateNum.toLocaleString('es-AR')} = {fmt(numFx(fxAmt) * rateNum, curSel)} (se carga en el monto)
                   </div>
                 )}
               </div>
